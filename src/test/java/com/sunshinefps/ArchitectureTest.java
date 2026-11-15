@@ -16,9 +16,7 @@ import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition;
  *
  * <p>新增模块时，照着现有四条 internal 规则加一条。
  */
-@AnalyzeClasses(
-        packages = "com.sunshinefps",
-        importOptions = ImportOption.DoNotIncludeTests.class)
+@AnalyzeClasses(packages = "com.sunshinefps", importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {
 
     // 一、internal 包对模块外不可见。四条，每个模块一条。
