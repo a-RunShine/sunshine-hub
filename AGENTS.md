@@ -26,6 +26,10 @@
 
 Issues 和 spec 都存在 GitHub Issues 里，用 `gh` CLI 操作。详见 `docs/agents/issue-tracker.md`。
 
+### Pull requests
+
+PR 描述按三段模板写：Summary 给图或树、Evidence 给 before/after、Merge Danger 标单向门还是双向门。详见 `docs/agents/pull-requests.md`。
+
 ### Triage labels
 
 五个 triage 角色用默认标签名，标签字符串与角色名一致。详见 `docs/agents/triage-labels.md`。
