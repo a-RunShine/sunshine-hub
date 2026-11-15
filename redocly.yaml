@@ -1,0 +1,10 @@
+extends:
+  - recommended
+
+rules:
+  # 前端只用 openapi-typescript 生成类型，不生成 client 函数，operationId 没有消费者
+  operation-operationId: off
+  # 内部项目，不对外发布，不需要 license
+  info-license: off
+  # 本地开发服务的地址就是 localhost
+  no-server-example.com: off

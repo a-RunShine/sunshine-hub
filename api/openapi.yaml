@@ -1,0 +1,1565 @@
+openapi: 3.1.0
+info:
+  title: Sunshine-FPS
+  version: 1.0.0
+  description: |
+    虚构 FPS 游戏官方商城的 HTTP 契约。前端从这里生成类型，后端照着它实现，MSW 的 handler 照它造数据。
+
+    错误分两层。HTTP 状态码表达类别，给网关、监控和前端拦截器用：400 参数、401 未登录、403 无权限、404 不存在、409 状态冲突、410 已售罄、429 限流、500 服务端错。响应体的 code 表达具体原因，给前端做分支和文案。
+
+    只用一层不够：光靠状态码分不清「已购买」和「订单已关闭」，都是 409；光靠业务码，网关看不出限流和 5xx。
+
+    时间统一用 ISO 8601 带时区。倒计时相关接口返回 serverTime，前端拿它与本地时间算偏移。
+
+    认证用 SESSION cookie，会话存在 Redis，登出和封号都是一次 DEL。
+servers:
+  - url: http://localhost:8080/api
+    description: 本地开发
+tags:
+  - name: identity
+    description: 注册、登录、实名
+  - name: catalog
+    description: 商品与售卖活动
+  - name: trade
+    description: 抢购、下单、支付、履约、退款
+  - name: content
+    description: 公告与运营活动
+  - name: admin
+    description: 运营管理，需要管理员身份
+security:
+  - session: []
+paths:
+  /auth/register:
+    post:
+      tags: [identity]
+      summary: 注册
+      description: 只要用户名和密码，实名不在这里采集。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 32
+                  pattern: '^[a-zA-Z0-9_]+$'
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 64
+      responses:
+        '201':
+          description: 注册成功并进入登录态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /auth/login:
+    post:
+      tags: [identity]
+      summary: 登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 登录成功，Set-Cookie 下发 SESSION
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/logout:
+    post:
+      tags: [identity]
+      summary: 登出
+      responses:
+        '204':
+          description: 会话已从 Redis 删除
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /me:
+    get:
+      tags: [identity]
+      summary: 当前登录用户
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /me/real-name:
+    put:
+      tags: [identity]
+      summary: 提交实名
+      description: 抢购前必须完成，已生效的实名不可修改。姓名存明文，证件号只存 hash 与后四位。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [realName, idNumber]
+              properties:
+                realName:
+                  type: string
+                  maxLength: 32
+                idNumber:
+                  type: string
+                  pattern: '^\d{17}[\dXx]$'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '409':
+          description: 已实名，不允许覆盖
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /products:
+    get:
+      tags: [catalog]
+      summary: 商品列表
+      security: []
+      parameters:
+        - name: kind
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProductKind'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /products/{productId}:
+    get:
+      tags: [catalog]
+      summary: 商品详情
+      description: 缓存击穿与穿透的防护点。不存在的 ID 返回 404，服务端会缓存空标记。
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /campaigns/upcoming:
+    get:
+      tags: [catalog]
+      summary: 即将开售的场次
+      security: []
+      responses:
+        '200':
+          description: 按开售时间升序
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, serverTime]
+                properties:
+                  serverTime:
+                    type: string
+                    format: date-time
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CampaignSummary'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /campaigns/{campaignId}:
+    get:
+      tags: [catalog]
+      summary: 场次详情
+      description: 含实时剩余份数与服务端时间，供前端校准倒计时。
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /campaigns/{campaignId}/claim:
+    post:
+      tags: [trade]
+      summary: 抢购
+      description: 原子完成扣配额、校验限购、分配编号。未实名 403，售罄 410，已购买或未开售 409。
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '201':
+          description: 抢到了
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: 未实名，需要先调 /me/real-name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 已购买过这件商品，或场次未开售
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410':
+          description: 已售罄
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /campaigns/{campaignId}/reserve:
+    post:
+      tags: [trade]
+      summary: 预约
+      description: 开售前 10 分钟收到站内提醒，不占库存，不影响购买顺序。
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '204':
+          description: 已预约
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [trade]
+      summary: 取消预约
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '204':
+          description: 已取消
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /orders:
+    post:
+      tags: [trade]
+      summary: 直接下单
+      description: 用于常规售卖与限时折扣。抢购走 /campaigns/{id}/claim，不走这里。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [skuId, quantity]
+                    properties:
+                      skuId:
+                        type: integer
+                        format: int64
+                      quantity:
+                        type: integer
+                        minimum: 1
+                addressId:
+                  type: integer
+                  format: int64
+                  description: 含实体商品时必填
+      responses:
+        '201':
+          description: 下单成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: 未实名
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 库存不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /orders/{orderNo}:
+    get:
+      tags: [trade]
+      summary: 订单详情
+      description: secondsLeft 由服务端算好，前端不要自己减。
+      parameters:
+        - $ref: '#/components/parameters/OrderNo'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /orders/{orderNo}/cancel:
+    post:
+      tags: [trade]
+      summary: 取消未支付订单
+      parameters:
+        - $ref: '#/components/parameters/OrderNo'
+      responses:
+        '200':
+          description: 已取消
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '409':
+          description: 订单已支付或已关闭
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /orders/{orderNo}/pay:
+    post:
+      tags: [trade]
+      summary: 发起支付
+      parameters:
+        - $ref: '#/components/parameters/OrderNo'
+      responses:
+        '200':
+          description: 支付会话已创建
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tradeNo, amount, payUrl]
+                properties:
+                  tradeNo:
+                    type: string
+                  amount:
+                    type: integer
+                    format: int64
+                  payUrl:
+                    type: string
+        '409':
+          description: 订单已关闭
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /payment/callback:
+    post:
+      tags: [trade]
+      summary: 支付回调
+      description: 按 tradeNo 幂等，重复回调返回成功但不重复发货。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tradeNo, status]
+              properties:
+                tradeNo:
+                  type: string
+                status:
+                  type: string
+                  enum: [SUCCESS, FAILED]
+                paidAt:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: 已处理
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /fulfillments:
+    get:
+      tags: [trade]
+      summary: 我的履约单
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/FulfillmentStatus'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Fulfillment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /me/items:
+    get:
+      tags: [trade]
+      summary: 我的道具库与藏品
+      description: 虚拟道具与限量藏品都在这里，限量藏品带收藏编号。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OwnedItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /addresses:
+    get:
+      tags: [trade]
+      summary: 收货地址列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Address'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [trade]
+      summary: 新增地址
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressInput'
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /refunds:
+    post:
+      tags: [trade]
+      summary: 申请退款
+      description: 按履约单申请。虚拟履约单不接受申请，返回 409。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fulfillmentId, reason]
+              properties:
+                fulfillmentId:
+                  type: integer
+                  format: int64
+                reason:
+                  type: string
+                  maxLength: 200
+      responses:
+        '201':
+          description: 已提交，等待运营审核
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refund'
+        '409':
+          description: 该履约单不可退，或已有未结的退款单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /refunds/{refundNo}:
+    get:
+      tags: [trade]
+      summary: 退款详情
+      parameters:
+        - name: refundNo
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refund'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /refund/callback:
+    post:
+      tags: [trade]
+      summary: 退款回调
+      description: 按 refundNo 幂等，与支付回调对称。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refundNo, status]
+              properties:
+                refundNo:
+                  type: string
+                status:
+                  type: string
+                  enum: [SUCCESS, FAILED]
+      responses:
+        '200':
+          description: 已处理
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /announcements:
+    get:
+      tags: [content]
+      summary: 公告列表
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 按发布时间倒序
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, size, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AnnouncementSummary'
+                  page:
+                    type: integer
+                  size:
+                    type: integer
+                  total:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /announcements/{announcementId}:
+    get:
+      tags: [content]
+      summary: 公告详情
+      security: []
+      parameters:
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Announcement'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /events:
+    get:
+      tags: [content]
+      summary: 活动列表
+      security: []
+      responses:
+        '200':
+          description: 进行中的排在前面
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EventSummary'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /events/{eventId}:
+    get:
+      tags: [content]
+      summary: 活动详情
+      security: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 成功。campaignId 有值时前端展示「立即前往」
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/products:
+    post:
+      tags: [admin]
+      summary: 创建商品
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/products/{productId}/skus:
+    post:
+      tags: [admin]
+      summary: 为商品追加规格
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/SkuInput'
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Sku'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/campaigns:
+    post:
+      tags: [admin]
+      summary: 创建售卖活动
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignInput'
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/campaigns/{campaignId}/allocation:
+    put:
+      tags: [admin]
+      summary: 设置配额
+      description: 校验不超过商品的限量总数。只有限时抢购需要配额。
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [total]
+              properties:
+                total:
+                  type: integer
+                  minimum: 1
+      responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '200':
+          description: 已设置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Allocation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /admin/campaigns/{campaignId}/repool:
+    post:
+      tags: [admin]
+      summary: 手动触发回流
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '200':
+          description: 已释放
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [released]
+                properties:
+                  released:
+                    type: integer
+  /admin/campaigns/{campaignId}/stats:
+    get:
+      tags: [admin]
+      summary: 场次实时统计
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Allocation'
+  /admin/fulfillments/{fulfillmentId}/ship:
+    post:
+      tags: [admin]
+      summary: 发货
+      parameters:
+        - name: fulfillmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trackingNo]
+              properties:
+                trackingNo:
+                  type: string
+      responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '200':
+          description: 已发货
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fulfillment'
+  /admin/refunds/{refundId}/approve:
+    post:
+      tags: [admin]
+      summary: 同意退款
+      parameters:
+        - $ref: '#/components/parameters/RefundId'
+      responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '200':
+          description: 已同意
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refund'
+  /admin/refunds/{refundId}/receive:
+    post:
+      tags: [admin]
+      summary: 确认收到退货并发起退款
+      description: 未发货的退款不需要这一步，同意后直接退。
+      parameters:
+        - $ref: '#/components/parameters/RefundId'
+      responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '200':
+          description: 已发起退款
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refund'
+  /admin/refunds/{refundId}/reject:
+    post:
+      tags: [admin]
+      summary: 驳回退款
+      parameters:
+        - $ref: '#/components/parameters/RefundId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  maxLength: 200
+      responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '200':
+          description: 已驳回
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refund'
+  /admin/announcements:
+    post:
+      tags: [admin]
+      summary: 发布公告
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, body]
+              properties:
+                title:
+                  type: string
+                  maxLength: 100
+                body:
+                  type: string
+                pinned:
+                  type: boolean
+                  default: false
+      responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '201':
+          description: 已发布
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Announcement'
+  /admin/events:
+    post:
+      tags: [admin]
+      summary: 发布运营活动
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, body, startAt, endAt]
+              properties:
+                title:
+                  type: string
+                  maxLength: 100
+                body:
+                  type: string
+                coverUrl:
+                  type: string
+                startAt:
+                  type: string
+                  format: date-time
+                endAt:
+                  type: string
+                  format: date-time
+                campaignId:
+                  type: integer
+                  format: int64
+                  description: 可空。有值时活动页展示「立即前往」
+      responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '201':
+          description: 已发布
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: SESSION
+      description: 登录后由服务端 Set-Cookie 下发。会话存在 Redis，登出或封号即刻失效。
+  parameters:
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    CampaignId:
+      name: campaignId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    OrderNo:
+      name: orderNo
+      in: path
+      required: true
+      schema:
+        type: string
+    RefundId:
+      name: refundId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+  responses:
+    BadRequest:
+      description: 参数不合法
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: 没登录或会话已过期
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: 登录了但没权限
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: 状态冲突
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: 触发限流
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: 多少秒后可以重试
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 大写下划线，前端用它做分支
+        message:
+          type: string
+          description: 可直接展示给用户的中文文案
+        data:
+          description: 通常为 null，需要附带上下文时放这里
+          type: [object, 'null']
+    ProductKind:
+      type: string
+      enum: [VIRTUAL, PHYSICAL]
+    ProductSummary:
+      type: object
+      required: [id, name, kind, coverUrl, minPrice, limited]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ProductKind'
+        coverUrl:
+          type: string
+        minPrice:
+          type: integer
+          format: int64
+          description: 所有规格里的最低价，单位分
+        limited:
+          type: boolean
+          description: 限量商品会有 Unit 与收藏编号
+    ProductPage:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+    ProductDetail:
+      type: object
+      required: [id, name, kind, description, coverUrl, skus, limited]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ProductKind'
+        description:
+          type: string
+        coverUrl:
+          type: string
+        limited:
+          type: boolean
+        totalLimit:
+          type: [integer, 'null']
+          description: 限量总数。不限量时为 null
+        purchaseLimit:
+          type: [integer, 'null']
+          description: 每购买人限购数。不限购时为 null
+        skus:
+          type: array
+          items:
+            $ref: '#/components/schemas/Sku'
+    ProductInput:
+      type: object
+      required: [name, kind, description, coverUrl]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        kind:
+          $ref: '#/components/schemas/ProductKind'
+        description:
+          type: string
+        coverUrl:
+          type: string
+        totalLimit:
+          type: [integer, 'null']
+        purchaseLimit:
+          type: [integer, 'null']
+    Sku:
+      type: object
+      required: [id, name, price, stock]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          description: 虚拟道具是「默认」，实体周边是「黑色 L 码」这种
+        attrs:
+          type: object
+          additionalProperties:
+            type: string
+          description: 规格属性，虚拟道具为空对象
+        price:
+          type: integer
+          format: int64
+          description: 单位分
+        stock:
+          type: integer
+    SkuInput:
+      type: object
+      required: [name, price, stock]
+      properties:
+        name:
+          type: string
+        attrs:
+          type: object
+          additionalProperties:
+            type: string
+        price:
+          type: integer
+          format: int64
+        stock:
+          type: integer
+          minimum: 0
+    CampaignType:
+      type: string
+      enum: [FLASH, NORMAL, DISCOUNT]
+    CampaignSummary:
+      type: object
+      required: [id, name, type, productId, productName, startAt, coverUrl]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/CampaignType'
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        startAt:
+          type: string
+          format: date-time
+        coverUrl:
+          type: string
+    CampaignDetail:
+      type: object
+      required: [id, name, type, productId, startAt, status, serverTime]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/CampaignType'
+        productId:
+          type: integer
+          format: int64
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: [string, 'null']
+          format: date-time
+        status:
+          type: string
+          enum: [UPCOMING, ONGOING, ENDED]
+        serverTime:
+          type: string
+          format: date-time
+          description: 服务端当前时间，前端用它算与本地时间的偏移
+        allocation:
+          $ref: '#/components/schemas/Allocation'
+        discountPrice:
+          type: [integer, 'null']
+          format: int64
+        reserved:
+          type: boolean
+          description: 当前用户是否已预约
+    CampaignInput:
+      type: object
+      required: [name, type, productId]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        type:
+          $ref: '#/components/schemas/CampaignType'
+        productId:
+          type: integer
+          format: int64
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+        discountPrice:
+          type: integer
+          format: int64
+    Allocation:
+      type: object
+      description: 恒等式 available + occupied + pendingRepool + sold = total
+      required: [total, available, occupied, pendingRepool, sold]
+      properties:
+        total:
+          type: integer
+        available:
+          type: integer
+        occupied:
+          type: integer
+          description: 被未支付订单占着
+        pendingRepool:
+          type: integer
+          description: 已关单但还没到可售时间
+        sold:
+          type: integer
+    ClaimResult:
+      type: object
+      required: [orderNo, collectibleNumber, payDeadline]
+      properties:
+        orderNo:
+          type: string
+        collectibleNumber:
+          type: string
+          description: 形如 0427。用户抢到就要看到这个
+        payDeadline:
+          type: string
+          format: date-time
+    OrderStatus:
+      type: string
+      enum: [PENDING_PAYMENT, PAID, CLOSED, REFUNDED]
+    Order:
+      type: object
+      required: [orderNo, status, amount, freight, items, createdAt]
+      properties:
+        orderNo:
+          type: string
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        amount:
+          type: integer
+          format: int64
+          description: 商品总额，单位分
+        freight:
+          type: integer
+          format: int64
+          description: 运费，单位分。只对实体部分计费
+        payDeadline:
+          type: [string, 'null']
+          format: date-time
+        secondsLeft:
+          type: [integer, 'null']
+          description: 服务端算好的剩余支付秒数
+        closeReason:
+          type: [string, 'null']
+          enum: [TIMEOUT, CANCELLED, null]
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        createdAt:
+          type: string
+          format: date-time
+    OrderItem:
+      type: object
+      required: [productId, productName, skuId, skuName, quantity, unitPrice, kind]
+      properties:
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        skuId:
+          type: integer
+          format: int64
+        skuName:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ProductKind'
+        quantity:
+          type: integer
+        unitPrice:
+          type: integer
+          format: int64
+        collectibleNumber:
+          type: [string, 'null']
+          description: 限量商品才有
+    FulfillmentKind:
+      type: string
+      enum: [VIRTUAL, PHYSICAL]
+    FulfillmentStatus:
+      type: string
+      enum: [PENDING, COMPLETED, SHIPPED, SIGNED]
+    Fulfillment:
+      type: object
+      required: [id, orderNo, kind, status]
+      properties:
+        id:
+          type: integer
+          format: int64
+        orderNo:
+          type: string
+        kind:
+          $ref: '#/components/schemas/FulfillmentKind'
+        status:
+          $ref: '#/components/schemas/FulfillmentStatus'
+        trackingNo:
+          type: [string, 'null']
+        shippedAt:
+          type: [string, 'null']
+          format: date-time
+        signedAt:
+          type: [string, 'null']
+          format: date-time
+        address:
+          $ref: '#/components/schemas/Address'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+    OwnedItem:
+      type: object
+      required: [productId, productName, kind, acquiredAt]
+      properties:
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ProductKind'
+        coverUrl:
+          type: string
+        collectibleNumber:
+          type: [string, 'null']
+          description: 限量藏品才有
+        acquiredAt:
+          type: string
+          format: date-time
+    Address:
+      type: object
+      required: [id, receiver, phone, province, city, district, detail]
+      properties:
+        id:
+          type: integer
+          format: int64
+        receiver:
+          type: string
+        phone:
+          type: string
+        province:
+          type: string
+        city:
+          type: string
+        district:
+          type: string
+        detail:
+          type: string
+        isDefault:
+          type: boolean
+    AddressInput:
+      type: object
+      required: [receiver, phone, province, city, district, detail]
+      properties:
+        receiver:
+          type: string
+        phone:
+          type: string
+        province:
+          type: string
+        city:
+          type: string
+        district:
+          type: string
+        detail:
+          type: string
+        isDefault:
+          type: boolean
+    RefundStatus:
+      type: string
+      enum: [REQUESTED, APPROVED, REFUNDED, REJECTED]
+    Refund:
+      type: object
+      required: [refundNo, orderNo, fulfillmentId, type, status, amount, createdAt]
+      properties:
+        refundNo:
+          type: string
+        orderNo:
+          type: string
+        fulfillmentId:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum: [USER_REQUEST, SYSTEM_AUTO]
+        status:
+          $ref: '#/components/schemas/RefundStatus'
+        amount:
+          type: integer
+          format: int64
+          description: 只含商品金额，运费不退
+        reason:
+          type: string
+        rejectReason:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        approvedAt:
+          type: [string, 'null']
+          format: date-time
+        receivedAt:
+          type: [string, 'null']
+          format: date-time
+          description: 已发货的退款要等运营确认收货，未发货的为空
+        refundedAt:
+          type: [string, 'null']
+          format: date-time
+    AnnouncementSummary:
+      type: object
+      required: [id, title, pinned, publishedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        pinned:
+          type: boolean
+        publishedAt:
+          type: string
+          format: date-time
+    Announcement:
+      type: object
+      required: [id, title, body, pinned, publishedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        body:
+          type: string
+        pinned:
+          type: boolean
+        publishedAt:
+          type: string
+          format: date-time
+    EventSummary:
+      type: object
+      required: [id, title, startAt, endAt, ongoing]
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        coverUrl:
+          type: string
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+        ongoing:
+          type: boolean
+    Event:
+      type: object
+      required: [id, title, body, startAt, endAt, ongoing]
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        body:
+          type: string
+        coverUrl:
+          type: string
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+        ongoing:
+          type: boolean
+        campaignId:
+          type: [integer, 'null']
+          format: int64
+          description: 可空。有值时活动页展示「立即前往」
+    Me:
+      type: object
+      required: [id, username, realNameVerified]
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        realNameVerified:
+          type: boolean
+        realName:
+          type: [string, 'null']
+          description: 已实名时返回
+        idNumberTail:
+          type: [string, 'null']
+          description: 证件号后四位，让用户确认绑的是哪张证
