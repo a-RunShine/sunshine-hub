@@ -48,7 +48,9 @@ PR 描述按三段模板写：Summary 给图或树、Evidence 给 before/after�
 
 issue 归属哪个模块，用 `module:<name>` 标签标记，`<name>` 与代码模块目录同名，例如 `module:trade`、`module:catalog`。
 
-模块只有四个：`identity`、`catalog`、`trade`、`content`，加一个 `shared`。划分依据是删除测试，不是功能数量：`trade` 把订单、履约、支付、退款装在一起，因为它们是一条链上的状态，拆开就是跨模块事务。
+模块只有四个：`identity`、`catalog`、`trade`、`content`，加一个 `shared`。划分依据是状态与事务的边界，不是功能数量也不是代码行数：`trade` 把订单、履约、支付、退款装在一起，因为它们推进同一个订单状态，拆开就是跨模块事务。
+
+依赖方向只有一个：`trade → catalog`，反向禁止。商品不该知道怎么下单。
 
 模块划分定下来之前不建这类标签。第一个模块落地时按模块名创建，此后每个 issue 至少带一个。跨模块的 issue 可以带多个；要拆 ticket 时，按模块边界拆。
 
