@@ -56,36 +56,41 @@
 19. 作为玩家，我想在支付成功后立刻看到虚拟道具进了我的道具库。
 20. 作为玩家，我想看到实体周边的发货状态和物流单号。
 21. 作为玩家，我想在收到货后确认签收。
-22. 作为玩家，我想主动取消还没付款的订单。
-23. 作为玩家，我想看到待支付订单还剩多少秒。
-24. 作为玩家，我想看到自己所有已拥有的道具和藏品，包括编号。
+22. 作为玩家，我想对还没发货的周边申请退款，不用联系客服。
+23. 作为玩家，我想在收到货不满意时也能申请退货。
+24. 作为玩家，我想看到退款申请处理到哪一步了。
+25. 作为玩家，我想主动取消还没付款的订单。
+26. 作为玩家，我想看到待支付订单还剩多少秒。
+27. 作为玩家，我想看到自己所有已拥有的道具和藏品，包括编号。
 
 ### 内容
 
-25. 作为玩家，我想看到官方公告，比如维护安排。
-26. 作为玩家，我想看到运营活动，有时间的活动能显示还剩几天。
-27. 作为玩家，我想从活动页直接跳到关联的商品，不用自己找。
-28. 作为玩家，我想看到公告和活动按时间倒序排列。
+28. 作为玩家，我想看到官方公告，比如维护安排。
+29. 作为玩家，我想看到运营活动，有时间的活动能显示还剩几天。
+30. 作为玩家，我想从活动页直接跳到关联的商品，不用自己找。
+31. 作为玩家，我想看到公告和活动按时间倒序排列。
 
 ### 运营
 
-29. 作为运营，我想创建商品并设定是虚拟还是实体、限不限量、限不限购。
-30. 作为运营，我想给商品配多个规格，各自设库存。
-31. 作为运营，我想创建 Campaign，选限时抢购、常规售卖或限时折扣。
-32. 作为运营，我想给限时抢购按大区分配配额，并校验总和不超过限量。
-33. 作为运营，我想设置运费模板：首件多少、续件多少、满多少包邮。
-34. 作为运营，我想手动触发一次回流释放。
-35. 作为运营，我想看到每个 Campaign 实时的可售、占用、待回流、已售。
-36. 作为运营，我想发公告和活动，活动可以挂一个折扣 Campaign。
-37. 作为运营，我想在发货后填物流单号。
+32. 作为运营，我想创建商品并设定是虚拟还是实体、限不限量、限不限购。
+33. 作为运营，我想给商品配多个规格，各自设库存。
+34. 作为运营，我想创建 Campaign，选限时抢购、常规售卖或限时折扣。
+35. 作为运营，我想给限时抢购按大区分配配额，并校验总和不超过限量。
+36. 作为运营，我想设置运费模板：首件多少、续件多少、满多少包邮。
+37. 作为运营，我想手动触发一次回流释放。
+38. 作为运营，我想看到每个 Campaign 实时的可售、占用、待回流、已售。
+39. 作为运营，我想发公告和活动，活动可以挂一个折扣 Campaign。
+40. 作为运营，我想在发货后填物流单号。
+41. 作为运营，我想审核退款申请，确认收到退货后发起退款。
 
 ### 系统
 
-38. 作为第三方支付网关，我想通过幂等回调确认支付结果，重复回调不会重复发货。
-39. 作为系统，我想在缓存删除失败后自动重试，别让脏数据长期留在缓存里。
-40. 作为系统，我想在配额回收到释放的窗口里，对外不暴露这部分数量。
-41. 作为运维，我想看到抢购链路的 P99 延迟和失败原因分布。
-42. 作为运维，我想在数据库故障时系统降级为只读，而不是全线崩溃。
+42. 作为第三方支付网关，我想通过幂等回调确认支付结果，重复回调不会重复发货。
+43. 作为支付网关，我想通过幂等回调确认退款结果，重复回调不会重复退款。
+44. 作为系统，我想在缓存删除失败后自动重试，别让脏数据长期留在缓存里。
+45. 作为系统，我想在配额回收到释放的窗口里，对外不暴露这部分数量。
+46. 作为运维，我想看到抢购链路的 P99 延迟和失败原因分布。
+47. 作为运维，我想在数据库故障时系统降级为只读，而不是全线崩溃。
 
 ## 实现决策
 
@@ -101,6 +106,7 @@
 | Redis + AOP + 注解滑动窗口限流 | 抢占接口与商品详情接口 |
 | 延迟队列做分钟级定时任务 | 超时关单、回流释放、预约提醒，三条链路 |
 | 乐观锁 | 支付回调与关单的竞争，以及普通商品的库存扣减 |
+| 回调幂等 | 支付与退款两条回调共用一套骨架，只是幂等键不同 |
 
 ### 领域分层
 
@@ -133,6 +139,9 @@ t_fulfillment  (id, order_id, kind, status, address_id, tracking_no,
                 shipped_at, signed_at, version, created_at)
 t_address      (id, account_id, receiver, phone, province, city, district, detail, is_default)
 t_payment      (id, order_id, channel, trade_no, amount, status, raw_payload, created_at)
+t_refund       (id, refund_no, order_id, fulfillment_id, account_id, type, reason,
+                status, amount, tracking_no, reject_reason, version,
+                created_at, approved_at, received_at, refunded_at)
 t_announcement (id, title, body, pinned, status, published_at)
 t_event        (id, title, cover_url, body, start_at, end_at, campaign_id, status)
 t_freight_tpl  (id, first_unit_fee, additional_unit_fee, free_threshold, updated_at)
@@ -145,6 +154,8 @@ t_freight_tpl  (id, first_unit_fee, additional_unit_fee, free_threshold, updated
 - `t_unit.status`：`AVAILABLE`、`OCCUPIED`、`OWNED`、`VOID`。
 - `t_order.status`：`PENDING_PAYMENT`、`PAID`、`CLOSED`、`REFUNDED`。
 - `t_fulfillment.status`：虚拟为 `PENDING`、`COMPLETED`，实体为 `PENDING`、`SHIPPED`、`SIGNED`。
+- `t_refund.type`：`USER_REQUEST` 用户申请、`SYSTEM_AUTO` 系统自动发起。
+- `t_refund.status`：`REQUESTED`、`APPROVED`、`REFUNDED`、`REJECTED`。
 
 关键约束：
 
@@ -152,6 +163,7 @@ t_freight_tpl  (id, first_unit_fee, additional_unit_fee, free_threshold, updated
 - `t_sku` 带 `version`，普通商品的库存扣减靠它做乐观锁。
 - `t_allocation` 的 `available + occupied + pending_repool + sold = total` 要恒成立，定时对账。
 - `t_payment` 上 `trade_no` 唯一索引，回调幂等靠它兜底。
+- `t_refund` 上 `refund_no` 唯一索引，退款回调幂等靠它兜底。同时限制同一 `fulfillment_id` 只能存在一条未终态的退款单，防止重复申请。
 
 限购的唯一性兜底放在 `t_order_item` 上，用了 MySQL 唯一索引对 NULL 的处理方式：
 
@@ -309,11 +321,29 @@ WHERE id = ? AND status = 'PENDING_PAYMENT' AND version = ?
 
 实体履约单的 `PENDING` 是待发货，运营填物流单号后转 `SHIPPED`，用户确认后转 `SIGNED`。签收不做自动超时确认，那需要一套定时任务和争议处理，不属于本项目。
 
+### 退款状态机
+
+```
+REQUESTED ──运营同意──> APPROVED ──确认收到货并退款──> REFUNDED
+    │
+    └──运营驳回──> REJECTED
+```
+
+退款的作用对象是履约单，不是订单（见 ADR-0007）。虚拟履约单不接用户申请，只有关单赢了支付回调时产生的 `SYSTEM_AUTO` 退款。
+
+`SYSTEM_AUTO` 跳过 `APPROVED` 直接进 `REFUNDED`，因为那是系统自己的错，没有审核的必要。这条捷径只对自动退款开放，用户申请的每一条都要过人。
+
+未发货的退款在 `APPROVED` 之后直接退；已发货的要等运营在后台确认收到退货，`received_at` 记下时间再退。同一个 `APPROVED` 状态覆盖两种情况，靠 `received_at` 是否为空区分，不再多设一个状态。
+
+退款金额只含商品金额，运费不退。部分退款时订单保持 `PAID`，只有全额退款才把订单转成 `REFUNDED`。
+
 ### 运费计算
 
 只对实体部分计费。算法是取订单里所有 `kind = PHYSICAL` 的明细，算出实体商品总额和总件数；总额达到包邮门槛就免运费，否则按首件加续件算。
 
 虚拟商品既不计入件数，也不计入包邮门槛。一个订单里只有虚拟商品时运费恒为 0。
+
+这么定是因为虚拟商品没有物流成本。让它参与门槛计算，就会出现买一个 99 块的皮肤，把同一单里 5 块钱的徽章也带成包邮，运费规则就白设了。
 
 ### 接口契约
 
@@ -330,6 +360,9 @@ GET  /api/orders/{orderNo}            订单详情，含剩余支付秒数
 POST /api/orders/{orderNo}/cancel     取消
 POST /api/orders/{orderNo}/pay        发起支付
 POST /api/payment/callback            支付回调，需幂等
+POST /api/refunds                     申请退款，指定 fulfillmentId
+GET  /api/refunds/{refundNo}          退款详情
+POST /api/refund/callback             退款回调，需幂等
 GET  /api/fulfillments                我的履约单
 GET  /api/me/items                    我的道具库与藏品
 GET  /api/addresses                   收货地址
@@ -344,6 +377,9 @@ POST /api/admin/campaigns             创建 Campaign
 POST /api/admin/allocations           配置配额，校验总和不超过限量
 POST /api/admin/campaigns/{id}/repool 手动触发回流
 POST /api/admin/fulfillments/{id}/ship 发货
+POST /api/admin/refunds/{id}/approve  同意退款
+POST /api/admin/refunds/{id}/receive  确认收到退货并发起退款
+POST /api/admin/refunds/{id}/reject   驳回退款
 POST /api/admin/announcements         发布公告
 POST /api/admin/events                发布活动
 GET  /api/admin/campaigns/{id}/stats  实时统计
@@ -365,13 +401,17 @@ GET  /api/admin/campaigns/{id}/stats  实时统计
 
 状态机竞争测试。并发触发支付回调与关单消息，断言最终状态只有两种合法终局，不会出现"已关闭、钱收了、也没退款"的静默状态。
 
+退款测试覆盖三件事：虚拟履约单提交退款申请被拒；已发货的实体履约单走完申请、同意、确认收货、退款全程；同一履约单重复申请被未终态约束挡住。
+
+退款回调的幂等单独测一次，和支付回调对称。同一个 `refund_no` 回调五次，只产生一条退款记录，钱只退一次。
+
 基础设施用 Testcontainers 拉 MySQL、Redis、RocketMQ，不依赖本地环境。
 
 ## 范围外
 
 - 真实支付网关对接，用模拟网关替代，重点在回调幂等和状态机。
 - 真实物流 API，物流单号只存字符串。
-- 退货退款。字段留了，逻辑不做。
+- 退货的物流跟踪与验货判定。退货走运营人工确认收货，不接快递单号查询，也不做验货不通过后的二次寄回。
 - 玩家发帖、视频、评论。社区只有官方内容。
 - 购物车。所有商品都是"立即购买"。
 - 实名认证的合规流程，只存指纹。
@@ -381,6 +421,8 @@ GET  /api/admin/campaigns/{id}/stats  实时统计
 
 规模上定一场限时抢购 5000 份，分三个大区，华东 2000、华南 2000、海外 1000。压测目标以实测为准，报告里如实写硬件和并发模型，不虚报 QPS。验收线是抢占接口在峰值压力下 P99 低于 150ms，全程零超卖。
 
-不做独立回流 Campaign 的理由见 ADR-0003，商品与售卖方式解耦见 ADR-0004，订单与履约分离见 ADR-0005，活动不并入 Campaign 见 ADR-0006。
+不做独立回流 Campaign 的理由见 ADR-0003，商品与售卖方式解耦见 ADR-0004，订单与履约分离见 ADR-0005，活动不并入 Campaign 见 ADR-0006，退款按履约单粒度见 ADR-0007。
 
 面试最容易被追问的四处：为什么扣配额和取编号必须在一个脚本里；为什么限购键挂在商品而不是 Campaign；关单赢了支付回调之后钱怎么办；为什么抢购和常规购买用了两套库存扣减。
+
+还有一处是加了退款之后才浮出来的：支付回调和退款回调为什么要用同一套幂等骨架，而幂等键必须是两个不同的值。想清楚这个，才说明白"幂等"不是加个唯一索引那么简单。
