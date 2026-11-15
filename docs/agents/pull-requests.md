@@ -2,6 +2,25 @@
 
 PR 描述按固定模板写，三段：Summary、Evidence、Merge Danger。模板来自 `pr` skill，下面的例子换成了本项目的东西。
 
+## 流程
+
+main 受分支保护，所有改动走 PR。直接 push main 会被规则拦下。
+
+1. 从 main 建分支，命名 `<type>/<短描述>`，type 与 commit message 一致
+2. 提交后 push 到同名远端分支
+3. 开 PR，正文按下面的模板写
+4. 用 squash 合并，合并后删掉分支
+
+```bash
+git checkout -b docs/pr-workflow
+git commit -m "docs: ..."
+git push -u origin docs/pr-workflow
+gh pr create --title "docs: ..." --body-file /tmp/pr-body.md
+gh pr merge --squash --delete-branch
+```
+
+分支名用不用中文都行，但不要用空格和斜杠以外的符号。
+
 ## Summary
 
 用最小的视图说清这次改了什么。树、调用链、状态机、diff，挑一个就够，别都上。
