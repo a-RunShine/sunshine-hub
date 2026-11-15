@@ -12,8 +12,7 @@
 
 - 领域术语与排除词：`GLOSSARY.md`
 - 架构决策：`docs/adr/`，改动涉及既有设计之前先扫一遍标题，标题本身就是结论
-- 商品与交易的完整规格：`docs/specs/0001-sunshine-fps-store.md`
-- 实施顺序与阶段划分：`docs/plans/0001-implementation-path.md`
+- 规格与实施计划不在仓库里，在 GitHub Issues：#2 是完整规格，#7 是实施路径
 
 ## 代码评审
 
