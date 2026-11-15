@@ -8,6 +8,12 @@
 
 前端 React 18、Vite、TypeScript、Tailwind CSS、shadcn/ui，状态用 Zustand，测试用 Vitest。
 
+## 项目文档
+
+- 领域术语与排除词：`GLOSSARY.md`
+- 架构决策：`docs/adr/`，改动涉及既有设计之前先扫一遍标题，标题本身就是结论
+- 商品与交易的完整规格：`docs/specs/0001-sunshine-fps-store.md`
+
 ## 代码评审
 
 评审任何 diff 之前，先读对应技术栈的规范：后端 `CODING_STANDARDS/java.md`，前端 `CODING_STANDARDS/typescript.md`。两边都动过就读两份。
