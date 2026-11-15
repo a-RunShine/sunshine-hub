@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Java / Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+*.log
+logs/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# 本地环境
+.env
+application-local.yml
