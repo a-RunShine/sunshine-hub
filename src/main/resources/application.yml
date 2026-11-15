@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: sunshine-fps
+
+  datasource:
+    url: jdbc:mysql://localhost:33306/sunshine_fps?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+    username: root
+    password: sunshine
+    hikari:
+      maximum-pool-size: 20
+
+  data:
+    redis:
+      host: localhost
+      port: 36379
+
+  session:
+    store-type: redis
+    timeout: 30m
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+server:
+  port: 8080
+  shutdown: graceful
+
+logging:
+  level:
+    com.sunshinefps: debug
