@@ -1,12 +1,7 @@
 import { create } from 'zustand'
+import type { components } from '@/types/api'
 
-export interface Me {
-  id: number
-  username: string
-  realNameVerified: boolean
-  realName?: string | null
-  idNumberTail?: string | null
-}
+export type Me = components['schemas']['Me']
 
 interface AuthState {
   me: Me | null

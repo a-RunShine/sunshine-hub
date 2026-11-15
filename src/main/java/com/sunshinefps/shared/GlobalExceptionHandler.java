@@ -29,14 +29,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
         var first = ex.getBindingResult().getFieldErrors().stream().findFirst();
         var detail = first.map(e -> e.getField() + " " + e.getDefaultMessage()).orElse("参数不合法");
-        return ResponseEntity.status(ErrorCode.BAD_REQUEST.status())
-                .body(ErrorResponse.of(ErrorCode.BAD_REQUEST, detail));
+        return badRequest(detail);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraint(ConstraintViolationException ex) {
+        return badRequest(ex.getMessage());
+    }
+
+    private static ResponseEntity<ErrorResponse> badRequest(String detail) {
         return ResponseEntity.status(ErrorCode.BAD_REQUEST.status())
-                .body(ErrorResponse.of(ErrorCode.BAD_REQUEST, ex.getMessage()));
+                .body(ErrorResponse.of(ErrorCode.BAD_REQUEST, detail));
     }
 
     @ExceptionHandler(Exception.class)

@@ -51,22 +51,35 @@ services:
       retries: 12
       start_period: 20s
 
+  # 命名卷首次创建时是 root 所有，broker 以 uid 3000 运行会写不进去。
+  # 起一个一次性容器把属主改过来，否则 broker 启动即退出。
+  rocketmq-broker-init:
+    image: apache/rocketmq:5.3.1
+    container_name: sunshine-mq-broker-init
+    user: "0"
+    command: ["sh", "-c", "chown -R 3000:3000 /home/rocketmq/store"]
+    volumes:
+      - broker-store:/home/rocketmq/store
+
   rocketmq-broker:
     image: apache/rocketmq:5.3.1
     container_name: sunshine-mq-broker
     depends_on:
       rocketmq-namesrv:
         condition: service_healthy
+      rocketmq-broker-init:
+        condition: service_completed_successfully
     ports:
-      - "30911:10911"
+      - "30911:30911"
     environment:
       NAMESRV_ADDR: rocketmq-namesrv:9876
       JAVA_OPT_EXT: "-Xms256m -Xmx512m -Xmn256m"
     command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/broker.conf
     volumes:
       - ./infra/broker.conf:/home/rocketmq/broker.conf:ro
+      - broker-store:/home/rocketmq/store
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/10911' && exec 3<&- && exit 0 || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/30911' && exec 3<&- && exit 0 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -75,3 +88,4 @@ services:
 volumes:
   mysql-data:
   redis-data:
+  broker-store:

@@ -1,13 +1,20 @@
 import { http, HttpResponse } from 'msw'
+import type { components } from '@/types/api'
 
 /**
  * 开发期的假数据。响应结构严格照着 api/openapi.yaml，改契约时这里要跟着改。
  * 只覆盖骨架跑得起来的几条，业务页面实现时按需补。
  */
 
+type ProductSummary = components['schemas']['ProductSummary']
+type ProductDetail = components['schemas']['ProductDetail']
+type Me = components['schemas']['Me']
+
 const now = () => new Date().toISOString()
 
-const products = [
+const me: Me = { id: 1, username: 'demo', realNameVerified: false }
+
+const products: ProductSummary[] = [
   {
     id: 1,
     name: '暗夜猎手 限定皮肤',
@@ -48,7 +55,7 @@ export const handlers = [
         { status: 404 },
       )
     }
-    return HttpResponse.json({
+    const detail: ProductDetail = {
       ...product,
       description: '假数据，仅用于前端开发',
       totalLimit: product.limited ? 5000 : null,
@@ -62,7 +69,8 @@ export const handlers = [
           stock: 100,
         },
       ],
-    })
+    }
+    return HttpResponse.json(detail)
   }),
 
   http.get('/api/campaigns/upcoming', () =>
@@ -109,11 +117,7 @@ export const handlers = [
     ),
   ),
 
-  http.post('/api/auth/login', () =>
-    HttpResponse.json({ id: 1, username: 'demo', realNameVerified: false }),
-  ),
+  http.post('/api/auth/login', () => HttpResponse.json(me)),
 
-  http.get('/api/me', () =>
-    HttpResponse.json({ id: 1, username: 'demo', realNameVerified: false }),
-  ),
+  http.get('/api/me', () => HttpResponse.json(me)),
 ]

@@ -1,11 +1,8 @@
 import axios, { AxiosError } from 'axios'
+import type { components } from '@/types/api'
 
-/** 契约里的 Error 结构 */
-export interface ApiErrorBody {
-  code: string
-  message: string
-  data?: unknown
-}
+/** 契约里的 Error 结构，手写会漂移，直接用生成的 */
+export type ApiErrorBody = components['schemas']['Error']
 
 /** 业务错误。组件拿它判断 code，不要拿 message 做判断 */
 export class ApiError extends Error {
@@ -35,6 +32,20 @@ client.interceptors.response.use(
     if (status === 401 && !window.location.pathname.startsWith('/login')) {
       const next = encodeURIComponent(window.location.pathname + window.location.search)
       window.location.href = `/login?next=${next}`
+    }
+
+    // 限流是预期内的，文案由后端决定，别覆盖
+    if (status === 429) {
+      return Promise.reject(
+        new ApiError('RATE_LIMITED', body?.message ?? '操作太快了，歇一下再试', status),
+      )
+    }
+
+    // 5xx 的原始 message 是给运维看的，对用户统一兜底
+    if (status >= 500) {
+      return Promise.reject(
+        new ApiError(body?.code ?? 'INTERNAL_ERROR', '服务出了点问题，稍后再试', status),
+      )
     }
 
     if (body?.code) {

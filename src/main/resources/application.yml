@@ -18,6 +18,11 @@ spring:
     store-type: redis
     timeout: 30m
 
+  # 迁移脚本按模块拆分，脚本里的表前缀标明归属：t_identity_、t_catalog_ 等
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true

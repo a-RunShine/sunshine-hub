@@ -1,15 +1,37 @@
 import { createBrowserRouter } from 'react-router-dom'
 import Placeholder from '@/views/Placeholder'
+import RequireAuth from './RequireAuth'
 
 /** 路由骨架。每个页面在实现时替换掉占位组件，路径不要改，契约和 MSW 都按这些路径来。 */
 export const router = createBrowserRouter([
   { path: '/', element: <Placeholder title="首页" note="商品列表与即将开售" /> },
   { path: '/products/:productId', element: <Placeholder title="商品详情" note="含规格选择" /> },
   { path: '/campaigns/:campaignId', element: <Placeholder title="抢购页" note="倒计时、抢购按钮、编号结果" /> },
-  { path: '/orders', element: <Placeholder title="我的订单" /> },
+  {
+    path: '/orders',
+    element: (
+      <RequireAuth>
+        <Placeholder title="我的订单" />
+      </RequireAuth>
+    ),
+  },
   { path: '/orders/:orderNo', element: <Placeholder title="订单详情" note="含剩余支付秒数" /> },
-  { path: '/items', element: <Placeholder title="我的道具库" note="虚拟道具与限量藏品" /> },
-  { path: '/fulfillments', element: <Placeholder title="履约单" note="发货状态与物流单号" /> },
+  {
+    path: '/items',
+    element: (
+      <RequireAuth>
+        <Placeholder title="我的道具库" note="虚拟道具与限量藏品" />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/fulfillments',
+    element: (
+      <RequireAuth>
+        <Placeholder title="履约单" note="发货状态与物流单号" />
+      </RequireAuth>
+    ),
+  },
   { path: '/refunds/:refundNo', element: <Placeholder title="退款详情" /> },
   { path: '/announcements', element: <Placeholder title="公告" /> },
   { path: '/announcements/:announcementId', element: <Placeholder title="公告详情" /> },
@@ -17,5 +39,12 @@ export const router = createBrowserRouter([
   { path: '/events/:eventId', element: <Placeholder title="活动详情" /> },
   { path: '/login', element: <Placeholder title="登录" /> },
   { path: '/register', element: <Placeholder title="注册" /> },
-  { path: '/admin', element: <Placeholder title="运营后台" note="商品、配额、发货、退款审核" /> },
+  {
+    path: '/admin',
+    element: (
+      <RequireAuth>
+        <Placeholder title="运营后台" note="商品、配额、发货、退款审核" />
+      </RequireAuth>
+    ),
+  },
 ])
