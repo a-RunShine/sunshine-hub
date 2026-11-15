@@ -159,10 +159,6 @@ Unit 挂在 Product 下，那么 Product 的限购校验、发布状态校验，
 | 环境怎么跑起来 | `README.md`、`docker-compose.yml` |
 | 依赖版本 | `pom.xml` |
 
-**ArchUnit 有个静默失败的坑**：Spring Boot 3.5.3 默认带的 Surefire 版本存在回归，用字段声明的 `@ArchTest` 规则不会执行。构建照样绿，但报告里 `Tests run: 0`，四条边界规则一条都没跑。
-
-配好之后必须核对测试数量，不是看构建颜色。踩到了就把 Surefire pin 到 3.5.2。判断方法很简单：故意写一条会违反的依赖，如果构建还是绿的，说明规则没生效。
-
 ---
 
 ## 这份文件怎么变长

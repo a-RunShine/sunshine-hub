@@ -6,9 +6,13 @@
 
 后端 Java 25、Spring Boot 3.5、MyBatis-Plus、MySQL 8、Redis 7、RocketMQ 5，构建用 Maven，测试用 JUnit 5 与 Testcontainers。
 
-本机 `JAVA_HOME` 被固定在 17，`mvn -v` 会显示 17，这不影响。编译期由 `~/.m2/toolchains.xml` 锁到 JDK 25，验收看产物的 class 版本，不要拿 `mvn -v` 判断。
-
 前端 React 18、Vite、TypeScript、Tailwind CSS、shadcn/ui，状态用 Zustand，测试用 Vitest。
+
+两处工具链的坑，动手前先看：
+
+`JAVA_HOME` 被固定在 17，`mvn -v` 会显示 17，这不影响。编译期由 `~/.m2/toolchains.xml` 锁到 JDK 25，验收看产物的 class 版本，不要拿 `mvn -v` 判断。
+
+ArchUnit 配好后要核对测试数量。Spring Boot 3.5.3 默认带的 Surefire 有回归，用字段声明的 `@ArchTest` 不会执行，构建照样绿但报告里 `Tests run: 0`。踩到了把 Surefire pin 到 3.5.2。判断方法：故意写一条会违反的依赖，构建仍然绿就是规则没生效。
 
 ## 项目文档
 
