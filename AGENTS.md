@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本仓库是「典藏发售」，限量编号藏品的限时发售系统。技术栈为 Spring Boot、MySQL、Redis、RocketMQ。
+本仓库是 Sunshine-FPS，一个虚构 FPS 游戏的官方商城。售卖虚拟道具和实体周边，另有公告与活动资讯。技术栈为 Spring Boot、MySQL、Redis、RocketMQ。
 
 ## Agent skills
 
