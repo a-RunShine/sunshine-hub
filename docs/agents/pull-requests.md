@@ -9,14 +9,18 @@ main 受分支保护，所有改动走 PR。直接 push main 会被规则拦下�
 1. 从 main 建分支，命名 `<type>/<短描述>`，type 与 commit message 一致
 2. 提交后 push 到同名远端分支
 3. 开 PR，正文按下面的模板写
-4. 用 squash 合并，合并后删掉分支
+4. **停下，等仓库所有者同意**
+5. 同意之后才合并：squash，合并后删分支
+
+第 4 步不能跳过。分支保护里的审批数是 0，技术上任何 agent 都能自己合，所以这条只靠纪律。合之前问一句，不丢人。
 
 ```bash
-git checkout -b docs/pr-workflow
+git checkout -b docs/example
 git commit -m "docs: ..."
-git push -u origin docs/pr-workflow
+git push -u origin docs/example
 gh pr create --title "docs: ..." --body-file /tmp/pr-body.md
-gh pr merge --squash --delete-branch
+# 到这里停，等回复
+gh pr merge --squash --delete-branch   # 得到明确同意后才执行
 ```
 
 分支名用不用中文都行，但不要用空格和斜杠以外的符号。
