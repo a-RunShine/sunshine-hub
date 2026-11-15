@@ -57,6 +57,20 @@ Zustand 只放真正的客户端状态：登录态、从哪来的跳转参数、
 
 ## 组件
 
+### 组件的 props 表达意图，不是内部状态的切片
+
+一个组件如果需要八个 props 才能渲染，说明它把「怎么组合」的责任推给了调用方。
+
+传整个 `order` 对象，让组件自己决定取哪些字段。要区分形态就加 `variant="compact"`，不要加 `showFreight`、`hideStatus`、`isPaid` 这类开关。开关一多，组件内部就是一堆 if，调用方还得逐个理解开关的含义。
+
+信号：props 里有三个以上以 `show`、`hide`、`is`、`without` 开头的布尔值。
+
+这和接口深度是一回事。窄接口的组件，调用方看名字就会用；宽接口的组件，调用方得先读一遍源码。
+
+*Enforced by*: 无。review 时数 props。
+
+---
+
 ### 组件不直接发请求，走 api 层
 
 `src/components` 和 `src/views` 里不出现 `fetch` 和 `axios`，只调 `src/api` 导出的函数。
