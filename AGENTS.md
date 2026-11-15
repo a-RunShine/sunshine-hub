@@ -10,9 +10,9 @@
 
 ## 代码评审
 
-评审改动时按技术栈读对应的规范：后端看 `CODING_STANDARDS/java.md`，前端看 `CODING_STANDARDS/typescript.md`。
+评审任何 diff 之前，先读对应技术栈的规范：后端 `CODING_STANDARDS/java.md`，前端 `CODING_STANDARDS/typescript.md`。两边都动过就读两份。
 
-两份都只写机器判不了的判断题，能进 CI 的不在里面。它们是 reviewer 的清单，不是写代码的教程。
+那两份里全是机器判不了的判断题，能交给 CI 的一条都不在里面。不读它们，评审只能凭印象。
 
 ## Agent skills
 
