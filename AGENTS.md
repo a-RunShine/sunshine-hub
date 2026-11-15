@@ -1,6 +1,16 @@
 # AGENTS.md
 
-本仓库是 Sunshine-FPS，一个虚构 FPS 游戏的官方商城。售卖虚拟道具和实体周边，另有公告与活动资讯。技术栈为 Spring Boot、MySQL、Redis、RocketMQ。
+本仓库是 Sunshine-FPS，一个虚构 FPS 游戏的官方商城。售卖虚拟道具和实体周边，另有公告与活动资讯。
+
+## 技术栈
+
+后端 Java 17、Spring Boot 3、MyBatis-Plus、MySQL 8、Redis 7、RocketMQ 5，构建用 Maven，测试用 JUnit 5 与 Testcontainers。
+
+前端 React 18、Vite、TypeScript、Tailwind CSS、shadcn/ui，状态用 Zustand，测试用 Vitest。
+
+## 代码评审
+
+评审或验收改动时，按 `CODING_STANDARDS.md` 逐条过。那份文档写的是「在 diff 里看到什么该退回」，不是「怎么写代码」，别拿它当教程用。
 
 ## Agent skills
 
