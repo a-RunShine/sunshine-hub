@@ -41,6 +41,12 @@ issue 归属哪个模块，用 `module:<name>` 标签标记，`<name>` 与代码
 
 模块划分定下来之前不建这类标签。第一个模块落地时按模块名创建，此后每个 issue 至少带一个。跨模块的 issue 可以带多个；要拆 ticket 时，按模块边界拆。
 
+### Type labels
+
+`docs` 标记文档类的 issue：规范、ADR、术语表的改进与审查。纯代码改动不带它，只改注释也不算文档。
+
+目前只有这一个类型标签。加新的之前先确认现有标签确实表达不了——标签一多，选标签的人就开始犹豫。
+
 ### Domain docs
 
 单 context 布局：根目录 `GLOSSARY.md` 加 `docs/adr/`。详见 `docs/agents/domain.md`。
