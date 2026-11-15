@@ -10,7 +10,9 @@
 
 ## 代码评审
 
-评审或验收改动时，按 `CODING_STANDARDS.md` 逐条过。那份文档写的是「在 diff 里看到什么该退回」，不是「怎么写代码」，别拿它当教程用。
+评审改动时按技术栈读对应的规范：后端看 `CODING_STANDARDS/java.md`，前端看 `CODING_STANDARDS/typescript.md`。
+
+两份都只写机器判不了的判断题，能进 CI 的不在里面。它们是 reviewer 的清单，不是写代码的教程。
 
 ## Agent skills
 
