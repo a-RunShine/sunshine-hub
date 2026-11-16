@@ -659,7 +659,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Announcement'
         '404':
-          description: 公告不存在。code：BAD_REQUEST
+          description: 公告不存在。code：ANNOUNCEMENT_NOT_FOUND
           content:
             application/json:
               schema:
@@ -704,7 +704,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Event'
         '404':
-          description: 活动不存在。code：BAD_REQUEST
+          description: 活动不存在。code：EVENT_NOT_FOUND
           content:
             application/json:
               schema:
@@ -1103,6 +1103,8 @@ components:
         - REFUND_NOT_FOUND
         - REFUND_NOT_ALLOWED
         - REFUND_ALREADY_OPEN
+        - ANNOUNCEMENT_NOT_FOUND
+        - EVENT_NOT_FOUND
         - BAD_REQUEST
         - INTERNAL_ERROR
     Error:

@@ -43,6 +43,10 @@ public enum ErrorCode {
     REFUND_NOT_ALLOWED("这笔履约单不支持退款", HttpStatus.CONFLICT),
     REFUND_ALREADY_OPEN("已经有一个未结的退款申请", HttpStatus.CONFLICT),
 
+    // 内容
+    ANNOUNCEMENT_NOT_FOUND("公告不存在", HttpStatus.NOT_FOUND),
+    EVENT_NOT_FOUND("活动不存在", HttpStatus.NOT_FOUND),
+
     // 兜底
     BAD_REQUEST("参数不合法", HttpStatus.BAD_REQUEST),
     INTERNAL_ERROR("服务出了点问题", HttpStatus.INTERNAL_SERVER_ERROR);
