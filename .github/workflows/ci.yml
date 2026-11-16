@@ -89,6 +89,11 @@ jobs:
       - name: 校验 OpenAPI
         run: npx --yes @redocly/cli@latest lint api/openapi.yaml
 
+      # 命中即 fail。只用 node 标准库，不装任何东西——孤儿页检查现成工具都不做，
+      # 而 lychee / markdown-link-check 要为此拖进二进制或整套 HTTP 栈。取舍见脚本头注释。
+      - name: 扫文档相对链接与 wiki 孤儿页
+        run: node scripts/check-doc-links.mjs
+
       # 只输出候选，不 fail。术语的排除词有合法用法（「库存」是 Stock 的正名，
       # 同时也是 Allocation 的排除词），机械检查判不了，留给人挑。
       - name: 扫术语排除词
