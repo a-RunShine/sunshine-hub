@@ -42,7 +42,15 @@ export interface paths {
                         "application/json": components["schemas"]["Me"];
                     };
                 };
-                409: components["responses"]["Conflict"];
+                /** @description 用户名已被占用。code：USERNAME_TAKEN */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -86,7 +94,15 @@ export interface paths {
                         "application/json": components["schemas"]["Me"];
                     };
                 };
-                401: components["responses"]["Unauthorized"];
+                /** @description 用户名或密码不对。code：BAD_CREDENTIALS */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -204,7 +220,7 @@ export interface paths {
                         "application/json": components["schemas"]["Me"];
                     };
                 };
-                /** @description 已实名，不允许覆盖 */
+                /** @description 已实名，不允许覆盖。code：REAL_NAME_ALREADY_SET */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -294,7 +310,15 @@ export interface paths {
                         "application/json": components["schemas"]["ProductDetail"];
                     };
                 };
-                404: components["responses"]["NotFound"];
+                /** @description 商品不存在。code：PRODUCT_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -377,7 +401,15 @@ export interface paths {
                         "application/json": components["schemas"]["CampaignDetail"];
                     };
                 };
-                404: components["responses"]["NotFound"];
+                /** @description 场次不存在。code：CAMPAIGN_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -422,7 +454,7 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["Unauthorized"];
-                /** @description 未实名，需要先调 /me/real-name */
+                /** @description 未实名，需要先调 /me/real-name。code：REAL_NAME_REQUIRED */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -431,7 +463,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description 已购买过这件商品，或场次未开售 */
+                /** @description 已购买过这件商品，或场次未开售、已结束。code：ALREADY_PURCHASED、CAMPAIGN_NOT_STARTED、CAMPAIGN_ENDED */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -440,7 +472,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description 已售罄 */
+                /** @description 已售罄。code：SOLD_OUT */
                 410: {
                     headers: {
                         [name: string]: unknown;
@@ -549,6 +581,11 @@ export interface paths {
                         }[];
                         /**
                          * Format: int64
+                         * @description 限时折扣商品必填，常规售卖不填。订单的 campaign_id 与折扣价都按它确定
+                         */
+                        campaignId?: number;
+                        /**
+                         * Format: int64
                          * @description 含实体商品时必填
                          */
                         addressId?: number;
@@ -565,10 +602,8 @@ export interface paths {
                         "application/json": components["schemas"]["Order"];
                     };
                 };
-                400: components["responses"]["BadRequest"];
-                401: components["responses"]["Unauthorized"];
-                /** @description 未实名 */
-                403: {
+                /** @description 参数不合法，或含实体商品但没给地址。code：BAD_REQUEST、ADDRESS_REQUIRED */
+                400: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -576,7 +611,8 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description 库存不足 */
+                401: components["responses"]["Unauthorized"];
+                /** @description 库存不足。code：STOCK_INSUFFICIENT */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -624,7 +660,15 @@ export interface paths {
                         "application/json": components["schemas"]["Order"];
                     };
                 };
-                404: components["responses"]["NotFound"];
+                /** @description 订单不存在。code：ORDER_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -665,7 +709,7 @@ export interface paths {
                         "application/json": components["schemas"]["Order"];
                     };
                 };
-                /** @description 订单已支付或已关闭 */
+                /** @description 订单已支付或已关闭。code：ORDER_NOT_CANCELLABLE */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -717,7 +761,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description 订单已关闭 */
+                /** @description 订单已关闭。code：ORDER_NOT_PAYABLE */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -773,7 +817,15 @@ export interface paths {
                     };
                     content?: never;
                 };
-                404: components["responses"]["NotFound"];
+                /** @description 支付单不存在。code：ORDER_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -968,7 +1020,7 @@ export interface paths {
                         "application/json": components["schemas"]["Refund"];
                     };
                 };
-                /** @description 该履约单不可退，或已有未结的退款单 */
+                /** @description 该履约单不可退，或已有未结的退款单。code：REFUND_NOT_ALLOWED、REFUND_ALREADY_OPEN */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1013,7 +1065,15 @@ export interface paths {
                         "application/json": components["schemas"]["Refund"];
                     };
                 };
-                404: components["responses"]["NotFound"];
+                /** @description 退款单不存在。code：REFUND_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -1061,7 +1121,15 @@ export interface paths {
                     };
                     content?: never;
                 };
-                404: components["responses"]["NotFound"];
+                /** @description 退款单不存在。code：REFUND_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -1143,7 +1211,15 @@ export interface paths {
                         "application/json": components["schemas"]["Announcement"];
                     };
                 };
-                404: components["responses"]["NotFound"];
+                /** @description 公告不存在。code：ANNOUNCEMENT_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -1171,7 +1247,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description 进行中的排在前面 */
+                /** @description 按开始时间倒序 */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1221,7 +1297,15 @@ export interface paths {
                         "application/json": components["schemas"]["Event"];
                     };
                 };
-                404: components["responses"]["NotFound"];
+                /** @description 活动不存在。code：EVENT_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         put?: never;
@@ -1396,7 +1480,15 @@ export interface paths {
                         "application/json": components["schemas"]["Allocation"];
                     };
                 };
-                400: components["responses"]["BadRequest"];
+                /** @description 参数不合法，或配额超过商品限量。code：BAD_REQUEST、QUOTA_EXCEEDED */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 403: components["responses"]["Forbidden"];
             };
         };
@@ -1762,9 +1854,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description 业务错误码，与 src/main/java/com/sunshinefps/shared/ErrorCode.java 一一对应。新增错误码必须两边同步
+         * @enum {string}
+         */
+        ErrorCode: "UNAUTHORIZED" | "FORBIDDEN" | "REAL_NAME_REQUIRED" | "REAL_NAME_ALREADY_SET" | "USERNAME_TAKEN" | "BAD_CREDENTIALS" | "PRODUCT_NOT_FOUND" | "CAMPAIGN_NOT_FOUND" | "CAMPAIGN_NOT_STARTED" | "CAMPAIGN_ENDED" | "QUOTA_EXCEEDED" | "ALREADY_PURCHASED" | "SOLD_OUT" | "UNIT_POOL_INCONSISTENT" | "RATE_LIMITED" | "ORDER_NOT_FOUND" | "ORDER_NOT_PAYABLE" | "ORDER_NOT_CANCELLABLE" | "STOCK_INSUFFICIENT" | "ADDRESS_REQUIRED" | "REFUND_NOT_FOUND" | "REFUND_NOT_ALLOWED" | "REFUND_ALREADY_OPEN" | "ANNOUNCEMENT_NOT_FOUND" | "EVENT_NOT_FOUND" | "BAD_REQUEST" | "INTERNAL_ERROR";
         Error: {
-            /** @description 大写下划线，前端用它做分支 */
-            code: string;
+            code: components["schemas"]["ErrorCode"];
             /** @description 可直接展示给用户的中文文案 */
             message: string;
             /** @description 通常为 null，需要附带上下文时放这里 */
@@ -1905,6 +2001,11 @@ export interface components {
             collectibleNumber: string;
             /** Format: date-time */
             payDeadline: string;
+            /**
+             * Format: date-time
+             * @description 服务端当前时间，前端用它算付款倒计时的偏移
+             */
+            serverTime: string;
         };
         /** @enum {string} */
         OrderStatus: "PENDING_PAYMENT" | "PAID" | "CLOSED" | "REFUNDED";
@@ -1925,6 +2026,11 @@ export interface components {
             payDeadline?: string | null;
             /** @description 服务端算好的剩余支付秒数 */
             secondsLeft?: number | null;
+            /**
+             * Format: date-time
+             * @description 服务端当前时间，前端用它算付款倒计时的偏移
+             */
+            serverTime: string;
             /** @enum {string|null} */
             closeReason?: "TIMEOUT" | "CANCELLED" | null;
             items: components["schemas"]["OrderItem"][];
@@ -2063,6 +2169,11 @@ export interface components {
             endAt: string;
             ongoing: boolean;
             /**
+             * Format: date-time
+             * @description 服务端当前时间，前端用它算活动剩余天数的偏移
+             */
+            serverTime: string;
+            /**
              * Format: int64
              * @description 可空。有值时活动页展示「立即前往」
              */
@@ -2080,7 +2191,7 @@ export interface components {
         };
     };
     responses: {
-        /** @description 参数不合法 */
+        /** @description 参数不合法。code：BAD_REQUEST */
         BadRequest: {
             headers: {
                 [name: string]: unknown;
@@ -2089,7 +2200,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description 没登录或会话已过期 */
+        /** @description 没登录或会话已过期。code：UNAUTHORIZED */
         Unauthorized: {
             headers: {
                 [name: string]: unknown;
@@ -2098,7 +2209,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description 登录了但没权限 */
+        /** @description 登录了但没权限。code：FORBIDDEN */
         Forbidden: {
             headers: {
                 [name: string]: unknown;
@@ -2107,25 +2218,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description 资源不存在 */
-        NotFound: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description 状态冲突 */
-        Conflict: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description 触发限流 */
+        /** @description 触发限流。code：RATE_LIMITED */
         TooManyRequests: {
             headers: {
                 /** @description 多少秒后可以重试 */

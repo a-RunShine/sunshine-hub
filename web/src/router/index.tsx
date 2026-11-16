@@ -15,7 +15,14 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
   },
-  { path: '/orders/:orderNo', element: <Placeholder title="订单详情" note="含剩余支付秒数" /> },
+  {
+    path: '/orders/:orderNo',
+    element: (
+      <RequireAuth>
+        <Placeholder title="订单详情" note="含剩余支付秒数" />
+      </RequireAuth>
+    ),
+  },
   {
     path: '/items',
     element: (
@@ -32,7 +39,14 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
   },
-  { path: '/refunds/:refundNo', element: <Placeholder title="退款详情" /> },
+  {
+    path: '/refunds/:refundNo',
+    element: (
+      <RequireAuth>
+        <Placeholder title="退款详情" />
+      </RequireAuth>
+    ),
+  },
   { path: '/announcements', element: <Placeholder title="公告" /> },
   { path: '/announcements/:announcementId', element: <Placeholder title="公告详情" /> },
   { path: '/events', element: <Placeholder title="活动" /> },

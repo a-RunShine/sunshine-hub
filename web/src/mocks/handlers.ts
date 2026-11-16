@@ -112,6 +112,7 @@ export const handlers = [
         orderNo: 'SO' + Date.now(),
         collectibleNumber: '0427',
         payDeadline: new Date(Date.now() + 900_000).toISOString(),
+        serverTime: now(),
       },
       { status: 201 },
     ),
