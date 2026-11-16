@@ -148,7 +148,7 @@
           <java>
             <!-- AOSP 变体是 4 空格缩进，比 Google 默认的 2 空格更适合这个项目 -->
             <googleJavaFormat>
-              <version>1.25.2</version>
+              <version>1.35.0</version>
               <style>AOSP</style>
             </googleJavaFormat>
             <removeUnusedImports/>
