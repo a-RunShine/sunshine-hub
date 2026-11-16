@@ -4,7 +4,7 @@
 
 所有行号基于 **2026-11-16** 的 `main` = `c5b5508`。
 
-相关页：[index](index.md) · [environment](environment.md) · [workflow](workflow.md) · [open-loops](open-loops.md) · [contract-gaps](contract-gaps.md)
+相关页：[index](index.md) · [environment](environment.md) · [workflow](workflow.md) · [open-loops](open-loops.md) · [contract-gaps](contract-gaps.md) · [decisions-2026-11-16](decisions-2026-11-16.md)
 
 ## CI 只有一个 workflow
 
@@ -73,6 +73,14 @@ pnpm 12（`:45-47`）+ node 22（`:49-53`），依次：`install --frozen-lockfi
 **缺陷二：`GLOSSARY.md` 根本没把「大区」收进排除词。**
 
 2026-11-16 复核：`GLOSSARY.md` 里 `大区` 出现 **0 次**，19 条 `_Avoid_` 没有一条含它。**所以即使提取完全正确，这个脚本也从来抓不到漏进 issue #7 第 50 行的那个词。** 一个已被 ADR-0011 整个删掉的领域概念，不在术语表的反向清单里——这是 [workflow](workflow.md) 那条纪律的**数据缺口**，与脚本 bug 独立。
+
+**缺陷三：术语表自身不在扫描范围，而它正违反自己的排除词（2026-11-16 追加）。**
+
+`scripts/check-glossary.sh:75` 有 `--exclude='GLOSSARY.md'`（排除自身合理，否则每条 `_Avoid_` 都会命中自己）。**代价是术语表内部的自相矛盾永远抓不到。**
+
+实例：`GLOSSARY.md:93` 把「一人一单」列为 Purchase Limit 的排除词，而 **`GLOSSARY.md:28` 的 Flash Sale 定义自己就写着「有开售时刻、有配额、一人一单，售罄即止」**。同日 D1 拍板每人可买 2 件以上，**这一句连事实都错了**。
+
+**注意区分**：「一人一单」**不是漏收的排除词**——它一直在 :93。问题是术语表用了自己禁的词，加上 D1 之后内容过时。**这属内容修订（PR #30 那一轮），不属 #29 的脚本修复范围。** 详见 [decisions-2026-11-16](decisions-2026-11-16.md) 的更正条与 [open-loops](open-loops.md)。
 
 **合起来的后果**：术语护栏**不是「advisory 所以不拦」，而是「既不拦、也扫不对、还漏了最该扫的词」**。[workflow](workflow.md) 里「跑绿了不代表旧词清干净」要升级成「**跑出来的候选本身不可信**」。
 

@@ -6,6 +6,8 @@
 
 **2026-11-16 三次更新：owner 拍板 D1 / D2 / D3，本页多处从「提案」变「已定」。** 决策本身、推翻了哪些 ADR 行、单向门代价，全部记在 [decisions-2026-11-16](decisions-2026-11-16.md)。对本页的直接影响：**缺口 2 的字段定为 `remainingQuota`**（限购可 2 件以上，boolean 不够）、**第五态定为失格/冷却**（永久档取消，改 7 天）。旧提案按本层规矩标 superseded，不静默改写。
 
+**2026-11-16 四次更新：追加 D4（冷却跨场生效、限本商品），并汇总下一个契约 ticket 的范围。** ADR 修订已开 **PR #30**（新增 ADR-0012 / 0013），其中 ADR-0012:33 与 ADR-0013:29 明确把契约缺口留给下一个 ticket——**范围见本页「下一个契约 ticket 的范围」一节**，含本页原五处之外的两处新增（`CampaignInput` 额度字段、`/orders` 的冷却码）。
+
 这一页是**阶段 1 抢购页的前置**。缺口不补，页面写出来就是错的——不是写不完，是写完了对着契约一核发现表达不了。
 
 相关页：[index](index.md) · [stages](stages.md) · [open-loops](open-loops.md) · [decisions](decisions.md) · [decisions-2026-11-16](decisions-2026-11-16.md) · [issue-3-review](issue-3-review.md) · [guardrails](guardrails.md)
@@ -39,7 +41,9 @@
 | 已结束 | `status=ENDED`、`CAMPAIGN_ENDED`（`ErrorCode.java:25`） | 够用 |
 | 售罄 | Lua `-2`（#2:214-216、228）→ `allocation.available=0` | 受缺口 3 阻；**不是终态**，见 ADR-0003:13 |
 | 已购 / 额度用尽 | **`remainingQuota = 0`**（缺口 2 新增字段）。**每场独立额度，不跨场累计**（D1） | **字段待加**，改法已定 |
-| 失格 / 冷却 | 两档：不足 3 次未支付 → 24h；满 3 次 → **7 天**（D2）。**均需新增错误码** | **无错误码，Lua 也没实现** |
+| 失格 / 冷却 | 两档：不足 3 次未支付 → 24h；满 3 次 → **7 天**（D2）。**作用域＝本商品，跨场生效**（D4）：首发场触发的冷却，同商品的折扣场也拦 | **无错误码，Lua 也没实现**；折扣场走 `/orders`，那里也没声明 |
+
+**⚠️ 第四态与第五态的作用域故意不一致（D1 vs D4）**：额度按 `campaignId` **重置**，冷却按 `productId` **累计**。**这不是漏改**——额度服务运营复售，冷却服务风控，换场不能洗白未支付记录。详见 [decisions-2026-11-16](decisions-2026-11-16.md) 的 D4。**别把两个键的 scope「修」成一致。**
 
 ### 推导版（2026-11-16 早先，历史保留）
 
@@ -195,6 +199,26 @@ spec 的缓存策略是逻辑过期 + 返回旧值：`campaign:detail:{campaignI
 
 **新增错误码的机器耦合（2026-11-16）**：第五态（失格/冷却）要落地就得新增错误码（例如 `PURCHASE_DISQUALIFIED`）。**必须同时改两处**：`src/main/java/com/sunshinefps/shared/ErrorCode.java` 与 `api/openapi.yaml` 的 `ErrorCode` 枚举（`:1085`）。`src/test/java/com/sunshinefps/ErrorCodeContractTest.java:29-46` 直接比对两边成员，**漏一边就红**，而且它只比常量名，不比文案与状态码（`:22` 注释）。这条是 blocking，不是 advisory——与术语检查不同，见 [guardrails](guardrails.md)。
 
+## 下一个契约 ticket 的范围（2026-11-16）
+
+**来源**：决策 worker 在 **ADR-0012:33** 与 **ADR-0013:29** 里明确记了「契约缺口，本轮不改，契约修订是下一个 ticket」，加上本页原有的五处。**合并成一份范围，避免开重票。**
+
+| # | 改动 | 位置 | 来源 |
+| --- | --- | --- | --- |
+| 1 | **`CampaignInput` 加「本场每人最多几件」字段** | `:1302-1322`，现有字段只有 name/type/productId/startAt/endAt/discountPrice | **ADR-0012:33**。**本页原五处没覆盖这一处**——它是运营配置入口，D1 的写侧 |
+| 2 | `CampaignDetail` 加 `remainingQuota: [integer,'null']` + 本场额度配置字段 | `:1267` | 缺口 2 / ADR-0012:33 |
+| 3 | **`ProductDetail.purchaseLimit` 怎么处置** | `:1182`，仍挂商品级 | ADR-0012:33 点了它，但**不能直接删**：ADR-0012:11 明确虚拟道具侧仍「一个账号一件」，商品级限购对那一套继续有效 |
+| 4 | `ErrorCode` 加冷却码，claim 的 409 声明它 | 枚举 `:1085`；claim 409 `:260-265` 现只有 `ALREADY_PURCHASED`/`CAMPAIGN_NOT_STARTED`/`CAMPAIGN_ENDED` | **ADR-0013:29** / 缺口 5 |
+| 5 | **`POST /orders` 的 409 也要声明冷却码** | `:345-350`，现只有 `STOCK_INSUFFICIENT` | **D4 的推论，ADR-0013:29 没点这一处**。折扣场走 `/orders` 不走 claim，冷却既然跨场生效于本商品，这里不声明就画不出冷却态 |
+| 6 | claim 补 `'500'`（`UNIT_POOL_INCONSISTENT`） | `:238-273` | 缺口 1 |
+| 7 | `CampaignDetail` 拆 `oneOf`，FLASH 侧 `allocation` required | `:1269`、`:1294` | 缺口 3，**改法仍未拍** |
+| 8 | `reserved` 改可空 + 声明用户专属字段在缓存读出后叠加 | `:1299`、`:222` | 缺口 4 |
+| 9 | 五态清单落进 issue #7 抢购页段落 | #7 第 58 行附近 | 缺口 5，**人写，不是 schema** |
+
+**新增错误码必须两边同步**（`ErrorCode.java` + 契约枚举），否则 `ErrorCodeContractTest` 红，见 [guardrails](guardrails.md)。
+
+**不在本 ticket 范围**：Lua 的计数语义改造、唯一索引换机制、冷却键结构设计——那些是后端实现与 #3 P0-7/P0-9，ADR-0012:31-32 与 ADR-0013:25 都明写本轮只记约束不做设计。
+
 ## 附带：MSW 造不出失败态
 
 **2026-11-16 复核**：`web/src/mocks/handlers.ts:109-119` 的 claim handler **无条件返回 201**。七个 handler 里没有任何一个返回 409 / 410 / 500。
@@ -222,13 +246,15 @@ spec 的缓存策略是逻辑过期 + 返回旧值：`campaign:detail:{campaignI
 | 「五」的口径 | 第五态 = **失格/冷却**；未实名/未登录**不是**禁用态 | **D3**，与 wiki 推荐一致 |
 | 限购字段形态 | **`remainingQuota: [integer,'null']`**，不用 boolean | **D1**，走了 wiki 列的第二分支 |
 | 永久失格是否进首版 | **永久档取消**，改**两档冷却**：不足 3 次 → 24h；满 3 次 → **7 天**，均自动恢复，**不需人工解封入口** | **D2**，**与 wiki 推荐不同** |
+| 冷却的作用域 | **挂 `productId`，跨场生效限本商品**；与额度的按场重置形成**有意的不对称** | **D4**（2026-11-16 追加） |
 
 **D2 与旧推荐的差异值得记一笔**：wiki 当时推荐「只做 24h 一档，永久档显式记为范围外」。owner 选的是**保留重档但把它变可逆**——惩戒力度保住了，误伤变成有界。这比「砍掉重档」更贴合 #2:196 原本的反黄牛意图。
 
 ### 仍未拍
 
 - **`CampaignDetail` 的拆分方式**（缺口 3）：wiki 仍推荐 `oneOf` + `discriminator(type)`，代价是前端全量 narrow。**未拍。**
-- **`miss` 计数的 scope 与清零规则**、**24h 计数窗口是否保留**：D1/D2 都没覆盖。见 [decisions-2026-11-16](decisions-2026-11-16.md) 末节与 [open-loops](open-loops.md)。
+- **`miss` 计数的清零规则**与**24h 计数窗口是否保留**：~~scope 也未定~~ **2026-11-16 更正：scope 已由 D4 定为 `productId`**，但清零与窗口仍未定，且 #3 P0-7 附带的「string 做不了滑动窗口」数据结构问题 D2/D4 都没碰。见 [decisions-2026-11-16](decisions-2026-11-16.md) 末节。
+- **NORMAL 常规售卖是否也受冷却约束**：D4 只说折扣场。**未定，别自行推广。**
 
 ### 旧问题列表（2026-11-16 早先，历史保留）
 

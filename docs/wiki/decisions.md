@@ -28,7 +28,18 @@
 
 **2026-11-16**：owner 拍板 D1 / D2 / D3，**[ADR-0002](../adr/0002-purchase-limit-on-real-name.md):16 的「跨场累计」与 [ADR-0010](../adr/0010-two-purchase-limits.md):5 的「一个证件只能买一件」被推翻**；0002 的「绑实名不绑账号」与 0010 的「两套维度」**保留**。
 
-**上表标题暂未改**——ADR 文件的修订派给了 worktree `../sunshine-hub-decisions`、分支 `docs/limit-cooldown-decisions`，本 checkout（`c5b5508`）里还是旧文本。**等那份 PR 合并后回来更新上表，并按本层规矩标旧标题 superseded。**
+**上表标题暂未改**——ADR 文件的修订在 **PR #30**（worktree `../sunshine-hub-decisions`、分支 `docs/limit-cooldown-decisions`，复核时 OPEN），本 checkout（`main` = `c5b5508`）里还是旧文本。**等那份 PR 合并后回来更新上表，并按本层规矩标旧标题 superseded。**
+
+**PR #30 会新增两份 ADR**（标题取自 `origin/docs/limit-cooldown-decisions`，2026-11-16 复核）：
+
+| ADR | 标题（即结论） |
+| --- | --- |
+| 0012 | 限时抢购的每人额度按场次配置，不跨场累计 |
+| 0013 | 未支付惩罚是两档冷却，不是永久失格 |
+
+**合并后 ADR 总数将是 13 份**，上表「11 份」那行要一并更正。
+
+**⚠️ D4 晚于 PR #30**：owner 同日追加的「冷却跨场生效、限本商品」**还没进 ADR-0013**，它的 :31 仍写「作用域未拍板」。**所以 PR #30 也不是最新结论**，见 [decisions-2026-11-16](decisions-2026-11-16.md) 的 D4。
 
 **变更的历史记录在 [decisions-2026-11-16](decisions-2026-11-16.md)**：逐条推翻了什么、保留了什么、哪些是单向门、下游还要改哪些文件。**这一页仍是指针页，不复制那边的内容。**
 
