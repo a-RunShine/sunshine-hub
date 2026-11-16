@@ -2,7 +2,7 @@
 
 **新会话先读这一页。** 这里是跨会话记忆的入口，不是文档副本——规格在 GitHub Issues，结论在 `docs/adr/`，这一层只记「agents 需要知道但仓库别处没写」的东西。
 
-快照：**2026-11-16**，分支 `docs/wiki-bootstrap`，`main` = `c5b5508`（PR #25 已合并）。
+快照：**2026-11-16**，分支 `docs/wiki-bootstrap`，`main` = `c5b5508`（PR #25 已合并）。本层已入库为 **`23f89d9`**，由 **PR #26** 承载（复核时 OPEN，**未合并**，合并等 owner）。
 
 ## 约定
 
@@ -15,8 +15,8 @@
 
 | 页 | 一句话 |
 | --- | --- |
-| [environment](environment.md) | 工具链的坑：enforcer 门 21+ 而非 25、`~/.m2/toolchains.xml` 是未提交的机器本地前提、无 mvnw、`JAVA_HOME` 需手动 export、pnpm 12 的 `allowBuilds`、版本只钉在 CI |
-| [guardrails](guardrails.md) | CI 三个 job 与 `scripts/` 逐条清单，**重点是哪条 blocking 哪条 advisory**（术语检查恒 `exit 0`）、ArchUnit 静默失效的兜底、`new-worktree.sh` 的并行陷阱 |
+| [environment](environment.md) | 工具链的坑：enforcer 门 21+ 而非 25、`~/.m2/toolchains.xml` 是未提交的机器本地前提、无 mvnw、`JAVA_HOME` 需手动 export、**`LANG`/`LC_CTYPE` 未设置导致中文 shell 工具按字节处理**、pnpm 12 的 `allowBuilds`、版本只钉在 CI |
+| [guardrails](guardrails.md) | CI 三个 job 与 `scripts/` 逐条清单，**重点是哪条 blocking 哪条 advisory**；术语检查不只 advisory，**提取本身在 C locale 下损坏、且 `GLOSSARY.md` 未收「大区」**；错误码双份同步是 blocking；ArchUnit 静默失效的兜底、`new-worktree.sh` 的并行陷阱 |
 
 ## 进展
 
@@ -28,8 +28,9 @@
 
 | 页 | 一句话 |
 | --- | --- |
-| [contract-gaps](contract-gaps.md) | **阶段 1 抢购页的前置**：五处契约缺口，四处要改 `api/openapi.yaml`，一处是「五种禁用态」没有权威清单 |
-| [open-loops](open-loops.md) | 等着谁、卡在哪：阶段选择未拍板、#3 待 triage、issue #7 的「大区」旧词未清、阶段 1/2 未拆 ticket、wiki 自身尚未提交 |
+| [contract-gaps](contract-gaps.md) | **阶段 1 抢购页的前置，已升级为可决策页**：五态推导表（含「未实名/未登录**不是**禁用态」）、每处缺口的具体改法与代价、两条 ADR 护栏、共享缓存导致售罄滞后、四个待 owner 拍板的问题 |
+| [issue-3-review](issue-3-review.md) | #3 九条 P0 的分类：**P0-7 ＝ 第五个禁用态、P0-9 决定限购字段类型**，两者阻塞契约修复；哪些相邻不重叠、哪些无关；**#3 自己四处已过时** |
+| [open-loops](open-loops.md) | 等着谁、卡在哪：契约先行已拍板但**压在 #3 的 P0-7/P0-9 上**、#3 与 #27 待 triage、#7 的「大区」旧词未清（附**逐条判定表**）、阶段 1/2 未拆 ticket |
 
 ## 本页
 
@@ -41,9 +42,11 @@
 
 **要动手写代码**：[workflow](workflow.md) → [environment](environment.md) → [guardrails](guardrails.md) → [stages](stages.md) → 对应模块的 [decisions](decisions.md) 条目。
 
+**要补契约**（2026-11-16 起 owner 选定的下一步）：[contract-gaps](contract-gaps.md) → [issue-3-review](issue-3-review.md)。**先读后者**——P0-7 / P0-9 不定，前者要新增的字段类型可能是错的。
+
 **要做抢购页**：先读 [contract-gaps](contract-gaps.md)，**它列的缺口不补，页面写出来就是错的**。
 
-**要接手协调**：[open-loops](open-loops.md) → [stages](stages.md) → [workflow](workflow.md)。
+**要接手协调**：[open-loops](open-loops.md) → [issue-3-review](issue-3-review.md) → [stages](stages.md) → [workflow](workflow.md)。
 
 ## 写这一层的规矩
 
@@ -57,6 +60,7 @@
 
 - **规格**：issue **#2**（`ready-for-agent`）
 - **实施路径与阶段**：issue **#7**（`docs`）
+- **文档与决策审查**：issue **#3**（`needs-triage` + `docs`）——**引用它时带上 [issue-3-review](issue-3-review.md) 的四处更正**，它写于 ADR 只有 7 份的时候
 - **架构结论**：`docs/adr/0001`–`0011`
 - **领域术语与排除词**：`GLOSSARY.md`
 - **改动纪律 / 评审规范**：`AGENTS.md`、`CODING_STANDARDS/java.md`、`CODING_STANDARDS/typescript.md`

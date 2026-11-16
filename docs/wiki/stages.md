@@ -88,7 +88,7 @@ issue #7 的页面清单是 **7 个区域**：身份、商城、交易、资产�
 | **#3** | 文档与决策审查：P0 九处模型硬伤，P1 十处规格缺口 | `needs-triage` + `docs` |
 | **#2** | Sunshine-FPS 规格说明 | `ready-for-agent` |
 
-#3 还等着 triage，见 [open-loops](open-loops.md)。
+#3 还等着 triage，见 [open-loops](open-loops.md)。**2026-11-16 补充**：九条 P0 已逐条读过并分类，其中 **P0-7 / P0-9 阻塞契约修复**，见 [issue-3-review](issue-3-review.md)。
 
 ## 阶段 1 vs 阶段 2 的选择
 

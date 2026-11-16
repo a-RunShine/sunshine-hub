@@ -52,6 +52,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 - `mvn`、`pnpm`、`node` 都是 homebrew 装的（`/opt/homebrew/bin/`）。
 - **没有 `mvnw`，没有 `.mvn/`**。`.gitignore` 里那行 `!.mvn/wrapper/maven-wrapper.jar` 是残留，别当成「有 wrapper」的证据。
 - `.java-version` 内容是 `25`，但仓库里没有提交任何 jenv/asdf 配置去消费它——**没有任何东西自动设 `JAVA_HOME`，每个 agent 都得自己 export**。
+- **`LANG` 与 `LC_CTYPE` 均未设置**（2026-11-16），shell 默认 C locale。与 `JAVA_HOME` 同类：**机器本地前提，仓库里没有任何文件说明它**，而它会让中文文本处理工具静默出错。见下方「Shell 与 locale」。
 
 **2026-11-16 交接记录**：ArchUnit 有一条静默失效的暗坑（版本读不了当前 JDK 字节码时规则会悄悄不生效），已被 `ArchUnitImportTest` 兜住。**那个测试红了不要改测试**，去查 ArchUnit 版本与 JDK 字节码的兼容性。
 
@@ -66,6 +67,27 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 后果：本地装什么版本全凭机器，CI 与本地可能不是同一套。要复现 CI，得自己对着 ci.yml 那几行核。
 
 **干净 clone 仍然能跑**：`web/pnpm-lock.yaml` 与生成物 `web/src/types/api.ts` **都已提交**（`git ls-files` 可查），所以 `pnpm test` / `build` / `lint` 不必先跑 `gen:types`。CI 里仍显式跑一遍 `gen:types`（`ci.yml:59-61`），等于每次校验提交进去的那份生成物有没有漂移。
+
+## Shell 与 locale：本机默认是 C，多字节工具会踩坑
+
+**2026-11-16**，来源是并行护栏 worker 在分支 `chore/guardrails` 上的运行，本会话同日在 `c5b5508` 上独立复现。
+
+**本机 `LANG` 与 `LC_CTYPE` 均未设置**，所以 shell 工具默认落在 C/POSIX locale。这一条本身无害，但**任何按字符处理中文的 shell 工具都会因此按字节处理**。
+
+已确认的实例：`scripts/check-glossary.sh:39` 的 `tr '、' '\n'`（`:28` 的 `tr '（' '\n'` 同理）。`、` = U+3001 = `E3 80 81`，C locale 下这三个字节各自被映射成换行，汉字被切碎，碎片当成术语去 grep。
+
+**本机 BSD `tr` 是 locale 敏感的**（2026-11-16 实测）：
+
+```
+printf '促销、秒杀活动\n' | tr '、' '\n' | od -c          # 损坏：促销 被切开
+printf '促销、秒杀活动\n' | LC_ALL=en_US.UTF-8 tr '、' '\n'  # 正确：促销 / 秒杀活动
+```
+
+**所以同一份脚本在不同机器上给出不同候选集**——脚本没有固定 locale（`:15` 只有 `set -uo pipefail`）。要复现护栏 worker 看到的现象，**不要先 export UTF-8 locale**；要绕开它，`LC_ALL=en_US.UTF-8` 就够。
+
+**未验证**：CI 是 ubuntu + GNU `tr`，GNU `tr` 不支持多字节是已知特性，据此推断 CI 上无论 locale 都损坏，但**本会话没有在 CI 上实测**。别据此声称 CI 一定坏。
+
+完整的护栏后果（含 `GLOSSARY.md` 未收「大区」这条独立缺陷）见 [guardrails](guardrails.md) 的更正条；待办见 [open-loops](open-loops.md)。**本层只记录，不改脚本**——修复属 `chore/guardrails` 那一轮。
 
 ## 中间件
 
