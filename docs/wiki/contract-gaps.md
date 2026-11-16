@@ -2,6 +2,10 @@
 
 **2026-11-16 复核（`main` = `c5b5508`）**，全部行号指 `api/openapi.yaml`，除非另注。issue 行号指 `gh issue view <n> --json body -q .body` 的正文行号。
 
+> **2026-11-16 基准更新（`main` = `3701bd4`）**：PR #30（`742ef1e`）与 PR #28（`3701bd4`）已合并。**但 `api/openapi.yaml`、`src/`、`web/src/` 一个字节都没动**（`git diff c5b5508 origin/main` 核实）——**所以本页所有契约行号、`ErrorCode.java` 行号、前端行号全部仍然有效，九项契约缺口一项都还没修。**
+>
+> 变的是 **ADR 与 GLOSSARY**：ADR-0012 / 0013 已在 main，**本页引用它们时不再需要「待合分支」限定**；`GLOSSARY.md` 行号有位移（见 [decisions-2026-11-16](decisions-2026-11-16.md) 顶部基准说明）。**issue #2 的行号位移见下方换算表。**
+
 **2026-11-16 二次复核（本页已随 `23f89d9` 入库，PR #26）**：owner 已拍板**先补契约、再开阶段 1 抢购页**（见 [open-loops](open-loops.md)）。本页因此从「缺口清单」升级为**可决策页**：每处缺口给出具体改法、代价、以及会不会撞 ADR。
 
 **2026-11-16 三次更新：owner 拍板 D1 / D2 / D3，本页多处从「提案」变「已定」。** 决策本身、推翻了哪些 ADR 行、单向门代价，全部记在 [decisions-2026-11-16](decisions-2026-11-16.md)。对本页的直接影响：**缺口 2 的字段定为 `remainingQuota`**（限购可 2 件以上，boolean 不够）、**第五态定为失格/冷却**（永久档取消，改 7 天）。旧提案按本层规矩标 superseded，不静默改写。

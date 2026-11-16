@@ -35,6 +35,23 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 
 `pom.xml:122-126` 的注释说明了这条规则为什么存在：不拦的话，报错是 `NoClassDefFoundError: JCTree$JCAnyPattern`，看起来像依赖缺失，完全不指向真正原因。**注释把这笔账记在 Spotless 的 google-java-format 1.35 头上（它要 JDK 21+），不是 ArchUnit。** 派活时若有人转述成「ArchUnit 要 21+」，那是转述错了。
 
+### 二次更正：enforcer 现在真的门 25 了（2026-11-16，`3701bd4`）
+
+> **2026-11-16 更正（superseded）**：上面那条「enforcer 门的是 21+，不是 25」**已被 PR #28 推翻**。`main` = **`3701bd4`**（PR #28，2026-11-16 12:35:18 UTC 合并）上 `pom.xml:128` 是 **`<version>[25,)</version>`**，报错文案也改成「需要 JDK 25+，与 `.java-version` 和 toolchains 对齐」。
+>
+> **绕了一圈回到原点，但理由不同**：交接记录最初说「enforcer 要求 JDK 25」，在 `c5b5508` 上是错的（那时是 `[21,)`）；**在 `3701bd4` 上又变成对的了**。所以引用这条时**必须带 SHA**，否则无法判断谁对。
+>
+> **两条门现在对齐了**，但仍是两条独立的门：
+
+| 门 | 位置（`3701bd4`） | 校什么 | 阈值 |
+| --- | --- | --- | --- |
+| `maven-enforcer-plugin` | `pom.xml:127-130` | **运行 Maven 的 JVM** | `requireJavaVersion` = **`[25,)`** |
+| `maven-toolchains-plugin` | `pom.xml:91-106`（`version 25` 在 `:103`） | **编译用的 JDK** | `version 25` / `vendor temurin` |
+
+`pom.xml:123-125` 的注释现在明写「门槛取 25 与 `.java-version`、toolchains 对齐（21+ 约束自然满足），让它在最开始就说清楚」。**Spotless 那笔账仍然记在 google-java-format 1.35 头上，不是 ArchUnit**，这一点没变。
+
+**实际影响**：本机 `JAVA_HOME` 未设置、默认 JDK 不是 25，**现在 enforcer 会直接拦下**，不再只是 toolchain 阶段失败。上面那条 `export JAVA_HOME=...temurin-25...` 从「最省事的做法」变成**必需步骤**。
+
 ### 机器本地前提：`~/.m2/toolchains.xml`
 
 **2026-11-16 复核**：`~/.m2/toolchains.xml` 在本机**存在**（文件时间 Nov 15 19:07），内容是 `jdk 25 / temurin` → `/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home`。
@@ -50,7 +67,9 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 - `JAVA_HOME` **未设置**（不是指向 17，是空）。交接记录里「本机默认 17」的说法要按这条读。
 - 已装 JDK：`openjdk-17`、`zulu-17`、`zulu-21`、`temurin-25`（`/Library/Java/JavaVirtualMachines/`）。
 - `mvn`、`pnpm`、`node` 都是 homebrew 装的（`/opt/homebrew/bin/`）。
-- **没有 `mvnw`，没有 `.mvn/`**。`.gitignore` 里那行 `!.mvn/wrapper/maven-wrapper.jar` 是残留，别当成「有 wrapper」的证据。
+- ~~**没有 `mvnw`，没有 `.mvn/`**。`.gitignore` 里那行 `!.mvn/wrapper/maven-wrapper.jar` 是残留，别当成「有 wrapper」的证据。~~
+
+  > **2026-11-16 更正（superseded，`3701bd4`）**：**PR #28 已补上 Maven wrapper**。main 上现有 `mvnw`、`mvnw.cmd`、`.mvn/wrapper/maven-wrapper.properties`（`wrapperVersion=3.3.2`、`distributionType=only-script`、Maven **3.9.16**）。**`.gitignore` 那行不再是残留，是有效的例外规则。** 现在可以用 `./mvnw verify` 而不依赖本机装的 `mvn`；`only-script` 意味着 wrapper 只下载脚本、不提交 jar，首次跑会联网取 Maven 发行包。
 - `.java-version` 内容是 `25`，但仓库里没有提交任何 jenv/asdf 配置去消费它——**没有任何东西自动设 `JAVA_HOME`，每个 agent 都得自己 export**。
 - **`LANG` 与 `LC_CTYPE` 均未设置**（2026-11-16），shell 默认 C locale。与 `JAVA_HOME` 同类：**机器本地前提，仓库里没有任何文件说明它**，而它会让中文文本处理工具静默出错。见下方「Shell 与 locale」。
 
@@ -65,6 +84,14 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 **2026-11-16 复核（`c5b5508`）**：`web/package.json` **没有 `packageManager` 字段，也没有 `engines`**；仓库里没有 `.nvmrc` / `.node-version`。node 22 与 pnpm 12 **只钉在 `.github/workflows/ci.yml:45-53`**。
 
 后果：本地装什么版本全凭机器，CI 与本地可能不是同一套。要复现 CI，得自己对着 ci.yml 那几行核。
+
+> **2026-11-16 更正（部分 superseded，`3701bd4`）**：**PR #28 已把版本钉进仓库**，上面那段不再成立：
+>
+> - `web/package.json:6` 现有 **`"packageManager": "pnpm@12.21.0"`**（精确到补丁号，比 CI 的 `version: 12` 更严）。
+> - **`web/.nvmrc` 已存在，内容 `22`**，与 `ci.yml:51` 的 `node-version: '22'` 对齐。
+> - **仍然没有 `engines` 字段**，也没有 `.node-version`。所以「钉住了」不等于「强制了」——`packageManager` 靠 corepack 生效，`.nvmrc` 靠 nvm/fnm 读取，**不用这些工具的机器仍然装什么版本都行**。
+>
+> **CI 侧的行号没变**：pnpm 12 在 `ci.yml:45-47`，node 22 在 `:49-53`。
 
 **干净 clone 仍然能跑**：`web/pnpm-lock.yaml` 与生成物 `web/src/types/api.ts` **都已提交**（`git ls-files` 可查），所以 `pnpm test` / `build` / `lint` 不必先跑 `gen:types`。CI 里仍显式跑一遍 `gen:types`（`ci.yml:59-61`），等于每次校验提交进去的那份生成物有没有漂移。
 

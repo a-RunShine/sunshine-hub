@@ -4,6 +4,10 @@
 
 所有行号基于 **2026-11-16** 的 `main` = `c5b5508`。
 
+> **2026-11-16 基准更新（`3701bd4`）**：PR #28（`3701bd4`，12:35:18 UTC）与 PR #30（`742ef1e`，12:35:06 UTC）已合并，**本页行号基准改为 `main` = `3701bd4`**。两次 CI 均 success（run `43867899360` / `43867932939`）。
+>
+> **`ci.yml` 行号未位移**（三个 job 仍是 `:9-37` / `:39-77` / `:79-95`），**只有 `setup-java` 的版本号变了**。**`pom.xml` 有小幅位移**，受影响的本页引用：Spotless `check` 旧 `:187` → **`:190`**；Checkstyle `check` 旧 `:207` → **`:210`**；`failOnViolation`/`violationSeverity` 旧 `:202-203` → **`:203-204`**；enforcer 旧 `:127-129` → **`:127-130`**；toolchains 旧 `:89-108` → **`:91-106`**。**未位移**：surefire pin `:30`、AOSP 配置 `:176-179`、ArchUnit 兜底 `ci.yml:30-37`。
+
 相关页：[index](index.md) · [environment](environment.md) · [workflow](workflow.md) · [open-loops](open-loops.md) · [contract-gaps](contract-gaps.md) · [decisions-2026-11-16](decisions-2026-11-16.md)
 
 ## CI 只有一个 workflow
@@ -14,15 +18,19 @@
 
 | 步骤 | 干什么 | 拦不拦 |
 | --- | --- | --- |
-| `setup-java@v4` temurin 25（`:15-19`） | 装 JDK | — |
+| ~~`setup-java@v4`~~ **`setup-java@v5`** temurin 25（`:15-19`） | 装 JDK | — |
 | `mvn -B verify`（`:22`） | 见下方展开 | **拦** |
 | 核对 ArchUnit 真的执行了（`:30-37`） | grep surefire 报告 | **拦** |
 
-`mvn verify` 里绑在 `verify` 阶段的三件事：
+> **2026-11-16 更正（superseded，`3701bd4`）**：上表旧版写 `setup-java@v4`，并把它列进「已知缺口」说已废弃。**PR #28 已升到 `@v5`**（`ci.yml:15`），那条缺口已结。
+>
+> **但同批其它 action 仍是 v4，没一起升**：`checkout@v4`（`:13`、`:43`、`:83`）、`pnpm/action-setup@v4`（`:45`）、`setup-node@v4`（`:49`、`:85`）。**别把「setup-java 升了」读成「action 版本都升了」。**
 
-- **Spotless** `check`（`pom.xml:187`）：google-java-format 1.35.0，AOSP 变体（4 空格，`pom.xml:176-179`）。格式不对就红。
-- **Checkstyle** `check`（`pom.xml:207`）：`failOnViolation=true` + `violationSeverity=warning`（`pom.xml:202-203`）——**warning 级也拦**，不是只拦 error。配置在 `config/checkstyle/checkstyle.xml`。
-- **Surefire** 跑测试，版本 pin 在 `3.5.2`（`pom.xml:30`、`:166`）。
+`mvn verify` 里绑在 `verify` 阶段的三件事（行号按 `3701bd4`）：
+
+- **Spotless** `check`（`pom.xml:190`，旧号 `:187`）：google-java-format 1.35.0，AOSP 变体（4 空格，`pom.xml:176-179`，未位移）。格式不对就红。
+- **Checkstyle** `check`（`pom.xml:210`，旧号 `:207`）：`failOnViolation=true` + `violationSeverity=warning`（`pom.xml:203-204`，旧号 `:202-203`）——**warning 级也拦**，不是只拦 error。配置在 `config/checkstyle/checkstyle.xml`。
+- **Surefire** 跑测试，版本 pin 在 `3.5.2`（`pom.xml:30`、`:166-167`，未位移）。
 
 ### job `frontend`（`ci.yml:39-77`）
 
@@ -134,8 +142,22 @@ Spring Boot 3.5.3 起默认带的 Surefire 有回归：**字段声明的 `@ArchT
 
 ## 已知缺口
 
-- `actions/setup-java@v4` 已废弃（`ci.yml:15`）。同批 `checkout@v4`、`setup-node@v4`、`pnpm/action-setup@v4` 也都是 v4。
+- ~~`actions/setup-java@v4` 已废弃（`ci.yml:15`）。~~ **2026-11-16 已结（superseded，`3701bd4`）**：PR #28 升到 `@v5`。**但同批 `checkout@v4`、`setup-node@v4`、`pnpm/action-setup@v4` 仍是 v4，这条缺口只结了一半。**
 - 术语检查不拦人（见上）。**2026-11-16 升级**：它还不止不拦——`tr` 在 C locale 下打碎多字节字符、`GLOSSARY.md` 未收「大区」，见上方更正条。
 - **2026-11-16**：`GLOSSARY.md` 的反向清单缺「大区」这个已删概念（ADR-0011）。**补排除词是数据修复，与修脚本是两件事**，别混成一个 ticket。
 
 三条都记在 [open-loops](open-loops.md)，前两条来源是 **2026-11-16 交接记录**，本次复核确认仍然存在；第三条来源是 **2026-11-16 `chore/guardrails` 护栏 worker**，本会话独立复现。
+
+### ⚠️ 术语检查在 PR #28 之后**仍然是 advisory，一个字没改**（2026-11-16 复核 `3701bd4`）
+
+**不要把「护栏 PR 合并了」读成「术语护栏修好了」。** 逐项复核 main：
+
+| 项 | 位置 | 状态 |
+| --- | --- | --- |
+| 恒 `exit 0` | `scripts/check-glossary.sh:97` | **未改** |
+| CI 里不 fail | `ci.yml:94-95`，注释 `:92-93` 仍写「只输出候选，不 fail」 | **未改** |
+| `tr` 多字节损坏 | `:28`（`tr '（'`）、`:39`（`tr '、'`），全文无 `LC_ALL` | **未改** |
+| 术语表自身不在扫描范围 | `:75` `--exclude='GLOSSARY.md'` | **未改** |
+| `GLOSSARY.md` 缺「大区」 | 全文 `大区` 出现 **0 次** | **未改**（PR #30 改了 GLOSSARY，但没补这个排除词） |
+
+**这是有意的边界，不是遗漏**：PR #28 只做 wrapper / 版本固定 / JDK 门禁，**术语护栏整件事归 issue #29**（修 locale、补「大区」、修误报，**修干净之后才改 blocking**），issue 正文那一半归 **#27**（blocked by #29）。顺序不能反，否则一开 blocking 就拦住所有 PR。详见 [open-loops](open-loops.md)。
