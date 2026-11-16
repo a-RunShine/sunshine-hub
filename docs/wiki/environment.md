@@ -89,6 +89,22 @@ printf '促销、秒杀活动\n' | LC_ALL=en_US.UTF-8 tr '、' '\n'  # 正确：
 
 完整的护栏后果（含 `GLOSSARY.md` 未收「大区」这条独立缺陷）见 [guardrails](guardrails.md) 的更正条；待办见 [open-loops](open-loops.md)。**本层只记录，不改脚本**——修复属 `chore/guardrails` 那一轮。
 
+## issue 依赖：写后即时读会读到 0
+
+**2026-11-16 实测**（`gh` 2.95.0）：给 issue #27 加 `--add-blocked-by 29` 之后**立刻**查
+
+```
+gh api repos/a-RunShine/sunshine-hub/issues/27 --jq .issue_dependencies_summary.blocked_by
+```
+
+返回 **0**，而 #29 明明是 OPEN。稍后再查同一条命令返回 **1**，`gh issue view 27 --json blockedBy` 也立刻就能看到 #29。
+
+所以是**写后即时读的延迟**，不是命令坏了。危险在于 `docs/agents/issue-tracker.md` 正是推荐用这个 summary 判断「返回 0 表示可以开工」——照着做会在加完依赖的当下误判 ticket 已解锁，然后开工一个其实被阻塞的 ticket。
+
+**做法**：加完依赖不要立刻信 summary，隔一步再查，或用 `gh issue view <n> --json blockedBy` 交叉核对（注意它把已关闭的也列出来，要自己按 `state == "OPEN"` 过滤）。
+
+候选改进：把这条 caveat 补进 `docs/agents/issue-tracker.md`，让每个 agent 都看得到，而不是只躺在这一页。
+
 ## 中间件
 
 **2026-11-16 交接记录**：`docker compose up -d` 起 MySQL(33306)、Redis(36379)、RocketMQ。broker 健康检查探 30911。

@@ -40,6 +40,10 @@
 
   边界已划清：`chore/guardrails` 那一轮只把**仓库内**检查从 advisory 改成 blocking，**不含 issue 正文**，避免把 CI 的对外依赖混进那个 PR。
 
+  **2026-11-16 更正（superseded）**：上面这句「那一轮只把仓库内检查改成 blocking」**没发生**。worker 跑脚本时发现提取逻辑本身有缺陷、且存在合法口语命中，按指令**跳过了这一项**，只做 wrapper / 版本固定 / JDK 门禁，成果是 **PR #28**（`ci.yml`、`mvnw`、`.mvn/wrapper/`、`pom.xml`、`web/.nvmrc`、`web/package.json`）。术语护栏整件事另立 **issue #29**，范围含修 locale、补「大区」排除词、修误报，**修干净之后才改 blocking**——顺序不能反，否则一开就拦住所有 PR。
+
+  **依赖已登记**：#27 blocked by #29（先让仓库内检查真的能用，再扩到 issue 正文）。登记时踩到一个读延迟的坑，见 [environment](environment.md)。
+
 ## 已知但未做（环境护栏）
 
 来自 **2026-11-16 交接记录**，属于「有偏差先修，再做功能」那一类：
@@ -96,7 +100,7 @@
 | **`GLOSSARY.md` 未收「大区」为排除词** | **补** | 19 条 `_Avoid_` 里没有它，`check-glossary.sh` **永远扫不到**。见 [guardrails](guardrails.md) |
 | `docs/wiki/*`（本层） | 保留 | 其中「大区」均为复核记录与墓碑引用 |
 
-**2026-11-16 补充**：上面那句「术语检查是 advisory，机器不会拦」**说轻了**——同轮护栏 worker 发现提取逻辑本身在 C locale 下会损坏多字节字符，且「大区」压根不在排除词表里。**机器不是不拦，是既拦不住也扫不对**，证据见 [guardrails](guardrails.md)。机器兜底的方案已提为 **issue #27**（扩到 issue 正文），仍 `needs-triage`。
+**2026-11-16 补充**：上面那句「术语检查是 advisory，机器不会拦」**说轻了**——同轮护栏 worker 发现提取逻辑本身在 C locale 下会损坏多字节字符，且「大区」压根不在排除词表里。**机器不是不拦，是既拦不住也扫不对**，证据见 [guardrails](guardrails.md)。机器兜底的方案已提为 **issue #27**（扩到 issue 正文），仍 `needs-triage`。**2026-11-16 补充**：修脚本本身另立 **issue #29**，#27 blocked by #29。
 
 ## 本次会话新发现
 
