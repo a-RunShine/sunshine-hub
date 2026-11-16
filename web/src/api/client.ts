@@ -1,5 +1,16 @@
 import axios, { AxiosError } from 'axios'
 import type { components } from '@/types/api'
+import { buildLoginUrl } from '@/lib/redirect'
+
+declare module 'axios' {
+  // 泛型参数要与 axios 原声明完全一致才能合并，D/P 在这里必然用不到
+  /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+  export interface AxiosRequestConfig<D = any, P = any> {
+    /** 置 true 时 401 不自动跳登录页，由调用方自己处理 */
+    skipAuthRedirect?: boolean
+  }
+  /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+}
 
 /** 契约里的 Error 结构，手写会漂移，直接用生成的 */
 export type ApiErrorBody = components['schemas']['Error']
@@ -29,9 +40,12 @@ client.interceptors.response.use(
     const body = error.response?.data
 
     // 会话没了就回登录页，带上当前路径以便登录后跳回来
-    if (status === 401 && !window.location.pathname.startsWith('/login')) {
-      const next = encodeURIComponent(window.location.pathname + window.location.search)
-      window.location.href = `/login?next=${next}`
+    if (
+      status === 401 &&
+      !error.config?.skipAuthRedirect &&
+      !window.location.pathname.startsWith('/login')
+    ) {
+      window.location.href = buildLoginUrl(window.location)
     }
 
     // 限流是预期内的，文案由后端决定，别覆盖
