@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* shadcn 的 CSS 变量。只放主题色，具体组件的样式由各自组件带 */
+@layer base {
+  :root {
+    --background: 222 47% 5%;
+    --foreground: 210 20% 96%;
+    --border: 220 20% 18%;
+    --radius: 0.5rem;
+  }
+
+  body {
+    @apply bg-ink-950 text-neutral-100;
+  }
+}

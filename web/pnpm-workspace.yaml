@@ -1,0 +1,7 @@
+# pnpm 12 默认不跑依赖的构建脚本，用 allowBuilds 逐个放行。
+# esbuild 靠它放平台二进制，msw 靠它初始化 service worker。
+packages: []
+
+allowBuilds:
+  esbuild: true
+  msw: true
