@@ -8,8 +8,6 @@
 
 前端 React 18、Vite、TypeScript、Tailwind CSS、shadcn/ui，状态用 Zustand，测试用 Vitest。
 
-跑 `mvn verify` 前先确认 `JAVA_HOME` 指向 JDK 25。本机默认是 17，而 Spotless 用的 google-java-format 1.35 依赖 JDK 21+ 的 javac 内部类，在 17 上会 `NoClassDefFoundError: JCTree$JCAnyPattern`。CI 用 setup-java 25，不受影响。
-
 ## 项目文档
 
 - 领域术语与排除词：`GLOSSARY.md`
