@@ -6,6 +6,8 @@ import org.springframework.http.HttpStatus;
  * 业务错误码。一个错误同时带三样东西：给前端做分支的字符串、给用户看的文案、对应的 HTTP 状态码。
  *
  * <p>分成两层是有意的。前端根据字符串决定展示什么，网关和监控根据状态码判断错误类别。只靠其中一层都会失效。
+ *
+ * <p>新增错误码必须同步 api/openapi.yaml 的 ErrorCode 枚举。
  */
 public enum ErrorCode {
     // 认证与身份
