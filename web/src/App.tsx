@@ -1,24 +1,15 @@
 import { useEffect } from 'react'
 import { RouterProvider } from 'react-router-dom'
 import { router } from './router'
-import { getMe } from '@/api/identity'
 import { useAuth } from '@/stores/auth'
 
 export default function App() {
-  const setMe = useAuth((state) => state.setMe)
-  const setStatus = useAuth((state) => state.setStatus)
+  const restoreSession = useAuth((state) => state.restoreSession)
 
-  // 启动时用 /me 恢复会话。cookie 失效就按未登录处理，守卫拿到 ready 才做判断。
+  // 启动时用 /me 恢复会话。401 才按未登录处理，网络故障留给守卫提示重试。
   useEffect(() => {
-    // StrictMode 会把 effect 跑两遍，已经在恢复中就别重复发请求
-    if (useAuth.getState().status !== 'uninitialized') return
-
-    setStatus('loading')
-    getMe()
-      .then(setMe)
-      .catch(() => setMe(null))
-      .finally(() => setStatus('ready'))
-  }, [setMe, setStatus])
+    void restoreSession()
+  }, [restoreSession])
 
   return <RouterProvider router={router} />
 }

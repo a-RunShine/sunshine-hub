@@ -21,17 +21,7 @@ import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition;
 @AnalyzeClasses(packages = "com.sunshinefps", importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {
 
-    // 一、internal 包对模块外不可见。四条，每个模块一条。
-
-    @ArchTest static final ArchRule identity_internals_are_hidden = internalsHidden("identity");
-
-    @ArchTest static final ArchRule catalog_internals_are_hidden = internalsHidden("catalog");
-
-    @ArchTest static final ArchRule trade_internals_are_hidden = internalsHidden("trade");
-
-    @ArchTest static final ArchRule content_internals_are_hidden = internalsHidden("content");
-
-    // 二、模块之间不得成环。trade → catalog 是允许的，反向不允许，见下面第五条。
+    // 一、模块之间不得成环。trade → catalog 是允许的，反向不允许，见下面第四条。
 
     @ArchTest
     static final ArchRule modules_are_free_of_cycles =
@@ -40,7 +30,7 @@ class ArchitectureTest {
                     .should()
                     .beFreeOfCycles();
 
-    // 三、Controller 不得直接依赖 Repository，中间必须隔一层 Facade。
+    // 二、Controller 不得直接依赖 Repository，中间必须隔一层 Facade。
 
     @ArchTest
     static final ArchRule controllers_never_touch_repositories =
@@ -51,7 +41,7 @@ class ArchitectureTest {
                     .dependOnClassesThat()
                     .haveSimpleNameEndingWith("Repository");
 
-    // 四、catalog 不得依赖 trade。商品不该知道怎么下单，否则交易规则会污染商品模块。
+    // 三、catalog 不得依赖 trade。商品不该知道怎么下单，否则交易规则会污染商品模块。
 
     @ArchTest
     static final ArchRule catalog_never_depends_on_trade =
@@ -62,8 +52,8 @@ class ArchitectureTest {
                     .dependOnClassesThat()
                     .resideInAPackage("com.sunshinefps.trade..");
 
-    // 五、模块外部只能依赖 Facade 与 api 包。模块包下既不在 .api 里、也不是模块根包 *Facade 的类，
-    // 一律算模块私有，外面不该看见。四条，每个模块一条。
+    // 四、模块外部只能依赖 Facade 与 api 包。模块包下既不在 .api 里、也不是模块根包 *Facade 的类，
+    // 一律算模块私有，外面不该看见。四条，每个模块一条。internal 也落在这一条里。
 
     @ArchTest
     static final ArchRule identity_surface_is_facade_and_api = onlyFacadeAndApiVisible("identity");
@@ -77,7 +67,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule content_surface_is_facade_and_api = onlyFacadeAndApiVisible("content");
 
-    // 六、domain 是纯业务规则，不得依赖框架。分两条：Spring 一条，持久化与消息一条。
+    // 五、domain 是纯业务规则，不得依赖框架。分两条：Spring 一条，持久化与消息一条。
     // 混在一条里报错时看不出是 Web 注解还是 Mapper 漏进来了。
 
     @ArchTest
@@ -102,15 +92,6 @@ class ArchitectureTest {
                             "redis.clients..",
                             "io.lettuce..",
                             "org.apache.rocketmq..");
-
-    private static ArchRule internalsHidden(String module) {
-        return noClasses()
-                .that()
-                .resideOutsideOfPackage("com.sunshinefps." + module + "..")
-                .should()
-                .dependOnClassesThat()
-                .resideInAPackage("com.sunshinefps." + module + ".internal..");
-    }
 
     private static ArchRule onlyFacadeAndApiVisible(String module) {
         final String modulePackage = "com.sunshinefps." + module;

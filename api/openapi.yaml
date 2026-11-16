@@ -1576,7 +1576,7 @@ components:
           format: date-time
     EventSummary:
       type: object
-      required: [id, title, startAt, endAt, ongoing]
+      required: [id, title, startAt, endAt, ongoing, serverTime]
       properties:
         id:
           type: integer
@@ -1593,6 +1593,10 @@ components:
           format: date-time
         ongoing:
           type: boolean
+        serverTime:
+          type: string
+          format: date-time
+          description: 服务端当前时间，前端用它算活动剩余天数的偏移
     Event:
       type: object
       required: [id, title, body, startAt, endAt, ongoing, serverTime]

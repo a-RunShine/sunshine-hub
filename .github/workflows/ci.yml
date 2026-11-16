@@ -28,7 +28,7 @@ jobs:
         run: |
           count=$(grep -ho "Tests run: [0-9]*" target/surefire-reports/*.txt | grep -o "[0-9]*" | sort -rn | head -1)
           echo "ArchitectureTest 跑了 $count 个用例"
-          if [ "$count" -lt 13 ]; then
+          if [ "$count" -lt 9 ]; then
             echo "::error::架构规则没有全部执行，检查 Surefire 版本"
             exit 1
           fi

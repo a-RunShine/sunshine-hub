@@ -2156,6 +2156,11 @@ export interface components {
             /** Format: date-time */
             endAt: string;
             ongoing: boolean;
+            /**
+             * Format: date-time
+             * @description 服务端当前时间，前端用它算活动剩余天数的偏移
+             */
+            serverTime: string;
         };
         Event: {
             /** Format: int64 */

@@ -28,7 +28,7 @@ public enum ErrorCode {
     // 抢购
     ALREADY_PURCHASED("这件商品你已经买过了", HttpStatus.CONFLICT),
     SOLD_OUT("已经抢完了", HttpStatus.GONE),
-    UNIT_POOL_INCONSISTENT("编号池与库存不同步", HttpStatus.INTERNAL_SERVER_ERROR),
+    UNIT_POOL_INCONSISTENT("编号池与配额不同步", HttpStatus.INTERNAL_SERVER_ERROR),
     RATE_LIMITED("操作太快了，歇一下再试", HttpStatus.TOO_MANY_REQUESTS),
 
     // 交易
