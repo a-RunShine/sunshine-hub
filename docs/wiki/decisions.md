@@ -24,6 +24,14 @@
 | [0010](../adr/0010-two-purchase-limits.md) | 限购有两套维度：抢购按实名，虚拟道具按账号 |
 | [0011](../adr/0011-no-regional-stock.md) | 库存不按地域切分，需要削峰时用技术分片 |
 
+## 2026-11-16：0002 与 0010 正在被修订，标题会变
+
+**2026-11-16**：owner 拍板 D1 / D2 / D3，**[ADR-0002](../adr/0002-purchase-limit-on-real-name.md):16 的「跨场累计」与 [ADR-0010](../adr/0010-two-purchase-limits.md):5 的「一个证件只能买一件」被推翻**；0002 的「绑实名不绑账号」与 0010 的「两套维度」**保留**。
+
+**上表标题暂未改**——ADR 文件的修订派给了 worktree `../sunshine-hub-decisions`、分支 `docs/limit-cooldown-decisions`，本 checkout（`c5b5508`）里还是旧文本。**等那份 PR 合并后回来更新上表，并按本层规矩标旧标题 superseded。**
+
+**变更的历史记录在 [decisions-2026-11-16](decisions-2026-11-16.md)**：逐条推翻了什么、保留了什么、哪些是单向门、下游还要改哪些文件。**这一页仍是指针页，不复制那边的内容。**
+
 ## 几条容易被重新提起的
 
 **2026-11-16 交接记录**特别点名了三份，说明它们曾被反复质疑：
@@ -40,4 +48,4 @@
 
 依赖方向只有一个：**`trade → catalog`，反向禁止**。商品不该知道怎么下单。
 
-相关页：[index](index.md) · [stages](stages.md) · [workflow](workflow.md) · [contract-gaps](contract-gaps.md)
+相关页：[index](index.md) · [decisions-2026-11-16](decisions-2026-11-16.md) · [stages](stages.md) · [workflow](workflow.md) · [contract-gaps](contract-gaps.md) · [open-loops](open-loops.md)

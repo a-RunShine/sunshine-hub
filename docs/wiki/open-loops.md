@@ -2,7 +2,7 @@
 
 等着谁、卡在哪。结掉的就移到下面「已结」并留日期，不要删——删了就看不出这件事曾经卡过。
 
-相关页：[index](index.md) · [stages](stages.md) · [contract-gaps](contract-gaps.md) · [issue-3-review](issue-3-review.md) · [guardrails](guardrails.md) · [environment](environment.md)
+相关页：[index](index.md) · [stages](stages.md) · [contract-gaps](contract-gaps.md) · [decisions-2026-11-16](decisions-2026-11-16.md) · [issue-3-review](issue-3-review.md) · [guardrails](guardrails.md) · [environment](environment.md)
 
 ## 已拍板（2026-11-16）
 
@@ -10,14 +10,24 @@
 - **2026-11-16**：是否先做环境护栏修补 —— **用户已拍板：先修一轮护栏**。范围与进展见 [guardrails](guardrails.md)，在 worktree `../sunshine-hub-guardrails`、分支 `chore/guardrails` 上进行。
 - 两条并行推进：护栏改 `ci.yml`/`scripts/`/`pom.xml`/`web` 配置，契约改 `api/openapi.yaml` 与 issue 正文，互不重叠。
 
-### 待 owner 拍板：两个契约决策（2026-11-16 挂起）
+### 两个契约决策已拍板（2026-11-16，原挂起节已移入「已结」）
 
-**2026-11-16**：第五态已拍板为**失格/冷却**。另两个问题问出去时被中断，原因是提问直接用了 spec 术语（见 [workflow](workflow.md) 的沟通教训）。**已改为先白话解释，等 owner 回应，不再用选项框追问。**
+**2026-11-16**：owner 拍板 **D1 / D2 / D3**，原先挂起的两个问题都有了答案。**决策本身、推翻了哪些 ADR 行、单向门代价，记在 [decisions-2026-11-16](decisions-2026-11-16.md)**；原挂起节的文字按本层规矩移入下方「已结」并标 superseded，不删。
 
-1. **FLASH 抢购每人能买几件？** 决定点击前的已购态字段用 `purchased: boolean` 还是 `remainingQuota: integer`。现有 Lua 第一行是 `EXISTS limitKey`，只能表达「买过/没买过」，所以恒 1 件时现有设计刚好够；可多件则限购键与唯一索引都要改成计数，即 #3 P0-9。
-2. **「永久失格」这一档首版做不做？** 做就必须配人工解封入口——ADR-0002 已否掉申诉通道，否则误伤不可恢复。备选：把永久档改成长冷却（如 7 天），但要改 #2:196 与 ADR-0002。
+- **D1**：限时抢购每人限购**可配置、可 2 件以上，每场独立额度、不跨场累计**，仍按实名判定。→ 契约字段定为 `remainingQuota: [integer,'null']`。
+- **D2**：**取消永久失格**，改两档冷却（不足 3 次 → 24h；满 3 次 → **7 天**），均自动恢复，**不需人工解封入口**。
+- **D3**：第五个禁用态 = **失格/冷却**；未实名/未登录不是禁用态。
 
-这两条不定，[contract-gaps](contract-gaps.md) 的缺口 3 与第五态就落不了地。
+**修订已派工**：ADR 与 GLOSSARY 的改写、issue #2 的同步，交给 worktree **`../sunshine-hub-decisions`**、分支 **`docs/limit-cooldown-decisions`**（复核时位于 `c5b5508`）。**本会话只写 `docs/wiki/`，没碰那些文件。**
+
+### 新未结：D1 / D2 带出来的（2026-11-16）
+
+- **限购键改名是单向门。** `limit:{productId}:{realNameHash}`（#2:187）→ 按 `campaignId` 挂。**旧键数据不迁移，回退等于额度清零重卖。** 要双向可逆就得写迁移 + 双写窗口。具体新键名 owner 没给字面串，以 decisions worker 落进 ADR 的那份为准。见 [decisions-2026-11-16](decisions-2026-11-16.md)。
+- **唯一索引机制待换（#3 P0-9，已触发）。** `uk_purchase (purchaser_hash, product_id, limit_flag)`（#2:177）只能表达 1 件，D1 要求 N>1。**不换机制，`remainingQuota` 就没有可信数据来源。** 这条从「待 triage 的缺陷」升级为「必修」，且索引变更本身也是单向门。
+- **#3 P0-2 需重新评估，性质变了。** 跨场 `total_limit` 不守恒这条，在「每场独立额度」下**不是变轻，可能变重**：D1 让「另开一场就重新给额度」成为合法路径，于是**跨场总量守恒成了唯一剩下的刹车**。另：P0-2 举的例子用「回流场」，而 [ADR-0003](../adr/0003-repool-as-delayed-release.md):3 规定回流不另开场次——**例子本身也要重写**。详见 [issue-3-review](issue-3-review.md)。
+- **`miss` 计数的 scope 与清零规则没拍。** D1 只说限购键改挂 `campaignId`，**没说 `miss:{productId}:{realNameHash}`（#2:188）跟不跟**。按商品累计还是按场累计，直接决定「换一场能不能洗掉冷却」。另：7 天冷却到期后计数是否清零、#2:196 的「24 小时内累计」窗口是否保留，都未定。
+- **`CampaignDetail` 拆分方式仍未拍。** [contract-gaps](contract-gaps.md) 缺口 3 推荐的 `oneOf` + `discriminator(type)` 还是提案。
+- **旧词清理范围扩大了。** 「跨场累计」「一人一单」「永久失格」都成了本轮旧词，按 [workflow](workflow.md) 要全仓搜，范围含 `GLOSSARY.md`:92 的 Purchase Limit 定义、#2:402 第三个测试用例、模型图与 Redis 键。**属 decisions worker，本层不动。**
 
 ### 「先补契约」有前置：#3 的 P0-7 与 P0-9（2026-11-16）
 
@@ -28,7 +38,14 @@
 
 **所以顺序是：triage P0-7 / P0-9 → 定键结构与限购语义 → 再改 `api/openapi.yaml`。** 逐条重叠分析见 [issue-3-review](issue-3-review.md)。
 
-**待 owner 拍板的四个问题**列在 [contract-gaps](contract-gaps.md) 末节（「五」的口径、限购字段形态、`CampaignDetail` 拆分方式、永久失格是否进首版）。
+~~**待 owner 拍板的四个问题**列在 [contract-gaps](contract-gaps.md) 末节（「五」的口径、限购字段形态、`CampaignDetail` 拆分方式、永久失格是否进首版）。~~
+
+> **2026-11-16 更正（部分 superseded）**：上面划掉那句里的问题**三个已拍**（D1/D2/D3），只剩 `CampaignDetail` 拆分方式未拍。本节两条前置的状态也变了：
+>
+> - **P0-7 部分已解**：D2 取消永久失格，「无处安放」的那一档没了。**但键生存期矛盾仍在**——`miss` 的 scope 与清零规则没拍，24h 计数窗口与 7 天冷却的关系要重述。
+> - **P0-9 不是「决定字段类型」了，是「必须修」**：D1 已定 `remainingQuota`，字段类型不再悬空；但 N>1 让旧唯一索引机制**确定不够用**，它现在是契约改动的硬前置。
+>
+> **顺序不变，内容变了**：现在是「换索引机制 + 定 `miss` 规则 → 再改 `api/openapi.yaml`」。
 
 ## 等 triage
 
@@ -63,6 +80,8 @@
   按 issue #7 的依赖图，契约是阶段 1 与阶段 2 的**唯一硬依赖**，所以这几处不补，**两个阶段都会照着不足的契约往下写**。
 
   这件事同时验证了交接记录「早做抢购页能暴露契约缺口」的判断——缺口在写代码之前就浮出来了。
+
+  **2026-11-16 更新**：第五处（五种禁用态无权威清单）**已由 D3 解决**，清单见 [contract-gaps](contract-gaps.md)。缺口 2 的字段也已定为 `remainingQuota`。**但「四处要改契约」这个判断没变**，而且改契约现在多了一个硬前置：唯一索引机制必须换（#3 P0-9，D1 触发）。
 
 ## 阶段 1/2 还没拆 ticket
 
@@ -116,3 +135,18 @@
 ## 已结
 
 - **2026-11-16 10:35 UTC**：PR #25（认证决策同步回 spec）**已合并**为 `c5b5508`。交接记录里写的「待用户合并」已过时——交接写于合并前几分钟。教训：交接记录里的 PR 状态要用 `gh` 复核，别直接信。
+
+- **2026-11-16：两个契约决策已拍板（原「待 owner 拍板」节移入此处）。** 结论是 D1 / D2 / D3，见 [decisions-2026-11-16](decisions-2026-11-16.md)。原文保留如下，标 superseded：
+
+  > **（superseded，2026-11-16 挂起时的原文）**「第五态已拍板为失格/冷却。另两个问题问出去时被中断，原因是提问直接用了 spec 术语（见 [workflow](workflow.md) 的沟通教训）。已改为先白话解释，等 owner 回应，不再用选项框追问。
+  >
+  > 1. **FLASH 抢购每人能买几件？** 决定点击前的已购态字段用 `purchased: boolean` 还是 `remainingQuota: integer`。现有 Lua 第一行是 `EXISTS limitKey`，只能表达「买过/没买过」，所以恒 1 件时现有设计刚好够；可多件则限购键与唯一索引都要改成计数，即 #3 P0-9。
+  > 2. **「永久失格」这一档首版做不做？** 做就必须配人工解封入口——ADR-0002 已否掉申诉通道，否则误伤不可恢复。备选：把永久档改成长冷却（如 7 天），但要改 #2:196 与 ADR-0002。
+  >
+  > 这两条不定，[contract-gaps](contract-gaps.md) 的缺口 3 与第五态就落不了地。」
+
+  **结果**：问题 1 → **D1，可多件，用 `remainingQuota`**；问题 2 → **D2，永久档取消，改 7 天冷却**（走了原文的「备选」，但备选写的是「如 7 天」，owner 定的就是 7 天）。第五态 → **D3 确认**。
+
+  **原文里有个编号错误，一并更正**：末句的「缺口 3」应为 **[contract-gaps](contract-gaps.md) 的缺口 2**（点击前拿不到已购/限购态）。缺口 3 是 `allocation` 非必填。**这个错号在派活指令里也被沿用了一次**，两处都按缺口 2 读。
+
+  **过程教训已落进 [workflow](workflow.md)**：用白话解释再提问，owner 才答得下去；这一轮三个决策就是这么拿到的。

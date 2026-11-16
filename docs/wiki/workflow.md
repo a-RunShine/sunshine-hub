@@ -2,7 +2,7 @@
 
 用户明确要求过的做法。违反这些比写错代码更严重。
 
-相关页：[index](index.md) · [environment](environment.md) · [guardrails](guardrails.md) · [decisions](decisions.md)
+相关页：[index](index.md) · [environment](environment.md) · [guardrails](guardrails.md) · [decisions](decisions.md) · [decisions-2026-11-16](decisions-2026-11-16.md) · [open-loops](open-loops.md)
 
 ## 沟通：中文，且不要拿 spec 术语直接提问
 
@@ -38,6 +38,18 @@
 `grep -rn` 只能找到一半，判断哪个词算旧词靠人。命中之后逐条过，不是看一眼有没有命中就收工。
 
 概念改一半最要命：两种叫法并存，旧的那半没人维护，下一个 agent 会照着它实现。
+
+## 改 issue 正文必须把 before/after 贴进 PR 正文
+
+**2026-11-16 用户明确要求**，本轮已按此要求派给决策 worker（worktree `../sunshine-hub-decisions`、分支 `docs/limit-cooldown-decisions`）。
+
+**规则**：凡是改了 issue 正文（#2 规格、#7 实施路径等），**必须把每一处改动的 before/after 贴进 PR 正文**，带 issue 号与行号。
+
+**为什么**：**issue 正文的改动不进 PR diff，评审看不到。** 实例就是 PR #25（merge commit `c5b5508`）：它的 commit `38d2eee` 声称把 #7 的三处改成指向 ADR 的完整链接，前置段落确实改了，**但阶段 1 页面清单第 50 行漏了**——`| 身份 | 注册（含实名、大区）、登录 |` 至今还在。PR #25 的 diff 只含 `api/openapi.yaml` 与 `docs/adr/0008-session-over-jwt.md`，**评审无从发现漏改**。
+
+**这是结构性漏洞的人工兜底**：机器那一半是 **issue #27**（把术语检查扩到 issue 正文），仍 `needs-triage`，且 blocked by **#29**（先修仓库内检查）。**在 #27 落地之前，before/after 是唯一能让评审看见 issue 改动的办法。**
+
+与 `docs/agents/pull-requests.md` 的三段模板相容：before/after 就放在 **Evidence** 段。
 
 ## 提交前跑的检查
 
