@@ -2,6 +2,8 @@ package com.sunshinefps;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -60,8 +62,8 @@ class ArchitectureTest {
                     .dependOnClassesThat()
                     .resideInAPackage("com.sunshinefps.trade..");
 
-    // 五、模块外部只能依赖 Facade 与 api 包。internal 与 domain 都是模块私有，外面不该看见。
-    // 四条，每个模块一条。
+    // 五、模块外部只能依赖 Facade 与 api 包。模块包下既不在 .api 里、也不是模块根包 *Facade 的类，
+    // 一律算模块私有，外面不该看见。四条，每个模块一条。
 
     @ArchTest
     static final ArchRule identity_surface_is_facade_and_api = onlyFacadeAndApiVisible("identity");
@@ -75,6 +77,32 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule content_surface_is_facade_and_api = onlyFacadeAndApiVisible("content");
 
+    // 六、domain 是纯业务规则，不得依赖框架。分两条：Spring 一条，持久化与消息一条。
+    // 混在一条里报错时看不出是 Web 注解还是 Mapper 漏进来了。
+
+    @ArchTest
+    static final ArchRule domain_is_free_of_spring =
+            noClasses()
+                    .that()
+                    .resideInAPackage("com.sunshinefps.*.domain..")
+                    .should()
+                    .dependOnClassesThat()
+                    .resideInAPackage("org.springframework..");
+
+    @ArchTest
+    static final ArchRule domain_is_free_of_infrastructure =
+            noClasses()
+                    .that()
+                    .resideInAPackage("com.sunshinefps.*.domain..")
+                    .should()
+                    .dependOnClassesThat()
+                    .resideInAnyPackage(
+                            "com.baomidou..",
+                            "org.apache.ibatis..",
+                            "redis.clients..",
+                            "io.lettuce..",
+                            "org.apache.rocketmq..");
+
     private static ArchRule internalsHidden(String module) {
         return noClasses()
                 .that()
@@ -85,13 +113,32 @@ class ArchitectureTest {
     }
 
     private static ArchRule onlyFacadeAndApiVisible(String module) {
+        final String modulePackage = "com.sunshinefps." + module;
+        final String apiPackage = modulePackage + ".api";
+        DescribedPredicate<JavaClass> modulePrivate =
+                DescribedPredicate.describe(
+                        "reside in "
+                                + modulePackage
+                                + " but neither in "
+                                + apiPackage
+                                + " nor a *Facade at module root",
+                        javaClass -> {
+                            String packageName = javaClass.getPackageName();
+                            boolean inModule =
+                                    packageName.equals(modulePackage)
+                                            || packageName.startsWith(modulePackage + ".");
+                            boolean inApi =
+                                    packageName.equals(apiPackage)
+                                            || packageName.startsWith(apiPackage + ".");
+                            boolean isFacadeAtRoot =
+                                    packageName.equals(modulePackage)
+                                            && javaClass.getSimpleName().endsWith("Facade");
+                            return inModule && !inApi && !isFacadeAtRoot;
+                        });
         return noClasses()
                 .that()
-                .resideOutsideOfPackage("com.sunshinefps." + module + "..")
+                .resideOutsideOfPackage(modulePackage + "..")
                 .should()
-                .dependOnClassesThat()
-                .resideInAnyPackage(
-                        "com.sunshinefps." + module + ".internal..",
-                        "com.sunshinefps." + module + ".domain..");
+                .dependOnClassesThat(modulePrivate);
     }
 }
