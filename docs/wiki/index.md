@@ -4,6 +4,8 @@
 
 快照：**2026-11-16**，分支 `docs/wiki-bootstrap`，**`main` = `3701bd4`**（PR #30 → `742ef1e` 12:35:06 UTC、PR #28 → `3701bd4` 12:35:18 UTC，均 squash 合并，两次 CI success）。**ADR 共 13 份**（新增 0012 / 0013）。本层入库于 `23f89d9`，由 **PR #26** 承载，**仍 OPEN、未合并**，合并等 owner。**共 10 页。**
 
+**2026-11-16：`origin/main` 已合进本分支**（普通合并提交 **`1b99c93`**，`git merge origin/main`，**无冲突**，非 rebase / 非 force-push）。**所以本分支现在自带 13 份 ADR、新版 GLOSSARY、mvnw 与护栏改动**，wiki 里的 `path:line` 与相对链接**都能就地核对**。**实测：10 页链接检查零断链、零孤儿页。**
+
 > **2026-11-16 更正（superseded）**：本页旧版快照写 `main` = `c5b5508`、ADR 11 份、PR #30 待合。**均已过时**，见上。旧值保留以显示这一天 main 动了两次。
 
 ## 约定

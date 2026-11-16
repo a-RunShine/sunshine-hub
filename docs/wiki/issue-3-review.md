@@ -7,6 +7,8 @@
 > **2026-11-16 基准更新**：本页引用的 **ADR-0012 / 0013 现已在 main 上**（PR #30 于 12:35:06 UTC squash 合并为 `742ef1e`，`main` 现为 `3701bd4`）。**行号不变**——`git diff e107847 origin/main -- docs/adr/ GLOSSARY.md` 为空，所以本页按 `e107847` 标的号在 main 上同样有效，**不必再换算，也不再是「待合分支」**。
 >
 > **issue #2 的行号仍要换算**（它被重写过，436 → 465 行），表在 [contract-gaps](contract-gaps.md) 顶部。
+>
+> **2026-11-16 补充：`origin/main` 已合进本分支**（合并提交 `1b99c93`，无冲突），**ADR-0012/0013 与新版 GLOSSARY 现在就在本地**，本页所有 ADR 引用可就地开文件核对，链接实测零断链。
 
 相关页：[index](index.md) · [contract-gaps](contract-gaps.md) · [decisions-2026-11-16](decisions-2026-11-16.md) · [open-loops](open-loops.md) · [stages](stages.md) · [decisions](decisions.md)
 
