@@ -1001,7 +1001,10 @@ components:
       type: apiKey
       in: cookie
       name: SESSION
-      description: 登录后由服务端 Set-Cookie 下发。会话存在 Redis，登出或封号即刻失效。
+      description: >-
+        登录后由服务端 Set-Cookie 下发。会话存在 Redis，登出或封号即刻失效。
+        写请求（POST/PUT/PATCH/DELETE）还需带 X-Requested-With 头做 CSRF 防护，
+        支付与退款回调除外，它们靠验签。
   parameters:
     ProductId:
       name: productId
