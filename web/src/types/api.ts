@@ -431,7 +431,7 @@ export interface paths {
         put?: never;
         /**
          * 抢购
-         * @description 原子完成扣配额、校验限购、分配编号。未实名 403，售罄 410，已购买或未开售 409。
+         * @description 原子完成扣配额、校验限购、分配编号。未实名 403；已购买、场次未开售、已结束，或本商品处于购买冷却期返回 409；售罄返回 410；编号池与配额不同步或服务内部错误返回 500。
          */
         post: {
             parameters: {
@@ -463,7 +463,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description 已购买过这件商品，或场次未开售、已结束。code：ALREADY_PURCHASED、CAMPAIGN_NOT_STARTED、CAMPAIGN_ENDED */
+                /** @description 已购买过这件商品，或场次未开售、已结束，或本商品处于购买冷却期（到期自动恢复）。code：ALREADY_PURCHASED、CAMPAIGN_NOT_STARTED、CAMPAIGN_ENDED、PURCHASE_COOLDOWN */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -482,6 +482,15 @@ export interface paths {
                     };
                 };
                 429: components["responses"]["TooManyRequests"];
+                /** @description 编号池与配额不同步，或服务内部错误。code：UNIT_POOL_INCONSISTENT、INTERNAL_ERROR */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -612,7 +621,7 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["Unauthorized"];
-                /** @description 库存不足。code：STOCK_INSUFFICIENT */
+                /** @description 库存不足，或本商品处于购买冷却期（到期自动恢复）。code：STOCK_INSUFFICIENT、PURCHASE_COOLDOWN */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1858,7 +1867,7 @@ export interface components {
          * @description 业务错误码，与 src/main/java/com/sunshinefps/shared/ErrorCode.java 一一对应。新增错误码必须两边同步
          * @enum {string}
          */
-        ErrorCode: "UNAUTHORIZED" | "FORBIDDEN" | "REAL_NAME_REQUIRED" | "REAL_NAME_ALREADY_SET" | "USERNAME_TAKEN" | "BAD_CREDENTIALS" | "PRODUCT_NOT_FOUND" | "CAMPAIGN_NOT_FOUND" | "CAMPAIGN_NOT_STARTED" | "CAMPAIGN_ENDED" | "QUOTA_EXCEEDED" | "ALREADY_PURCHASED" | "SOLD_OUT" | "UNIT_POOL_INCONSISTENT" | "RATE_LIMITED" | "ORDER_NOT_FOUND" | "ORDER_NOT_PAYABLE" | "ORDER_NOT_CANCELLABLE" | "STOCK_INSUFFICIENT" | "ADDRESS_REQUIRED" | "REFUND_NOT_FOUND" | "REFUND_NOT_ALLOWED" | "REFUND_ALREADY_OPEN" | "ANNOUNCEMENT_NOT_FOUND" | "EVENT_NOT_FOUND" | "BAD_REQUEST" | "INTERNAL_ERROR";
+        ErrorCode: "UNAUTHORIZED" | "FORBIDDEN" | "REAL_NAME_REQUIRED" | "REAL_NAME_ALREADY_SET" | "USERNAME_TAKEN" | "BAD_CREDENTIALS" | "PRODUCT_NOT_FOUND" | "CAMPAIGN_NOT_FOUND" | "CAMPAIGN_NOT_STARTED" | "CAMPAIGN_ENDED" | "QUOTA_EXCEEDED" | "ALREADY_PURCHASED" | "PURCHASE_COOLDOWN" | "SOLD_OUT" | "UNIT_POOL_INCONSISTENT" | "RATE_LIMITED" | "ORDER_NOT_FOUND" | "ORDER_NOT_PAYABLE" | "ORDER_NOT_CANCELLABLE" | "STOCK_INSUFFICIENT" | "ADDRESS_REQUIRED" | "REFUND_NOT_FOUND" | "REFUND_NOT_ALLOWED" | "REFUND_ALREADY_OPEN" | "ANNOUNCEMENT_NOT_FOUND" | "EVENT_NOT_FOUND" | "BAD_REQUEST" | "INTERNAL_ERROR";
         Error: {
             code: components["schemas"]["ErrorCode"];
             /** @description 可直接展示给用户的中文文案 */
