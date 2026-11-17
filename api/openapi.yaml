@@ -1269,6 +1269,12 @@ components:
       oneOf:
         - $ref: '#/components/schemas/FlashCampaignDetail'
         - $ref: '#/components/schemas/SimpleCampaignDetail'
+      discriminator:
+        propertyName: type
+        mapping:
+          FLASH: '#/components/schemas/FlashCampaignDetail'
+          NORMAL: '#/components/schemas/SimpleCampaignDetail'
+          DISCOUNT: '#/components/schemas/SimpleCampaignDetail'
     FlashCampaignDetail:
       type: object
       description: 限时抢购场详情。配额必填；售罄由 allocation.available 表达，不是 status 终态，回流释放后可恢复（ADR-0003）。

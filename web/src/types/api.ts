@@ -1956,7 +1956,10 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
-            /** @enum {string} */
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
             type: "FLASH";
             /** Format: int64 */
             productId: number;
@@ -1980,7 +1983,10 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
-            /** @enum {string} */
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
             type: "NORMAL" | "DISCOUNT";
             /** Format: int64 */
             productId: number;
