@@ -2034,11 +2034,8 @@ export interface components {
             endAt?: string;
             /** Format: int64 */
             discountPrice?: number;
-            /**
-             * @description 本场额度（Campaign Limit）：本场每人最多几件，仅对限时抢购（FLASH）场次有意义；缺省为 1，允许大于 1 件。普通售卖与折扣场忽略该字段。
-             * @default 1
-             */
-            campaignLimit: number;
+            /** @description 本场额度（Campaign Limit）：本场每人最多几件，仅对限时抢购（FLASH）场次有意义；未提供时服务端按 1 件处理，允许大于 1 件。普通售卖与折扣场忽略该字段。 */
+            campaignLimit?: number;
         };
         /** @description 恒等式 available + occupied + pendingRepool + sold = total */
         Allocation: {
