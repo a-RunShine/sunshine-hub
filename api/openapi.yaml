@@ -258,7 +258,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '409':
-          description: 已购买过这件商品，或场次未开售、已结束。code：ALREADY_PURCHASED、CAMPAIGN_NOT_STARTED、CAMPAIGN_ENDED
+          description: 已购买过这件商品，或场次未开售、已结束，或本商品处于购买冷却期（到期自动恢复）。code：ALREADY_PURCHASED、CAMPAIGN_NOT_STARTED、CAMPAIGN_ENDED、PURCHASE_COOLDOWN
           content:
             application/json:
               schema:
@@ -271,6 +271,12 @@ paths:
                 $ref: '#/components/schemas/Error'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+        '500':
+          description: 编号池与配额不同步，或服务内部错误。code：UNIT_POOL_INCONSISTENT、INTERNAL_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /campaigns/{campaignId}/reserve:
     post:
       tags: [trade]
@@ -343,7 +349,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':
-          description: 库存不足。code：STOCK_INSUFFICIENT
+          description: 库存不足，或本商品处于购买冷却期（到期自动恢复）。code：STOCK_INSUFFICIENT、PURCHASE_COOLDOWN
           content:
             application/json:
               schema:
@@ -1095,6 +1101,7 @@ components:
         - CAMPAIGN_ENDED
         - QUOTA_EXCEEDED
         - ALREADY_PURCHASED
+        - PURCHASE_COOLDOWN
         - SOLD_OUT
         - UNIT_POOL_INCONSISTENT
         - RATE_LIMITED
