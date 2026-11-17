@@ -9,10 +9,38 @@ import type { components } from '@/types/api'
 type ProductSummary = components['schemas']['ProductSummary']
 type ProductDetail = components['schemas']['ProductDetail']
 type Me = components['schemas']['Me']
+type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
+type SimpleCampaignDetail = components['schemas']['SimpleCampaignDetail']
 
 const now = () => new Date().toISOString()
 
 const me: Me = { id: 1, username: 'demo', realNameVerified: false }
+
+const flashCampaign: FlashCampaignDetail = {
+  id: 1,
+  name: '暗夜猎手 首发',
+  type: 'FLASH',
+  productId: 1,
+  startAt: new Date(Date.now() + 3600_000).toISOString(),
+  endAt: null,
+  status: 'UPCOMING',
+  serverTime: now(),
+  allocation: { total: 5000, available: 4817, occupied: 183, pendingRepool: 0, sold: 0 },
+  reserved: false,
+}
+
+const discountCampaign: SimpleCampaignDetail = {
+  id: 2,
+  name: '暗夜猎手 折扣返场',
+  type: 'DISCOUNT',
+  productId: 1,
+  startAt: new Date(Date.now() - 3600_000).toISOString(),
+  endAt: null,
+  status: 'ONGOING',
+  serverTime: now(),
+  discountPrice: 9800,
+  reserved: false,
+}
 
 const products: ProductSummary[] = [
   {
@@ -90,21 +118,10 @@ export const handlers = [
     }),
   ),
 
-  http.get('/api/campaigns/:campaignId', () =>
-    HttpResponse.json({
-      id: 1,
-      name: '暗夜猎手 首发',
-      type: 'FLASH',
-      productId: 1,
-      startAt: new Date(Date.now() + 3600_000).toISOString(),
-      endAt: null,
-      status: 'UPCOMING',
-      serverTime: now(),
-      allocation: { total: 5000, available: 4817, occupied: 183, pendingRepool: 0, sold: 0 },
-      discountPrice: null,
-      reserved: false,
-    }),
-  ),
+  http.get('/api/campaigns/:campaignId', ({ params }) => {
+    const id = Number(params.campaignId)
+    return HttpResponse.json(id === 2 ? discountCampaign : flashCampaign)
+  }),
 
   http.post('/api/campaigns/:campaignId/claim', () =>
     HttpResponse.json(
