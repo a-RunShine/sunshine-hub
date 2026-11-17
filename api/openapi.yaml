@@ -239,7 +239,7 @@ paths:
     post:
       tags: [trade]
       summary: 抢购
-      description: 原子完成扣配额、校验限购、分配编号。未实名 403，售罄 410，已购买或未开售 409。
+      description: 原子完成扣配额、校验限购、分配编号。未实名 403；已购买、场次未开售、已结束，或本商品处于购买冷却期返回 409；售罄返回 410；编号池与配额不同步或服务内部错误返回 500。
       parameters:
         - $ref: '#/components/parameters/CampaignId'
       responses:
