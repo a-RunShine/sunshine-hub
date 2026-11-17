@@ -1907,7 +1907,7 @@ export interface components {
             limited: boolean;
             /** @description 限量总数。不限量时为 null */
             totalLimit?: number | null;
-            /** @description 每购买人限购数。不限购时为 null */
+            /** @description 商品级限购额度，只服务虚拟道具「一个账号一件」这一套，按账号判定；与限时抢购的本场额度 campaignLimit（按实名、按场配置）是两条独立规则，不合并、不互相复制。不限购时为 null。 */
             purchaseLimit?: number | null;
             skus: components["schemas"]["Sku"][];
         };
@@ -1958,9 +1958,13 @@ export interface components {
             startAt: string;
             coverUrl: string;
         };
-        /** @description 场次详情。按 type 区分两种形状，前端先按 type 收窄，再读配额或折扣价。 */
+        /**
+         * @description 场次详情。按 type 区分两种形状，前端先按 type 收窄，再读配额或折扣价。
+         *
+         *     `reserved`、`remainingQuota` 属于用户专属字段：按当前购买人计算，从共享场次缓存读出公共数据之后再叠加，不得写入共享缓存，避免不同购买人互相看到对方的预约状态与剩余额度。未登录（匿名）访问时这两个字段为 `null`，与 `false`、`0` 等已知零值区分开：`null` 表示「不知道」，`false` 表示已登录且未预约，`0` 表示本场额度用尽。
+         */
         CampaignDetail: components["schemas"]["FlashCampaignDetail"] | components["schemas"]["SimpleCampaignDetail"];
-        /** @description 限时抢购场详情。配额必填；售罄由 allocation.available 表达，不是 status 终态，回流释放后可恢复（ADR-0003）。 */
+        /** @description 限时抢购场详情。配额与本场额度必填；售罄由 allocation.available 表达，不是 status 终态，回流释放后可恢复（ADR-0003）。 */
         FlashCampaignDetail: {
             /** Format: int64 */
             id: number;
@@ -1984,10 +1988,14 @@ export interface components {
              */
             serverTime: string;
             allocation: components["schemas"]["Allocation"];
-            /** @description 当前用户是否已预约 */
-            reserved?: boolean;
+            /** @description 本场额度：一个 Purchaser 在本场最多可购几件，按实名计算，额度只在本场内计、不跨场累计；运营发布该场时设定，允许大于 1 件。 */
+            campaignLimit: number;
+            /** @description 当前购买人在本场的剩余额度。按实名计算，同一实名下的不同账号看到一致结果；只反映本场，不跨场累计。`null` = 匿名（未登录，不知道）；`0` = 本场额度用尽。 */
+            remainingQuota: number | null;
+            /** @description 当前用户是否已预约。`null` = 匿名（未登录，不知道）；`false` = 已登录且未预约。 */
+            reserved: boolean | null;
         };
-        /** @description 普通售卖／折扣场详情。不承载配额；折扣价在 discountPrice。 */
+        /** @description 普通售卖／折扣场详情。不承载配额，也不配置本场额度；折扣价在 discountPrice。 */
         SimpleCampaignDetail: {
             /** Format: int64 */
             id: number;
@@ -2012,8 +2020,10 @@ export interface components {
             serverTime: string;
             /** Format: int64 */
             discountPrice?: number | null;
-            /** @description 当前用户是否已预约 */
-            reserved?: boolean;
+            /** @description 当前购买人在本场的剩余额度。按实名计算，同一实名下的不同账号看到一致结果；只反映本场，不跨场累计。`null` = 匿名（未登录，不知道）；`0` = 本场额度用尽。 */
+            remainingQuota: number | null;
+            /** @description 当前用户是否已预约。`null` = 匿名（未登录，不知道）；`false` = 已登录且未预约。 */
+            reserved: boolean | null;
         };
         CampaignInput: {
             name: string;
@@ -2026,6 +2036,8 @@ export interface components {
             endAt?: string;
             /** Format: int64 */
             discountPrice?: number;
+            /** @description 本场额度（Campaign Limit）：本场每人最多几件，仅对限时抢购（FLASH）场次有意义；缺省为 1，允许大于 1 件。普通售卖与折扣场忽略该字段。 */
+            campaignLimit?: number;
         };
         /** @description 恒等式 available + occupied + pendingRepool + sold = total */
         Allocation: {
