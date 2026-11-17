@@ -9,6 +9,7 @@ import type { components } from '@/types/api'
  * - 已登录：给具体值，reserved 为 true/false，remainingCampaignLimit 为本场剩余件数；
  * - 匿名（未登录）：两者都为 null，与 false、0 等已知零值区分开。
  * remainingCampaignLimit 只出现在限时抢购（FLASH）形状上；普通售卖／折扣场形状只演示 discountPrice 与 reserved。
+ * 冷却为商品级购买限制（按 productId、跨场生效）：FLASH 的 claim 与普通售卖／折扣场的 /orders 下单都会拦截；浏览与预约不拦。
  */
 
 type ProductSummary = components['schemas']['ProductSummary']
@@ -177,6 +178,15 @@ export const handlers = [
       { status: 201 },
     ),
   ),
+
+  // 注释样例：普通售卖／折扣场的直接下单（POST /api/orders）同样受商品级冷却约束。
+  // 真实冷却校验本轮不实现；需要演示 409 PURCHASE_COOLDOWN 时取消注释并按请求商品判定。
+  // http.post('/api/orders', () =>
+  //   HttpResponse.json(
+  //     { code: 'PURCHASE_COOLDOWN', message: '这件商品处于购买冷却期，到期后自动恢复可购' },
+  //     { status: 409 },
+  //   ),
+  // ),
 
   http.post('/api/auth/login', () => HttpResponse.json(me)),
 

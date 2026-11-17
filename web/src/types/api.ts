@@ -463,7 +463,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description 已购买过这件商品，或场次未开售、已结束，或本商品处于购买冷却期（到期自动恢复）。code：ALREADY_PURCHASED、CAMPAIGN_NOT_STARTED、CAMPAIGN_ENDED、PURCHASE_COOLDOWN */
+                /** @description 已购买过这件商品，或场次未开售、已结束，或本商品处于购买冷却期（到期自动恢复）。冷却按商品计、跨场生效，同一商品在普通售卖与折扣场的直接下单路径上同样拦截。code：ALREADY_PURCHASED、CAMPAIGN_NOT_STARTED、CAMPAIGN_ENDED、PURCHASE_COOLDOWN */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -571,7 +571,7 @@ export interface paths {
         put?: never;
         /**
          * 直接下单
-         * @description 用于常规售卖与限时折扣。抢购走 /campaigns/{id}/claim，不走这里。
+         * @description 用于常规售卖与限时折扣两条直接下单路径。下单前校验同一商品的购买冷却：冷却按 `productId` 计、跨场生效；浏览与预约（`reserved`）不校验冷却。抢购走 /campaigns/{id}/claim，不走这里。
          */
         post: {
             parameters: {
@@ -621,7 +621,7 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["Unauthorized"];
-                /** @description 库存不足，或本商品处于购买冷却期（到期自动恢复）。code：STOCK_INSUFFICIENT、PURCHASE_COOLDOWN */
+                /** @description 库存不足，或本商品处于购买冷却期（到期自动恢复）。常规售卖与限时折扣两条直接下单路径都会校验该商品的冷却；冷却按商品计、跨场生效。code：STOCK_INSUFFICIENT、PURCHASE_COOLDOWN */
                 409: {
                     headers: {
                         [name: string]: unknown;

@@ -3,6 +3,7 @@
 > **2026-11-17 状态说明（`spec/contract-35-36-37` 终态）**：本页所列契约缺口 1/2/3/4 已随 spec 的 #35（场次详情 oneOf + discriminator）、#36（本场额度 `campaignLimit`、剩余本场额度 `remainingCampaignLimit`、匿名可空语义）、#37（`PURCHASE_COOLDOWN` 409 与编号池异常 500 出口）落地；五态清单的权威定义写进 issue #7 正文（由交付环节写入），本分支只提供素材。
 > 下文所有行号与「契约现状」列均指修订前的 `api/openapi.yaml`，作为历史断言保留；核对现状以当前 `api/openapi.yaml` 与生成物 `web/src/types/api.ts` 为准。
 > 本页及其它 wiki 正文里出现的 `remainingQuota` 是 2026-11-17 改名前的历史名称，现契约字段为 `remainingCampaignLimit`。
+> **2026-11-17 owner 拍板方案 A（冷却作用域补全）**：冷却定为商品级购买限制，按 `productId` 计、跨场生效；`claim` 与 NORMAL/DISCOUNT 共用的 `POST /orders` 同样拦截同一商品，浏览与预约（`reserved`）不拦。
 
 **2026-11-16 复核（`main` = `c5b5508`）**，全部行号指 `api/openapi.yaml`，除非另注。issue 行号指 `gh issue view <n> --json body -q .body` 的正文行号。
 
@@ -77,6 +78,8 @@
 | 售罄 | Lua `-2`（#2:214-216、228）→ `allocation.available=0` | 受缺口 3 阻；**不是终态**，见 ADR-0003:13 |
 | 已购 / 额度用尽 | **`remainingQuota = 0`**（缺口 2 新增字段）。**每场独立额度，不跨场累计**（D1） | **字段待加**，改法已定 |
 | 失格 / 冷却 | 两档：不足 3 次未支付 → 24h；满 3 次 → **7 天**（D2）。**作用域＝本商品，跨场生效**（D4）：首发场触发的冷却，同商品的折扣场也拦 | **无错误码，Lua 也没实现**；折扣场走 `/orders`，那里也没声明 |
+
+> **2026-11-17 注**：上表现状列里「折扣场走 `/orders`，那里也没声明」已过时——`PURCHASE_COOLDOWN` 已在 `/orders` 的 409 声明；作用域经 owner 方案 A 拍板：商品级、跨场生效，NORMAL/DISCOUNT 的直接下单同样拦截，浏览与预约不拦。
 
 **⚠️ 第四态与第五态的作用域故意不一致（D1 vs D4）**：额度按 `campaignId` **重置**，冷却按 `productId` **累计**。**这不是漏改**——额度服务运营复售，冷却服务风控，换场不能洗白未支付记录。详见 [decisions-2026-11-16](decisions-2026-11-16.md) 的 D4。**别把两个键的 scope「修」成一致。**
 
@@ -292,6 +295,8 @@ spec 的缓存策略是逻辑过期 + 返回旧值：`campaign:detail:{campaignI
 - **`CampaignDetail` 的拆分方式**（缺口 3）：wiki 仍推荐 `oneOf` + `discriminator(type)`，代价是前端全量 narrow。**未拍。**
 - **`miss` 计数的清零规则**与**24h 计数窗口是否保留**：~~scope 也未定~~ **2026-11-16 更正：scope 已由 D4 定为 `productId`**，但清零与窗口仍未定，且 #3 P0-7 附带的「string 做不了滑动窗口」数据结构问题 D2/D4 都没碰。见 [decisions-2026-11-16](decisions-2026-11-16.md) 末节。
 - **NORMAL 常规售卖是否也受冷却约束**：D4 只说折扣场。**未定，别自行推广。**
+
+> **2026-11-17 已决（owner 方案 A）**：NORMAL 常规售卖同样受冷却约束。冷却为商品级购买限制，按 `productId` 计、跨场生效，`claim` 与 NORMAL/DISCOUNT 的 `POST /orders` 都拦截；浏览与预约不拦。原「未定，别自行推广」按历史断言保留。
 
 ### 旧问题列表（2026-11-16 早先，历史保留）
 

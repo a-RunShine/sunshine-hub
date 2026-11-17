@@ -46,3 +46,5 @@
 **键的现状要说准。** 目前 spec 里只有 `miss:{productId}:{realNameHash}` 一个键，**没有独立的冷却键**；冷却键是 issue #3 P0-7 提议新增的（原提议 `ban` 是「永久 + 人工解封」，已被本 ADR 否掉）。D4 定的是这个尚未设计的键作用域为 `productId`，「保持现状」只对 `miss` 成立。
 
 > **2026-11-17 补记（契约缺口已补，针对第 31 行「`ErrorCode` 里没有冷却相关的码……契约修订是下一个 ticket」）**：契约层已完成：OpenAPI 的 `ErrorCode` 枚举与 Java 的 `ErrorCode` 枚举都已加入 `PURCHASE_COOLDOWN`（409）；`POST /campaigns/{id}/claim` 的 409 与 `POST /orders` 的 409 都已声明该码；claim 另新增 `'500'` 出口，列出 `UNIT_POOL_INCONSISTENT` 与 `INTERNAL_ERROR`。仍然没有实现真实冷却校验、`miss` 的 24 小时滑动窗口、独立冷却键；本 ADR 后半段关于作用域、不对称性、必须在折扣下单路径另行校验冷却的约束继续有效。
+
+> **2026-11-17 补记（冷却作用域补全）**：针对 D4 第 7 行与第 44 行出现的「折扣场」——那是非穷尽示例，冷却本身是商品级购买限制：按 `productId` 计、跨场生效，因此 `claim` 与 NORMAL / DISCOUNT 共用的 `POST /orders` 都要拦截同一商品的 Purchaser。浏览与预约（`reserved`）不拦，只有购买动作受约束。这是补 D4 未覆盖的空白，不是重开 D4：「换场不能洗白未支付记录」的原意保持不变，额度按场重置、惩罚按商品累计这条有意的不对称继续有效。真实冷却校验、`miss` 的 24 小时滑动窗口、独立冷却键仍待设计。
