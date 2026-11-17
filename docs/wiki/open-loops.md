@@ -25,6 +25,8 @@
 
 **本 wiki 层自己的 PR #26 仍 OPEN**（2026-11-16 复核），承载 `docs/wiki-bootstrap`。**按 [workflow](workflow.md) 的「PR 开完即止」，合并等 owner，本层不自己合。**
 
+> **2026-11-17 复核（superseded）**：上面这句「PR #26 仍 OPEN、未合并」**已过时**——它于 **2026-11-16T14:32:15Z** squash 合并进 main，commit **`0c1dec6`**（`docs: 建立跨会话 wiki，记下环境暗坑与未结的环`）。来源：[PR #26](https://github.com/a-RunShine/sunshine-hub/pull/26)。
+
 > **2026-11-16 更正（superseded）**：本节旧版写「**⚠️ D4 晚于 PR #30 的文本**：ADR-0013:31 仍写『待定：冷却的作用域 owner 未拍板』，需决策 worker 回去更新」。**已结——worker 在 `e107847` 改完了**：作用域写在 ADR-0013 **:7**，两个键的对照表与「**这不是 bug，不要把它『修』成一致**」写在 **:33-40**，折扣场须另行校验冷却写在 **:44**。**不要再派一次。**
 >
 > **当时 wiki 读的是 `083af8c`，不是 PR #30 的最新头**，所以断言静默过时了。教训已落进 [workflow](workflow.md)：**读别的 worker 的分支必须记下当时的 commit SHA**。
@@ -52,6 +54,8 @@
 - **契约修订 ticket 待开（2026-11-16）。** 范围已汇总在 [contract-gaps](contract-gaps.md) 的「下一个契约 ticket 的范围」一节，**九项**：原五处缺口 + 决策 worker 在 ADR-0012:33 / ADR-0013:31（行号按 `e107847`）记下的额度字段与冷却码 + `/orders` 的冷却码。**其中 `CampaignInput` 缺本场额度字段是原五处没覆盖的写侧缺口。** 票还没开，本层不开 issue。
 
   **2026-11-16 更新**：`/orders` 那一项**已被 spec 与 ADR 采纳**（#2:269、#2:429 第九个用例、ADR-0013:44），不再是 wiki 独有发现；**但契约文件里仍未声明，所以仍在范围内**。
+
+  **2026-11-17 复核**：契约修订 ticket **仍未开**，本层不开 issue。#32 正被这条阻塞（见「等 triage」的 #32 条）。
 - **「一人一单」的术语问题（2026-11-16 复核，同日二次更正）。** 派活指令称「GLOSSARY 排除词还漏了『一人一单』，归入 #29」——**不成立**，它一直在 `_Avoid_` 行里（旧号 `GLOSSARY.md:93`，现 `:97`）。当时查出的真问题是 ① `GLOSSARY.md:28` 自己用了这个排除词 ② D1 之后 :28 的事实也错了 ③ `ADR-0002:3` 也用了它。
 
   **2026-11-16 二次复核（`e107847`）：①② 已被 worker 修完**——:28 重写为「有开售时刻、有配额、**有本场额度**，售罄即止」，全分支「一人一单」在 GLOSSARY 里只剩 `:97` 的 `_Avoid_` 行。~~**③ 仍未修**：那句「"一人一单"认的是人，不是账号」还在 ADR-0002 里，只是因顶部加了取代说明块而**从 `:3` 位移到 `:9`**。~~
@@ -109,6 +113,23 @@
 
   **依赖已登记**：#27 blocked by #29（先让仓库内检查真的能用，再扩到 issue 正文）。登记时踩到一个读延迟的坑，见 [environment](environment.md)。
 
+  **2026-11-17 复核**：#27 与 #29 **都仍 OPEN**，**#27 blocked by #29 的依赖关系保留**。#27 来源：[issue #27](https://github.com/a-RunShine/sunshine-hub/issues/27)。
+
+  **#29 范围被新评论扩展（2026-11-17T02:23:43Z，[评论 6936038788](https://github.com/a-RunShine/sunshine-hub/issues/29#issuecomment-6936038788)）**：
+
+  - 术语扫描现在会扫到 `docs/wiki/`（PR #26 已合），而 **wiki 与 ADR 墓碑必然提到被删的概念**——那是历史记录，不是漏改。main CI 日志实测命中：`docs/wiki/workflow.md:10`、`decisions-2026-11-16.md:30`、`issue-3-review.md:66`、`open-loops.md:76`。
+  - **把命中改成 blocking 之前必须先设计豁免机制**，否则护栏会拦住「记录删除本身」的那一层。两条候选：按路径豁免（`docs/wiki/`、`docs/adr/` 的 superseded 块）——简单，但整页放行，连真漏改也放掉；按显式标记豁免（行内 `<!-- glossary-ok -->` 或墓碑块标记）——更准，代价是要维护标记。**倾向显式标记。** 这条不定，#29 范围第 4 步（改 blocking）就不能做；**豁免机制没定之前不得改 blocking**。
+  - **locale 缺陷的实测验收信号**：main CI 日志里的乱码 / 截断候选 `── （592 处）`、`── （622 处）`、`── 件号（3 处）`（`证件号` 被切成 `件号`），修好 locale 之后这些应当消失，可直接作为验收信号，比「输出看起来正常」可检。
+  - 本轮只记录，**不开始实现 #29**。
+
+- **2026-11-17 复核**：**issue #32「test: MSW 要能造出契约里的每种失败态，抢购页的前置」** 仍 OPEN，挂 `needs-triage`。现状：`web/src/mocks/handlers.ts:109` 的 claim handler 无条件返回 201，造不出任何失败态；而阶段 1 抢购页的卖点正是五种按钮禁用态 + 三种失败原因。
+
+  **范围**（#32 正文）：让 MSW 能按场景产出契约声明的每种失败响应，并用测试钉住——抢购失败三因（含 `UNIT_POOL_INCONSISTENT`，注意它当前在契约上不可达，见 [contract-gaps](contract-gaps.md)）、五种禁用态所需响应形态（未开售 / 已结束 / 售罄 / 已购限购 / 失格冷却）、一个确定性检查：契约某 operation 声明的错误码，mock 层必须有办法产出。
+
+  **阻塞关系**：blocked by **契约修订**——额度字段、冷却错误码、五处缺口都还没落进 `api/openapi.yaml`；而那个**契约修订 ticket 至今未开**（见上方「契约修订 ticket 待开」）。边界：不改契约本身，不做页面实现。来源：[issue #32](https://github.com/a-RunShine/sunshine-hub/issues/32)。**本轮只记录，不开始实现 #32。**
+
+  **2026-11-17 open issue 快照（六个）**：#2（规格，`ready-for-agent`）、#3（文档与决策审查，`needs-triage` + `docs`）、#7（实施路径，`docs`）、#27（issue 正文扫描，`needs-triage`）、#29（术语护栏修复，`needs-triage`）、#32（MSW 失败态，`needs-triage`）。契约修订 ticket 仍未开。
+
 ## 已知但未做（环境护栏）
 
 来自 **2026-11-16 交接记录**，属于「有偏差先修，再做功能」那一类：
@@ -144,6 +165,8 @@
 - **2026-11-16 复核**：**阶段 1 与阶段 2 各自仍是 #7 里的一个大段落，没有 per-ticket 子 issue。** 只有阶段 0 拆过（#11 + #14–#18 + 评审修复 #20–#24，全部 CLOSED）。
 
   [workflow](workflow.md) 的约定是「每个 ticket 一个 worktree，派 subagent 实现」——**没有 ticket 就没有 worktree 的边界**，这条约定现在无从执行。实现前必须先拆。
+
+  > **2026-11-17 复核（部分 superseded）**：上面「阶段 1 与阶段 2 都没有 per-ticket 子 issue」**只对阶段 2 仍成立**。阶段 1 已有一个前置 ticket **#32**（MSW 要能造出契约里的每种失败态，见「等 triage」的 #32 条），但它被**尚未开的契约修订 ticket** 阻塞；除 #32 外，阶段 1 的页面实现仍无 per-ticket 子 issue。阶段 2 维持旧断言：仍无 per-ticket 子 issue。
 
 - **2026-11-16 复核**：**`module:*` 标签一个都还没建**（现有 6 个标签里没有）。`AGENTS.md` 说「第一个模块落地时按模块名创建，此后每个 issue 至少带一个」，拆 ticket 时要一并建，按模块边界拆。详见 [stages](stages.md)。
 
@@ -184,11 +207,17 @@
 - **2026-11-16**：`docs/wiki/` 曾是 untracked，换机器就没了。**同日已随 `docs/wiki-bootstrap` 分支提交入库**，并在 `AGENTS.md` 的「项目文档」加了指针，新会话才找得到这一层。
 
   **2026-11-16 补充（commit / PR 号）**：入库 commit 是 **`23f89d9`**（`docs: 建立跨会话 wiki，记下环境暗坑与未结的环`，9 文件 583 行，含 `AGENTS.md:16` 那行指针），承载它的是 **PR #26**（`docs/wiki-bootstrap` → `main`，复核时 **OPEN，未合并**）。按 [workflow](workflow.md) 的「PR 开完即止」，**合并等 owner**。
+
+  > **2026-11-17 复核（superseded）**：「复核时 OPEN、未合并、合并等 owner」已过时——PR #26 于 **2026-11-16T14:32:15Z** 合并为 main squash commit **`0c1dec6`**。来源：[PR #26](https://github.com/a-RunShine/sunshine-hub/pull/26)。
 - **2026-11-16 复核**：**`~/.m2/toolchains.xml` 是机器本地前提，没有提交进仓库**，仓库里也没有任何文件说明要建它。本机有（Nov 15 19:07），CI 不需要它且是绿的，但**换一台机器 toolchain 会失败且报错不指向原因**。待判断：是提交一份 `toolchains.xml` 模板，还是在 README 里写清这一步。细节见 [environment](environment.md)。
 
 - **2026-11-16**：[contract-gaps](contract-gaps.md) 已从「缺口清单」升级为**可决策页**：五态推导表（逐态标 spec 有据 / 推断）、每处缺口的具体改法与代价、两条 ADR 护栏（**不得给 `status` 加 `SOLD_OUT`**，ADR-0003:13；**`allocation` 不得无条件 required**，ADR-0004）、共享逻辑过期缓存导致售罄数字滞后约 2 秒、以及新增错误码时 `ErrorCodeContractTest` 的 blocking 耦合。同日新增 [issue-3-review](issue-3-review.md)。**两页都只读复核产出，没有改契约、没有改 issue。**
 
 ## 已结
+
+- **2026-11-16 14:32:15 UTC**：**PR #26 已合并**（squash）为 main commit **`0c1dec6`**，`docs: 建立跨会话 wiki，记下环境暗坑与未结的环`。本层 `docs/wiki/` 自此入库；上方两处「#26 仍 OPEN、未合并」的断言已标 superseded。来源：[PR #26](https://github.com/a-RunShine/sunshine-hub/pull/26)。
+
+- **2026-11-17 02:21:29 UTC**：**PR #33 已合并**（squash）为 **`b987a6f`**，`chore: 文档相对链接与 wiki 孤儿页加机器检查，接进 CI 契约 job`。新脚本 `scripts/check-doc-links.mjs`（零依赖、Node 标准库）接进 contract job，**命中即 fail，不做 advisory**：扫 `docs/**/*.md` + `AGENTS.md` + `GLOSSARY.md` + `CODING_STANDARDS/*.md`，校验相对链接目标存在，并检出 `docs/wiki/` 未被 `index.md` 登记的孤儿页。**Issue #31 由 #33 关闭**（completed，2026-11-17T02:21:31Z）。来源：[PR #33](https://github.com/a-RunShine/sunshine-hub/pull/33)、[issue #31](https://github.com/a-RunShine/sunshine-hub/issues/31)。
 
 - **2026-11-16：wiki 分支基线落后导致的断链已解。** 原未结项：「ADR-0012/0013 的相对链接在本分支点不开，因为基线 `c5b5508` 早于它们进 main」。**解法是把 `origin/main` 合进来**（`git merge origin/main`，普通合并提交 **`1b99c93`**，**无冲突**，非 rebase / 非 force-push），不是加注释绕过去。**合并后实测：13 份 ADR 齐全，10 页链接检查零断链、零孤儿，引用行号可就地核对。** 做法与边界已写进 [workflow](workflow.md)。
 
