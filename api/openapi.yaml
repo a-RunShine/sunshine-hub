@@ -1265,8 +1265,20 @@ components:
         coverUrl:
           type: string
     CampaignDetail:
+      description: 场次详情。按 type 区分两种形状，前端先按 type 收窄，再读配额或折扣价。
+      oneOf:
+        - $ref: '#/components/schemas/FlashCampaignDetail'
+        - $ref: '#/components/schemas/SimpleCampaignDetail'
+      discriminator:
+        propertyName: type
+        mapping:
+          FLASH: '#/components/schemas/FlashCampaignDetail'
+          NORMAL: '#/components/schemas/SimpleCampaignDetail'
+          DISCOUNT: '#/components/schemas/SimpleCampaignDetail'
+    FlashCampaignDetail:
       type: object
-      required: [id, name, type, productId, startAt, status, serverTime]
+      description: 限时抢购场详情。配额必填；售罄由 allocation.available 表达，不是 status 终态，回流释放后可恢复（ADR-0003）。
+      required: [id, name, type, productId, startAt, status, serverTime, allocation]
       properties:
         id:
           type: integer
@@ -1274,7 +1286,8 @@ components:
         name:
           type: string
         type:
-          $ref: '#/components/schemas/CampaignType'
+          type: string
+          enum: [FLASH]
         productId:
           type: integer
           format: int64
@@ -1293,6 +1306,38 @@ components:
           description: 服务端当前时间，前端用它算与本地时间的偏移
         allocation:
           $ref: '#/components/schemas/Allocation'
+        reserved:
+          type: boolean
+          description: 当前用户是否已预约
+    SimpleCampaignDetail:
+      type: object
+      description: 普通售卖／折扣场详情。不承载配额；折扣价在 discountPrice。
+      required: [id, name, type, productId, startAt, status, serverTime]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        type:
+          type: string
+          enum: [NORMAL, DISCOUNT]
+        productId:
+          type: integer
+          format: int64
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: [string, 'null']
+          format: date-time
+        status:
+          type: string
+          enum: [UPCOMING, ONGOING, ENDED]
+        serverTime:
+          type: string
+          format: date-time
+          description: 服务端当前时间，前端用它算与本地时间的偏移
         discountPrice:
           type: [integer, 'null']
           format: int64

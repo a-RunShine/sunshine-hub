@@ -1949,11 +1949,18 @@ export interface components {
             startAt: string;
             coverUrl: string;
         };
-        CampaignDetail: {
+        /** @description 场次详情。按 type 区分两种形状，前端先按 type 收窄，再读配额或折扣价。 */
+        CampaignDetail: components["schemas"]["FlashCampaignDetail"] | components["schemas"]["SimpleCampaignDetail"];
+        /** @description 限时抢购场详情。配额必填；售罄由 allocation.available 表达，不是 status 终态，回流释放后可恢复（ADR-0003）。 */
+        FlashCampaignDetail: {
             /** Format: int64 */
             id: number;
             name: string;
-            type: components["schemas"]["CampaignType"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "FLASH";
             /** Format: int64 */
             productId: number;
             /** Format: date-time */
@@ -1967,7 +1974,33 @@ export interface components {
              * @description 服务端当前时间，前端用它算与本地时间的偏移
              */
             serverTime: string;
-            allocation?: components["schemas"]["Allocation"];
+            allocation: components["schemas"]["Allocation"];
+            /** @description 当前用户是否已预约 */
+            reserved?: boolean;
+        };
+        /** @description 普通售卖／折扣场详情。不承载配额；折扣价在 discountPrice。 */
+        SimpleCampaignDetail: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "NORMAL" | "DISCOUNT";
+            /** Format: int64 */
+            productId: number;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt?: string | null;
+            /** @enum {string} */
+            status: "UPCOMING" | "ONGOING" | "ENDED";
+            /**
+             * Format: date-time
+             * @description 服务端当前时间，前端用它算与本地时间的偏移
+             */
+            serverTime: string;
             /** Format: int64 */
             discountPrice?: number | null;
             /** @description 当前用户是否已预约 */
