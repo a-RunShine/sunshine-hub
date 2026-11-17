@@ -1,5 +1,8 @@
 # 契约缺口：抢购页
 
+> **2026-11-17 状态说明（`spec/contract-35-36-37` 终态）**：本页所列契约缺口（1/2/3/4）与五态清单已随 spec 的 #35（场次详情 oneOf + discriminator）、#36（本场额度 `campaignLimit`、剩余额度 `remainingQuota`、匿名可空语义）、#37（`PURCHASE_COOLDOWN` 409 与编号池异常 500 出口）落地。
+> 下文所有行号与「契约现状」列均指修订前的 `api/openapi.yaml`，作为历史断言保留；核对现状以当前 `api/openapi.yaml` 与生成物 `web/src/types/api.ts` 为准。
+
 **2026-11-16 复核（`main` = `c5b5508`）**，全部行号指 `api/openapi.yaml`，除非另注。issue 行号指 `gh issue view <n> --json body -q .body` 的正文行号。
 
 > **2026-11-16 基准更新（`main` = `3701bd4`）**：PR #30（`742ef1e`）与 PR #28（`3701bd4`）已合并。**但 `api/openapi.yaml`、`src/`、`web/src/` 一个字节都没动**（`git diff c5b5508 origin/main` 核实）——**所以本页所有契约行号、`ErrorCode.java` 行号、前端行号全部仍然有效，九项契约缺口一项都还没修。**
