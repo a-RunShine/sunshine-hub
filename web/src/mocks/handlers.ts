@@ -179,14 +179,7 @@ export const handlers = [
     ),
   ),
 
-  // 注释样例：普通售卖／折扣场的直接下单（POST /api/orders）同样受商品级冷却约束。
-  // 真实冷却校验本轮不实现；需要演示 409 PURCHASE_COOLDOWN 时取消注释并按请求商品判定。
-  // http.post('/api/orders', () =>
-  //   HttpResponse.json(
-  //     { code: 'PURCHASE_COOLDOWN', message: '这件商品处于购买冷却期，到期后自动恢复可购' },
-  //     { status: 409 },
-  //   ),
-  // ),
+  // 各失败态（含冷却 409）由 #32 按场景实现并用测试钉住，本 ticket 只落契约。
 
   http.post('/api/auth/login', () => HttpResponse.json(me)),
 
