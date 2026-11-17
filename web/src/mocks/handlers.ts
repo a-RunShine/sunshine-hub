@@ -6,9 +6,9 @@ import type { components } from '@/types/api'
  * 只覆盖骨架跑得起来的几条，业务页面实现时按需补。
  *
  * 购买人专属字段按登录态造：
- * - 已登录：给具体值，reserved 为 true/false，remainingQuota 为本场剩余件数；
+ * - 已登录：给具体值，reserved 为 true/false，remainingCampaignLimit 为本场剩余件数；
  * - 匿名（未登录）：两者都为 null，与 false、0 等已知零值区分开。
- * remainingQuota 只出现在限时抢购（FLASH）形状上；普通售卖／折扣场形状只演示 discountPrice 与 reserved。
+ * remainingCampaignLimit 只出现在限时抢购（FLASH）形状上；普通售卖／折扣场形状只演示 discountPrice 与 reserved。
  */
 
 type ProductSummary = components['schemas']['ProductSummary']
@@ -33,11 +33,11 @@ const flashCampaign: FlashCampaignDetail = {
   serverTime: now(),
   allocation: { total: 5000, available: 4817, occupied: 183, pendingRepool: 0, sold: 0 },
   campaignLimit: 2,
-  remainingQuota: 1,
+  remainingCampaignLimit: 1,
   reserved: true,
 }
 
-// 态二（限时抢购）：已登录但本场额度用尽（remainingQuota=0，按钮禁用）；配额仍有剩余，与售罄区分
+// 态二（限时抢购）：已登录但本场额度用尽（remainingCampaignLimit=0，按钮禁用）；配额仍有剩余，与售罄区分
 const flashCampaignLimitReached: FlashCampaignDetail = {
   id: 3,
   name: '暗夜猎手 返场抢购',
@@ -49,7 +49,7 @@ const flashCampaignLimitReached: FlashCampaignDetail = {
   serverTime: now(),
   allocation: { total: 2000, available: 300, occupied: 1700, pendingRepool: 0, sold: 0 },
   campaignLimit: 2,
-  remainingQuota: 0,
+  remainingCampaignLimit: 0,
   reserved: false,
 }
 
@@ -65,11 +65,11 @@ const flashAnonymousCampaign: FlashCampaignDetail = {
   serverTime: now(),
   allocation: { total: 3000, available: 2960, occupied: 40, pendingRepool: 0, sold: 0 },
   campaignLimit: 2,
-  remainingQuota: null,
+  remainingCampaignLimit: null,
   reserved: null,
 }
 
-// 普通售卖／折扣场：只演示 discountPrice 与 reserved；该形状不承载本场额度，不带 remainingQuota
+// 普通售卖／折扣场：只演示 discountPrice 与 reserved；该形状不承载本场额度，不带 remainingCampaignLimit
 const discountCampaign: SimpleCampaignDetail = {
   id: 2,
   name: '暗夜猎手 折扣返场',
