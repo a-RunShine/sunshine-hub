@@ -78,7 +78,33 @@ issue #7 的页面清单是 **7 个区域**：身份、商城、交易、资产�
 
 `AGENTS.md` 的约定是「第一个模块落地时按模块名创建，此后每个 issue 至少带一个」——阶段 0 是骨架，还没触发这条。阶段 1/2 拆 ticket 时要一并建标签，按模块边界拆（`identity` / `catalog` / `trade` / `content` / `shared`，见 [decisions](decisions.md)）。
 
-## 当前 open issue（三个）
+**2026-11-17 复核（基线 `b987a6f`，GitHub Issues 页面核实）**：
+
+- **阶段 1 已拆出第一张前置 ticket：#32**「test: MSW 要能造出契约里的每种失败态，抢购页的前置」，`needs-triage`，OPEN，2026-11-16 开出（https://github.com/a-RunShine/sunshine-hub/issues/32）。范围：让 MSW 按场景产出契约声明的失败响应并以测试钉住——抢购失败三因（含 `UNIT_POOL_INCONSISTENT`）、五种禁用态所需响应形态（未开售 / 已结束 / 售罄 / 已购限购 / 失格冷却）、以及一条确定性检查：某 operation 声明的错误码，mock 层必须有办法产出。
+- **边界**：不改契约本身（归契约修订 ticket），不做页面实现。**截至 2026-11-17 未开工。**
+- **Blocked by 尚未开 ticket 的契约修订**：额度字段、冷却错误码与既有契约缺口都还没落进 `api/openapi.yaml`（九项范围见 [contract-gaps](contract-gaps.md)「下一个契约 ticket 的范围」一节）。现状依据：`web/src/mocks/handlers.ts:109` 的 claim handler 无条件返回 201（状态码在 `:117`），造不出任何失败态；`UNIT_POOL_INCONSISTENT` 只在契约枚举 `api/openapi.yaml:1099`，claim 响应声明里没有 5xx 出口（缺口 1，见 [contract-gaps](contract-gaps.md)）。
+- **阶段 2 仍无 per-ticket 子 issue。**
+
+> **2026-11-17 更正（部分 superseded）**：上面 2026-11-16 那条「阶段 1 与阶段 2 都还没有 per-ticket 子 issue」对阶段 1 已不成立——#32 是阶段 1 的前置 ticket；阶段 2 仍无。
+
+## 当前 open issue
+
+**2026-11-17 复核（基线 `b987a6f`，GitHub Issues 页面核实）**：共 **6** 个 open issue；**#31 已关闭**。
+
+| # | 标题 | 标签 |
+| --- | --- | --- |
+| **#2** | Sunshine-FPS 规格说明 | `ready-for-agent` |
+| **#3** | 文档与决策审查：P0 九处模型硬伤，P1 十处规格缺口 | `needs-triage` + `docs` |
+| **#7** | Sunshine-FPS 实施路径 | `docs` |
+| **#27** | chore: 术语检查扩到 issue 正文，堵住评审看不到的旧词 | `needs-triage` |
+| **#29** | fix: 术语检查护栏本身失效——locale 未固定、GLOSSARY 缺「大区」、命中不拦 | `needs-triage` |
+| **#32** | test: MSW 要能造出契约里的每种失败态，抢购页的前置 | `needs-triage` |
+
+#3 还等着 triage，见 [open-loops](open-loops.md)。**2026-11-16 补充**：九条 P0 已逐条读过并分类，其中 **P0-7 / P0-9 阻塞契约修复**，见 [issue-3-review](issue-3-review.md)。
+
+### 旧快照（2026-11-16，superseded）
+
+> **2026-11-17 更正（superseded）**：本节旧版标题写「三个」、表内只有 #2 / #3 / #7，是 2026-11-16 的集合。此后 #27、#29 提交，#32 于 2026-11-16 开出；旧表保留如下以显示当时快照。
 
 **2026-11-16 复核**：
 
@@ -87,8 +113,6 @@ issue #7 的页面清单是 **7 个区域**：身份、商城、交易、资产�
 | **#7** | Sunshine-FPS 实施路径 | `docs` |
 | **#3** | 文档与决策审查：P0 九处模型硬伤，P1 十处规格缺口 | `needs-triage` + `docs` |
 | **#2** | Sunshine-FPS 规格说明 | `ready-for-agent` |
-
-#3 还等着 triage，见 [open-loops](open-loops.md)。**2026-11-16 补充**：九条 P0 已逐条读过并分类，其中 **P0-7 / P0-9 阻塞契约修复**，见 [issue-3-review](issue-3-review.md)。
 
 ## 阶段 1 vs 阶段 2 的选择
 

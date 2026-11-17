@@ -106,10 +106,13 @@ git merge origin/main
 
 - 后端 `mvn verify`（先设 `JAVA_HOME`，见 [environment](environment.md)）
 - 前端 `pnpm test && pnpm build && pnpm lint`
+- 文档 `node scripts/check-doc-links.mjs`（**2026-11-17，`b987a6f`，PR #33**）：扫 `docs/**/*.md`、`AGENTS.md`、`GLOSSARY.md`、`CODING_STANDARDS/` 的相对链接与 `docs/wiki/` 孤儿页，**命中即红（blocking）**；扫描范围与有意不查项见 [guardrails](guardrails.md)。
 
 > **2026-11-16 更新（`3701bd4`，PR #28）**：后端现在可以用 **`./mvnw verify`**——wrapper 已提交（`mvnw` / `.mvn/wrapper/maven-wrapper.properties`，Maven 3.9.16，`only-script`），不必依赖本机装的 `mvn`。**但 `JAVA_HOME` 仍要手动 export 到 JDK 25**：enforcer 门槛已从 `[21,)` 提到 **`[25,)`**（`pom.xml:128`），**不 export 会在最开始就被拦下**，不再只是 toolchain 阶段失败。wrapper 解决的是 Maven 版本，不是 JDK 版本。
 
 **2026-11-16 复核**：这两条命令**都不覆盖术语检查**。CI 里那一步（`ci.yml:95`）是 advisory，`scripts/check-glossary.sh:97` 恒 `exit 0`。所以上面「全仓搜旧词」那条纪律**只能靠人跑脚本 + 逐条判断**，跑绿了不代表旧词清干净了。各检查拦不拦见 [guardrails](guardrails.md)。
+
+> **2026-11-17 更正（`b987a6f`，PR #33）**：上条引的 `ci.yml:95` 是旧号，术语检查步骤现位移到 `ci.yml:99-100`；同期新增的链接检查 `ci.yml:94-95`（`check-doc-links.mjs`）是 **blocking**，与术语 advisory 不是一类。术语脚本仍恒 `exit 0`，结论不变。
 
 ## 评审前先读规范
 
