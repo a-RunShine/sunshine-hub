@@ -5,9 +5,10 @@ import type { components } from '@/types/api'
  * 开发期的假数据。响应结构严格照着 api/openapi.yaml，改契约时这里要跟着改。
  * 只覆盖骨架跑得起来的几条，业务页面实现时按需补。
  *
- * 用户专属字段（reserved、remainingQuota）按登录态造：
+ * 购买人专属字段按登录态造：
  * - 已登录：给具体值，reserved 为 true/false，remainingQuota 为本场剩余件数；
  * - 匿名（未登录）：两者都为 null，与 false、0 等已知零值区分开。
+ * remainingQuota 只出现在限时抢购（FLASH）形状上；普通售卖／折扣场形状只演示 discountPrice 与 reserved。
  */
 
 type ProductSummary = components['schemas']['ProductSummary']
@@ -20,7 +21,7 @@ const now = () => new Date().toISOString()
 
 const me: Me = { id: 1, username: 'demo', realNameVerified: false }
 
-// 态一：已登录，本场还有剩余额度（campaignLimit=2，已用 1 件，剩 1 件），已预约
+// 态一（限时抢购）：已登录，本场还有剩余额度（campaignLimit=2，已用 1 件，剩 1 件），已预约
 const flashCampaign: FlashCampaignDetail = {
   id: 1,
   name: '暗夜猎手 首发',
@@ -36,8 +37,8 @@ const flashCampaign: FlashCampaignDetail = {
   reserved: true,
 }
 
-// 态二：已登录但本场额度用尽（remainingQuota=0，按钮禁用）；配额仍有剩余，与售罄区分
-const flashQuotaExhausted: FlashCampaignDetail = {
+// 态二（限时抢购）：已登录但本场额度用尽（remainingQuota=0，按钮禁用）；配额仍有剩余，与售罄区分
+const flashCampaignLimitReached: FlashCampaignDetail = {
   id: 3,
   name: '暗夜猎手 返场抢购',
   type: 'FLASH',
@@ -52,7 +53,23 @@ const flashQuotaExhausted: FlashCampaignDetail = {
   reserved: false,
 }
 
-// 态三：匿名访问（未登录），用户专属字段为 null，不与 false、0 混同
+// 态三（限时抢购）：匿名访问（未登录），购买人专属字段为 null，不与 false、0 混同
+const flashAnonymousCampaign: FlashCampaignDetail = {
+  id: 4,
+  name: '暗夜猎手 加场',
+  type: 'FLASH',
+  productId: 1,
+  startAt: new Date(Date.now() + 1800_000).toISOString(),
+  endAt: null,
+  status: 'UPCOMING',
+  serverTime: now(),
+  allocation: { total: 3000, available: 2960, occupied: 40, pendingRepool: 0, sold: 0 },
+  campaignLimit: 2,
+  remainingQuota: null,
+  reserved: null,
+}
+
+// 普通售卖／折扣场：只演示 discountPrice 与 reserved；该形状不承载本场额度，不带 remainingQuota
 const discountCampaign: SimpleCampaignDetail = {
   id: 2,
   name: '暗夜猎手 折扣返场',
@@ -63,7 +80,6 @@ const discountCampaign: SimpleCampaignDetail = {
   status: 'ONGOING',
   serverTime: now(),
   discountPrice: 9800,
-  remainingQuota: null,
   reserved: null,
 }
 
@@ -145,7 +161,8 @@ export const handlers = [
 
   http.get('/api/campaigns/:campaignId', ({ params }) => {
     const id = Number(params.campaignId)
-    if (id === 3) return HttpResponse.json(flashQuotaExhausted)
+    if (id === 3) return HttpResponse.json(flashCampaignLimitReached)
+    if (id === 4) return HttpResponse.json(flashAnonymousCampaign)
     return HttpResponse.json(id === 2 ? discountCampaign : flashCampaign)
   }),
 
