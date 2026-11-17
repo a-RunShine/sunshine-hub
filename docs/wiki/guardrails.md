@@ -2,11 +2,15 @@
 
 机器替人拦什么、不拦什么。**不拦的那部分才是这一页的重点**——以为有兜底而实际没有，比明知没有更危险。
 
-所有行号基于 **2026-11-16** 的 `main` = `c5b5508`。
+所有行号基于 **2026-11-17** 的 `main` = `b987a6f`（更早的 `c5b5508`、`3701bd4` 基准均已 superseded，见下方更正条）。
 
-> **2026-11-16 基准更新（`3701bd4`）**：PR #28（`3701bd4`，12:35:18 UTC）与 PR #30（`742ef1e`，12:35:06 UTC）已合并，**本页行号基准改为 `main` = `3701bd4`**。两次 CI 均 success（run `43867899360` / `43867932939`）。
+> **2026-11-16 基准更新（`3701bd4`，superseded 行号基准）**：PR #28（`3701bd4`，12:35:18 UTC）与 PR #30（`742ef1e`，12:35:06 UTC）已合并，当时**本页行号基准改为 `main` = `3701bd4`**。两次 CI 均 success（run `43867899360` / `43867932939`）。
 >
-> **`ci.yml` 行号未位移**（三个 job 仍是 `:9-37` / `:39-77` / `:79-95`），**只有 `setup-java` 的版本号变了**。**`pom.xml` 有小幅位移**，受影响的本页引用：Spotless `check` 旧 `:187` → **`:190`**；Checkstyle `check` 旧 `:207` → **`:210`**；`failOnViolation`/`violationSeverity` 旧 `:202-203` → **`:203-204`**；enforcer 旧 `:127-129` → **`:127-130`**；toolchains 旧 `:89-108` → **`:91-106`**。**未位移**：surefire pin `:30`、AOSP 配置 `:176-179`、ArchUnit 兜底 `ci.yml:30-37`。
+> **`pom.xml` 有小幅位移**，受影响的本页引用：Spotless `check` 旧 `:187` → **`:190`**；Checkstyle `check` 旧 `:207` → **`:210`**；`failOnViolation`/`violationSeverity` 旧 `:202-203` → **`:203-204`**；enforcer 旧 `:127-129` → **`:127-130`**；toolchains 旧 `:89-108` → **`:91-106`**。**未位移**：surefire pin `:30`、AOSP 配置 `:176-179`、ArchUnit 兜底 `ci.yml:30-37`。**`pom.xml` 行号在 `b987a6f` 仍有效**（#33 未碰 `pom.xml`）。
+
+> **2026-11-17 基准更新（`b987a6f`）**：PR #33（merge commit `b987a6f`，2026-11-17T02:21:29Z，来源 https://github.com/a-RunShine/sunshine-hub/pull/33 ）合并，**本页行号基准改为 `main` = `b987a6f`**；承载的 Issue #31（"chore: 文档链接加机器检查，别再靠手搓"）于 2026-11-17T02:21:31Z 由 #33 自动关闭（来源 https://github.com/a-RunShine/sunshine-hub/issues/31 ）。**`ci.yml` 只有 contract job 位移**：job 范围 `:79-95` → **`:79-100`**，新增「扫文档相对链接与 wiki 孤儿页」一步（`:94-95`）；backend（`:9-37`）、frontend（`:39-77`）范围未动。
+>
+> **superseded**：上一条基准写「`ci.yml` 行号未位移，三个 job 仍是 `:9-37` / `:39-77` / `:79-95`」——contract 范围这半句已被 #33 打破（扩到 `:100`）；更早的 `c5b5508` 基准同样过时。
 
 相关页：[index](index.md) · [environment](environment.md) · [workflow](workflow.md) · [open-loops](open-loops.md) · [contract-gaps](contract-gaps.md) · [decisions-2026-11-16](decisions-2026-11-16.md)
 
@@ -38,14 +42,41 @@ pnpm 12（`:45-47`）+ node 22（`:49-53`），依次：`install --frozen-lockfi
 
 `gen:types` 每次从 `api/openapi.yaml` 重生成 `src/types/api.ts`。生成物已提交，所以这一步实际在校验它有没有漂移。详见 [environment](environment.md)。
 
-### job `contract`（`ci.yml:79-95`）
+### job `contract`（`ci.yml:79-100`）
 
 | 步骤 | 拦不拦 |
 | --- | --- |
-| `npx @redocly/cli@latest lint api/openapi.yaml`（`:90`） | **拦** |
-| `./scripts/check-glossary.sh`（`:95`） | **不拦（advisory）**，而且提取本身有 bug，见下方更正条 |
+| `npx @redocly/cli@latest lint api/openapi.yaml`（`:89-90`） | **拦** |
+| `node scripts/check-doc-links.mjs`（`:94-95`，注释 `:92-93`） | **拦（blocking）**，2026-11-17 随 PR #33 新增，见下方「文档链接与孤儿页检查」 |
+| `./scripts/check-glossary.sh`（`:99-100`，注释 `:97-98`） | **不拦（advisory）**，而且提取本身有 bug，见下方更正条 |
+
+## 文档链接与孤儿页检查：这条是 blocking（2026-11-17，`b987a6f`）
+
+**2026-11-17 复核（基线 `b987a6f`）**：`scripts/check-doc-links.mjs`（仅用 node 标准库、零新依赖）由 **PR #33** 合入（merge commit `b987a6f`，2026-11-17T02:21:29Z），接进 contract job（`ci.yml:94-95`）；承载的 **Issue #31** 于 2026-11-17T02:21:31Z 由 #33 自动关闭。来源：PR https://github.com/a-RunShine/sunshine-hub/pull/33 、Issue https://github.com/a-RunShine/sunshine-hub/issues/31 。
+
+**命中即 `exit 1`，不做 advisory**（脚本头注释 `:4` 明写：advisory 的教训见 `check-glossary.sh` 与 issue #29）。**与术语检查正好相反**：术语护栏（#29）恒 `exit 0`、只出候选；这条断链 / 孤儿 / index 缺失任一命中就红。两者是各自独立的文档护栏，别混。
+
+**扫描范围**（脚本 `:92-96`）：`docs/**/*.md`、根目录 `AGENTS.md`、`GLOSSARY.md`（存在才收）、`CODING_STANDARDS/**/*.md`。
+
+**判定逻辑**：
+
+- 提取链接前先遮罩代码块（围栏 `:63-69`）与行内代码（`maskCodeSpans` `:41-55`，调用 `:71`）——反引号里的路径与写法样例不当链接扫。
+- 跳过外部 scheme（`EXTERNAL` `:25`，判定 `:75`）与纯锚点（`:78`）；锚点剥掉后只查文件存在（`:77`），`%` 解码后相对源文件所在目录解析（`:80-86`）。
+- 断链：`existsSync` 失败即记 `broken`（`:107`），stderr 逐条 `file:line`（`:134`）。
+- 孤儿页：`docs/wiki/` 不存在 → **跳过**孤儿检查（`:117-118`）；`docs/wiki/` 存在但 `index.md` 缺失 → **fail**（`wikiUnjudgeable`，`:119-121`、`:139`、`:144`）；存在 index 时，每个非 index 页必须出现在 `index.md` 的链接目标集合里，否则记孤儿（`:123-127`）。
+- 退出码：`broken || orphans || wikiUnjudgeable` 任一为真即 `exit 1`（`:144`）。
+
+**有意不做**（脚本头注释 `:12-14`）：
+
+- **不校验锚点**：全仓当前零条带锚点的相对链接，GitHub slug 规则与本地渲染器不一致（中文标题尤甚），现在做等于给不存在的消费者猜规则；#31 里这条标「待定」。
+- **不查外部链接**（http/https/mailto 等）：要走网络，不确定性不该进 CI。
+- **不扫 issue 正文链接**：那属 #27，与 #29、#33 三者各自独立。
+
+**本地复跑**：`node scripts/check-doc-links.mjs`（可带仓库根目录参数，用法 `:16`、根解析 `:23`）。
 
 ## 唯一的 advisory：术语检查
+
+> **2026-11-17（`b987a6f`）**：contract job 新增的 `check-doc-links.mjs` 是 **blocking**（见上节），所以术语检查仍是全仓 CI 里**唯一**的 advisory——两条文档护栏不是一类，别合并定性。
 
 `scripts/check-glossary.sh` **最后一行是 `exit 0`（`:97`）**，且 `set -uo pipefail`（`:15`）里没有 `-e`。无论命中多少排除词，退出码都是 0。
 
@@ -104,6 +135,8 @@ pnpm 12（`:45-47`）+ node 22（`:49-53`），依次：`install --frozen-lockfi
 - **CI 侧未验证**：CI 跑 ubuntu + GNU `tr`，GNU `tr` 不支持多字节是已知特性，据此推断 CI 上**无论 locale 都会损坏**——但本会话**没有在 CI 上实测**，标为待验证，不要据此声称 CI 一定坏。
 - 附带观察：脚本的 grep 范围含 `*.md` 且不排除 `docs/wiki/`，本层入库后**wiki 散文也会产生候选**（实测命中 `docs/wiki/contract-gaps.md:42`）。写 wiki 时不必回避领域词，但要知道日志里会有自己。
 
+> **2026-11-17 更正（部分 superseded，`b987a6f`）**：上条「CI 侧未验证、不要据此声称 CI 一定坏」**只对当时成立**。#29 评论（comment `6936038788`，来源 https://github.com/a-RunShine/sunshine-hub/issues/29#issuecomment-6936038788 ）已在 **main CI 日志**里实证乱码候选：`── （592 处）`、`── （622 处）`、`── 件号（3 处）`（`证件号` 被切成 `件号`）——即 CI 上 locale 损坏**确有实证**，不再是纯本机推断。**但这不等于 GNU `tr` 的全部行为都已完整验证**：实测只覆盖了日志里出现的这些候选，CI 上其它 locale / 输入组合仍未逐条跑过，别把这条扩写成「GNU `tr` 行为已定性」。
+
 ## ArchUnit 静默失效的兜底
 
 **2026-11-16 复核**：这是全仓最容易被误判为绿的一处。
@@ -161,3 +194,20 @@ Spring Boot 3.5.3 起默认带的 Surefire 有回归：**字段声明的 `@ArchT
 | `GLOSSARY.md` 缺「大区」 | 全文 `大区` 出现 **0 次** | **未改**（PR #30 改了 GLOSSARY，但没补这个排除词） |
 
 **这是有意的边界，不是遗漏**：PR #28 只做 wrapper / 版本固定 / JDK 门禁，**术语护栏整件事归 issue #29**（修 locale、补「大区」、修误报，**修干净之后才改 blocking**），issue 正文那一半归 **#27**（blocked by #29）。顺序不能反，否则一开 blocking 就拦住所有 PR。详见 [open-loops](open-loops.md)。
+
+### 2026-11-17 补充：#29 范围再加两条——豁免机制先于 blocking，locale 验收信号
+
+> **2026-11-17 评论（issue #29，comment `6936038788`，PR #33 合入后在 main CI 日志实证；来源 https://github.com/a-RunShine/sunshine-hub/issues/29#issuecomment-6936038788 ）**：#33 只加链接检查，**术语脚本一个字没碰**，上面列的缺陷与 advisory 定性仍然成立。该评论给 #29 的范围补了两条约束。
+
+**新增约束：豁免机制必须先于改 blocking。** wiki（PR #26 已合）与 ADR 墓碑**必然提到被删概念**，那是历史记录，不是漏改。main CI 日志实测命中：`docs/wiki/workflow.md:10`（沟通教训里复述当时的提问）、`docs/wiki/decisions-2026-11-16.md:30`（D1 决策标题本身）、`docs/wiki/issue-3-review.md:66`、`docs/wiki/open-loops.md:76`（讨论 ZSET 与限流的区分）。**所以「命中改 blocking」之前必须先有豁免机制**，否则护栏会拦住「记录删除本身」的那一层。候选两条：
+
+- **按路径豁免**（`docs/wiki/`、`docs/adr/` 的 superseded 块）：简单，但整页放行，连真漏改也放掉。
+- **按显式标记豁免**（行内 `<!-- glossary-ok -->` 或墓碑块标记）：更准，代价是要维护标记。
+
+**倾向显式标记；这条不定，不得改 blocking。**
+
+**locale 缺陷的验收信号**：main CI 日志里的乱码候选实测为 `── （592 处）`、`── （622 处）`、`── 件号（3 处）`（`证件号` 被切成 `件号`），数百处命中淹掉真候选。修好 locale 后这三条应当消失——比「输出看起来正常」更可检，直接当验收信号。
+
+**依赖关系不变**：**#27（术语检查扩到 issue 正文）仍 blocked by #29**（来源 https://github.com/a-RunShine/sunshine-hub/issues/27 ）——先让仓库内检查真能用，再扩到 issue 正文，顺序不能反。
+
+> **行号更正（2026-11-17，`b987a6f`）**：上表「CI 里不 fail」行引的 `ci.yml:94-95` 是旧号；术语检查步骤现位移到 `ci.yml:99-100`（注释 `:97-98`），#33 新增的 `:94-95` 是链接检查，别对号。
