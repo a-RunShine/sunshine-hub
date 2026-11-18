@@ -431,7 +431,7 @@ export interface paths {
         put?: never;
         /**
          * 抢购
-         * @description 原子完成扣配额、校验限购、分配编号。未实名 403，售罄 410，已购买或未开售 409。
+         * @description 原子完成扣配额、校验限购、分配编号。未实名 403；已购买、场次未开售、已结束，或本商品处于购买冷却期返回 409；售罄返回 410；编号池与配额不同步或服务内部错误返回 500。
          */
         post: {
             parameters: {
@@ -463,7 +463,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description 已购买过这件商品，或场次未开售、已结束。code：ALREADY_PURCHASED、CAMPAIGN_NOT_STARTED、CAMPAIGN_ENDED */
+                /** @description 已购买过这件商品，或场次未开售、已结束，或本商品处于购买冷却期（到期自动恢复）。冷却按商品计、跨场生效，同一商品在普通售卖与折扣场的直接下单路径上同样拦截。code：ALREADY_PURCHASED、CAMPAIGN_NOT_STARTED、CAMPAIGN_ENDED、PURCHASE_COOLDOWN */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -482,6 +482,15 @@ export interface paths {
                     };
                 };
                 429: components["responses"]["TooManyRequests"];
+                /** @description 编号池与配额不同步，或服务内部错误。code：UNIT_POOL_INCONSISTENT、INTERNAL_ERROR */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -562,7 +571,7 @@ export interface paths {
         put?: never;
         /**
          * 直接下单
-         * @description 用于常规售卖与限时折扣。抢购走 /campaigns/{id}/claim，不走这里。
+         * @description 用于常规售卖与限时折扣两条直接下单路径。下单前校验同一商品的购买冷却：冷却按 `productId` 计、跨场生效；浏览与预约（`reserved`）不校验冷却。抢购走 /campaigns/{id}/claim，不走这里。
          */
         post: {
             parameters: {
@@ -612,7 +621,7 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["Unauthorized"];
-                /** @description 库存不足。code：STOCK_INSUFFICIENT */
+                /** @description 库存不足，或本商品处于购买冷却期（到期自动恢复）。常规售卖与限时折扣两条直接下单路径都会校验该商品的冷却；冷却按商品计、跨场生效。code：STOCK_INSUFFICIENT、PURCHASE_COOLDOWN */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1858,7 +1867,7 @@ export interface components {
          * @description 业务错误码，与 src/main/java/com/sunshinefps/shared/ErrorCode.java 一一对应。新增错误码必须两边同步
          * @enum {string}
          */
-        ErrorCode: "UNAUTHORIZED" | "FORBIDDEN" | "REAL_NAME_REQUIRED" | "REAL_NAME_ALREADY_SET" | "USERNAME_TAKEN" | "BAD_CREDENTIALS" | "PRODUCT_NOT_FOUND" | "CAMPAIGN_NOT_FOUND" | "CAMPAIGN_NOT_STARTED" | "CAMPAIGN_ENDED" | "QUOTA_EXCEEDED" | "ALREADY_PURCHASED" | "SOLD_OUT" | "UNIT_POOL_INCONSISTENT" | "RATE_LIMITED" | "ORDER_NOT_FOUND" | "ORDER_NOT_PAYABLE" | "ORDER_NOT_CANCELLABLE" | "STOCK_INSUFFICIENT" | "ADDRESS_REQUIRED" | "REFUND_NOT_FOUND" | "REFUND_NOT_ALLOWED" | "REFUND_ALREADY_OPEN" | "ANNOUNCEMENT_NOT_FOUND" | "EVENT_NOT_FOUND" | "BAD_REQUEST" | "INTERNAL_ERROR";
+        ErrorCode: "UNAUTHORIZED" | "FORBIDDEN" | "REAL_NAME_REQUIRED" | "REAL_NAME_ALREADY_SET" | "USERNAME_TAKEN" | "BAD_CREDENTIALS" | "PRODUCT_NOT_FOUND" | "CAMPAIGN_NOT_FOUND" | "CAMPAIGN_NOT_STARTED" | "CAMPAIGN_ENDED" | "QUOTA_EXCEEDED" | "ALREADY_PURCHASED" | "PURCHASE_COOLDOWN" | "SOLD_OUT" | "UNIT_POOL_INCONSISTENT" | "RATE_LIMITED" | "ORDER_NOT_FOUND" | "ORDER_NOT_PAYABLE" | "ORDER_NOT_CANCELLABLE" | "STOCK_INSUFFICIENT" | "ADDRESS_REQUIRED" | "REFUND_NOT_FOUND" | "REFUND_NOT_ALLOWED" | "REFUND_ALREADY_OPEN" | "ANNOUNCEMENT_NOT_FOUND" | "EVENT_NOT_FOUND" | "BAD_REQUEST" | "INTERNAL_ERROR";
         Error: {
             code: components["schemas"]["ErrorCode"];
             /** @description 可直接展示给用户的中文文案 */
@@ -1898,7 +1907,7 @@ export interface components {
             limited: boolean;
             /** @description 限量总数。不限量时为 null */
             totalLimit?: number | null;
-            /** @description 每购买人限购数。不限购时为 null */
+            /** @description 商品级限购额度，只服务虚拟道具「一个账号一件」这一套，按账号判定；与限时抢购的本场额度 campaignLimit（按实名、按场配置）是两条独立规则，不合并、不互相复制。不限购时为 null。 */
             purchaseLimit?: number | null;
             skus: components["schemas"]["Sku"][];
         };
@@ -1949,11 +1958,22 @@ export interface components {
             startAt: string;
             coverUrl: string;
         };
-        CampaignDetail: {
+        /**
+         * @description 场次详情。按 type 区分两种形状，前端先按 type 收窄，再读配额或折扣价。
+         *
+         *     `reserved` 与限时抢购形状里的 `remainingCampaignLimit` 属于购买人专属字段：按当前购买人计算，从共享场次缓存读出公共数据之后再叠加，不得写入共享缓存，避免不同购买人互相看到对方的预约状态与剩余额度。未登录（匿名）访问时这两个字段为 `null`，与 `false`、`0` 等已知零值区分开：`null` 表示「不知道」，`false` 表示已登录且未预约，`0` 表示本场额度用尽。
+         */
+        CampaignDetail: components["schemas"]["FlashCampaignDetail"] | components["schemas"]["SimpleCampaignDetail"];
+        /** @description 限时抢购详情。配额与本场额度必填；售罄由 allocation.available 表达，不是 status 终态，回流释放后可恢复（ADR-0003）。 */
+        FlashCampaignDetail: {
             /** Format: int64 */
             id: number;
             name: string;
-            type: components["schemas"]["CampaignType"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "FLASH";
             /** Format: int64 */
             productId: number;
             /** Format: date-time */
@@ -1967,11 +1987,41 @@ export interface components {
              * @description 服务端当前时间，前端用它算与本地时间的偏移
              */
             serverTime: string;
-            allocation?: components["schemas"]["Allocation"];
+            allocation: components["schemas"]["Allocation"];
+            /** @description 本场额度：一个 Purchaser 在本场最多可购几件，按实名计算，额度只在本场内计、不跨场累计；运营发布该场时设定，允许大于 1 件。 */
+            campaignLimit: number;
+            /** @description 当前购买人在本场还剩多少件可购（剩余本场额度）。按实名计算，同一实名下的不同账号看到一致结果；只反映本场，不跨场累计。`null` = 匿名（未登录，不知道）；`0` = 本场额度用尽。 */
+            remainingCampaignLimit: number | null;
+            /** @description 当前购买人是否已预约。未登录（匿名）时为 `null`（不知道）；`false` = 已登录且未预约。 */
+            reserved: boolean | null;
+        };
+        /** @description 普通售卖／折扣场详情。不承载配额；折扣价在 discountPrice。 */
+        SimpleCampaignDetail: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "NORMAL" | "DISCOUNT";
+            /** Format: int64 */
+            productId: number;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt?: string | null;
+            /** @enum {string} */
+            status: "UPCOMING" | "ONGOING" | "ENDED";
+            /**
+             * Format: date-time
+             * @description 服务端当前时间，前端用它算与本地时间的偏移
+             */
+            serverTime: string;
             /** Format: int64 */
             discountPrice?: number | null;
-            /** @description 当前用户是否已预约 */
-            reserved?: boolean;
+            /** @description 当前购买人是否已预约。未登录（匿名）时为 `null`（不知道）；`false` = 已登录且未预约。 */
+            reserved: boolean | null;
         };
         CampaignInput: {
             name: string;
@@ -1984,6 +2034,8 @@ export interface components {
             endAt?: string;
             /** Format: int64 */
             discountPrice?: number;
+            /** @description 本场额度（Campaign Limit）：本场每人最多几件，仅对限时抢购（FLASH）场次有意义；未提供时服务端按 1 件处理，允许大于 1 件。普通售卖与折扣场忽略该字段。 */
+            campaignLimit?: number;
         };
         /** @description 恒等式 available + occupied + pendingRepool + sold = total */
         Allocation: {

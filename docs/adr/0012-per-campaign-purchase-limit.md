@@ -31,3 +31,7 @@
 - 抢购侧 N>1 的累计校验落在哪一层、用什么并发控制（issue #3 P0-9）。
 - Lua 脚本里 `EXISTS` / `SET` 与反向脚本的 `DEL` 都只表达「一件」，需要换成计数语义；键的生存期语义仍与冷却纠缠（issue #3 P0-7）。
 - 运营配置入口的契约缺口：`CampaignInput` 与 `CampaignDetail` 都没有本场额度字段，`ProductDetail.purchaseLimit` 还挂在商品上。契约修订是下一个 ticket，本轮不改 `api/openapi.yaml`。
+
+> **2026-11-17 补记（范围澄清，针对第 3 行「另开一场折扣场重新给额度」）**：第 3 行这句只能理解为「新 Campaign 不继承旧场的额度」，不代表折扣场自身有本场额度。本场额度（Campaign Limit）与契约里对应的「剩余」字段 `remainingCampaignLimit` 只属于限时抢购（FLASH）；要表达额度，场次必须是 FLASH。普通售卖与折扣场的购买限制继续归商品的 `ProductDetail.purchaseLimit`，没有迁到本场额度这条规则上。D1 的「按场独立、不跨场累计」不受影响，本段只是收窄「按场」指的是哪种场。
+
+> **2026-11-17 补记（契约缺口已补，针对第 33 行「运营配置入口的契约缺口……契约修订是下一个 ticket」）**：契约层已完成：`CampaignInput` 与 `FlashCampaignDetail` 已补 `campaignLimit`，`FlashCampaignDetail` 已补 `remainingCampaignLimit`（本次 owner 收窄后由旧名 `remainingQuota` 改名而来）。但原文列出的运行时待定项——Redis 键结构、Lua 计数语义、唯一索引替代机制——仍未设计；原文「本轮只记约束不做设计」的结论继续有效。
