@@ -10,9 +10,7 @@ import type { components } from '@/types/api'
  * 场景只是测试/演示概念，不进入 OpenAPI 契约与生成类型。
  */
 
-export type CampaignDetailOverride =
-  | components['schemas']['FlashCampaignDetail']
-  | components['schemas']['SimpleCampaignDetail']
+export type CampaignDetailOverride = components['schemas']['FlashCampaignDetail']
 
 export interface MockFailure {
   readonly status: number
@@ -33,6 +31,25 @@ export const DEFAULT_SCENARIO_ID = 'happy'
 type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
 
 const now = () => new Date().toISOString()
+
+/** 商品级购买冷却：claim 与 /orders 两条路径共用同一段失败响应，码与文案不改动。 */
+const purchaseCooldownFailure: MockFailure = {
+  status: 409,
+  code: 'PURCHASE_COOLDOWN',
+  message: '这件商品处于购买冷却期，到期后自动恢复可购',
+}
+
+/** 未登录或会话过期：claim 与 /orders 两条路径共用同一段失败响应，码与文案不改动。 */
+const unauthorizedFailure: MockFailure = {
+  status: 401,
+  code: 'UNAUTHORIZED',
+  message: '请先登录',
+}
+
+/** 配额计数自洽：total = available + occupied + sold（pendingRepool 恒为 0）。 */
+function makeAllocation(total: number, available: number, sold = 0): FlashCampaignDetail['allocation'] {
+  return { total, available, occupied: total - available - sold, pendingRepool: 0, sold }
+}
 
 /** 场次详情覆盖一律用 FLASH 形状：remainingCampaignLimit 只在 FLASH 上出现，售罄由 allocation.available 表达，不造 SOLD_OUT 状态。 */
 function flashDetail(overrides: {
@@ -61,7 +78,7 @@ const detailUpcoming: FlashCampaignDetail = flashDetail({
   status: 'UPCOMING',
   startAt: new Date(Date.now() + 3600_000).toISOString(),
   endAt: null,
-  allocation: { total: 5000, available: 4817, occupied: 183, pendingRepool: 0, sold: 0 },
+  allocation: makeAllocation(5000, 4817),
   campaignLimit: 2,
   remainingCampaignLimit: 1,
   reserved: true,
@@ -74,7 +91,7 @@ const detailEnded: FlashCampaignDetail = flashDetail({
   status: 'ENDED',
   startAt: new Date(Date.now() - 7200_000).toISOString(),
   endAt: new Date(Date.now() - 1800_000).toISOString(),
-  allocation: { total: 3000, available: 0, occupied: 0, pendingRepool: 0, sold: 3000 },
+  allocation: makeAllocation(3000, 0, 3000),
   campaignLimit: 2,
   remainingCampaignLimit: 0,
   reserved: false,
@@ -87,7 +104,7 @@ const detailSoldOut: FlashCampaignDetail = flashDetail({
   status: 'ONGOING',
   startAt: new Date(Date.now() - 1800_000).toISOString(),
   endAt: null,
-  allocation: { total: 2000, available: 0, occupied: 0, pendingRepool: 0, sold: 2000 },
+  allocation: makeAllocation(2000, 0, 2000),
   campaignLimit: 2,
   remainingCampaignLimit: 1,
   reserved: false,
@@ -100,7 +117,7 @@ const detailLimitReached: FlashCampaignDetail = flashDetail({
   status: 'ONGOING',
   startAt: new Date(Date.now() - 1800_000).toISOString(),
   endAt: null,
-  allocation: { total: 2000, available: 300, occupied: 1700, pendingRepool: 0, sold: 0 },
+  allocation: makeAllocation(2000, 300),
   campaignLimit: 2,
   remainingCampaignLimit: 0,
   reserved: false,
@@ -130,8 +147,9 @@ export const scenarios: readonly MockScenario[] = [
   },
   {
     id: 'detail-limit-reached',
-    description: '本场额度用尽：ONGOING，配额有余量，remainingCampaignLimit 为 0',
+    description: '本场额度用尽：ONGOING，配额有余量，remainingCampaignLimit 为 0；此时抢购回 409 ALREADY_PURCHASED',
     campaignDetail: detailLimitReached,
+    claimFailure: { status: 409, code: 'ALREADY_PURCHASED', message: '这件商品你已经买过了' },
   },
 
   // claim 失败覆盖（POST /campaigns/:campaignId/claim）
@@ -153,11 +171,7 @@ export const scenarios: readonly MockScenario[] = [
   {
     id: 'claim-cooldown',
     description: '本商品处于购买冷却期（商品级、跨场；详情保持中性，不覆盖场次详情）',
-    claimFailure: {
-      status: 409,
-      code: 'PURCHASE_COOLDOWN',
-      message: '这件商品处于购买冷却期，到期后自动恢复可购',
-    },
+    claimFailure: purchaseCooldownFailure,
   },
   {
     id: 'claim-sold-out',
@@ -172,7 +186,7 @@ export const scenarios: readonly MockScenario[] = [
   {
     id: 'claim-unauthorized',
     description: '未登录或会话已过期',
-    claimFailure: { status: 401, code: 'UNAUTHORIZED', message: '请先登录' },
+    claimFailure: unauthorizedFailure,
   },
   {
     id: 'claim-rate-limited',
@@ -208,7 +222,7 @@ export const scenarios: readonly MockScenario[] = [
   {
     id: 'order-unauthorized',
     description: '未登录或会话已过期',
-    orderFailure: { status: 401, code: 'UNAUTHORIZED', message: '请先登录' },
+    orderFailure: unauthorizedFailure,
   },
   {
     id: 'order-stock-insufficient',
@@ -218,14 +232,6 @@ export const scenarios: readonly MockScenario[] = [
   {
     id: 'order-cooldown',
     description: '本商品处于购买冷却期（商品级、跨场）',
-    orderFailure: {
-      status: 409,
-      code: 'PURCHASE_COOLDOWN',
-      message: '这件商品处于购买冷却期，到期后自动恢复可购',
-    },
+    orderFailure: purchaseCooldownFailure,
   },
 ]
-
-export function findScenario(id: string): MockScenario | undefined {
-  return scenarios.find((scenario) => scenario.id === id)
-}
