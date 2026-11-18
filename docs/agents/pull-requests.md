@@ -16,6 +16,8 @@ main 受分支保护，所有改动走 PR。直接 push main 会被规则拦下�
 
 **打标签不等于合并授权。** 代理可以自行给 issue 或 PR 打仓库已有标签（`needs-triage`、`ready-for-agent`、`docs` 等），但不要新增未约定的标签。标签、review 通过、CI 全绿都只是状态信息，不是同意。只有 owner 针对该 PR 的明确同意，才能执行第 5 步；不得把“可以打标签”读成“可以合并”。
 
+**push / 改正文前先查状态。** 每次 `git push` 到 PR 分支、或 `gh pr edit` 改 PR 正文之前，先跑 `scripts/pr-preflight.sh <pr-number>` 确认 PR 仍 OPEN。PR 是共享状态，owner 随时可能已经合并；合并后继续 push 的提交不会进 main。
+
 ```bash
 git checkout -b docs/example
 git commit -m "docs: ..."
