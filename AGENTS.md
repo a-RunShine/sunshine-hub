@@ -41,6 +41,8 @@ PR 描述按三段模板写：Summary 给图或树、Evidence 给 before/after�
 
 **PR 开完即止，不要自己合并。** 合并必须等仓库所有者明确同意，一个字都别替他省。
 
+**打标签不等于合并授权。** 代理可以给 issue 或 PR 使用仓库已有标签（如 `needs-triage`、`ready-for-agent`、`docs`）；新增标签仍按本文件的标签规则，不随意造。但 merge、关闭 PR、删除远端分支都必须等 owner 对**具体 PR** 明确同意。标签、review 结论、CI 全绿、“看起来没问题”都不是同意。
+
 ### Triage labels
 
 五个 triage 角色用默认标签名，标签字符串与角色名一致。详见 `docs/agents/triage-labels.md`。
