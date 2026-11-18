@@ -47,7 +47,7 @@ PR 描述按三段模板写：Summary 给图或树、Evidence 给 before/after�
 
 ### Triage labels
 
-五个 triage 角色用默认标签名，标签字符串与角色名一致。详见 `docs/agents/triage-labels.md`。
+五个状态角色用默认标签名，分类角色用 `bug` / `enhancement`；标签字符串与角色名一致。详见 `docs/agents/triage-labels.md`。
 
 ### Module labels
 
