@@ -1,5 +1,8 @@
 import { http, HttpResponse } from 'msw'
+import type { HttpHandler } from 'msw'
 import type { components } from '@/types/api'
+import { DEFAULT_SCENARIO_ID, scenarios } from './scenarios'
+import type { MockFailure, MockScenario } from './scenarios'
 
 /**
  * 开发期的假数据。响应结构严格照着 api/openapi.yaml，改契约时这里要跟着改。
@@ -10,6 +13,9 @@ import type { components } from '@/types/api'
  * - 匿名（未登录）：两者都为 null，与 false、0 等已知零值区分开。
  * remainingCampaignLimit 只出现在限时抢购（FLASH）形状上；普通售卖／折扣场形状只演示 discountPrice 与 reserved。
  * 冷却为商品级购买限制（按 productId、跨场生效）：FLASH 的 claim 与普通售卖／折扣场的 /orders 下单都会拦截；浏览与预约不拦。
+ *
+ * 场景选择是请求级的：从请求头 `X-Mock-Scenario` 读场景 id，缺失或空串回落到 `happy`；
+ * 未知 id 显式返回 400 BAD_REQUEST，不静默回落到成功。场景表见 scenarios.ts。
  */
 
 type ProductSummary = components['schemas']['ProductSummary']
@@ -17,6 +23,7 @@ type ProductDetail = components['schemas']['ProductDetail']
 type Me = components['schemas']['Me']
 type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
 type SimpleCampaignDetail = components['schemas']['SimpleCampaignDetail']
+type Order = components['schemas']['Order']
 
 const now = () => new Date().toISOString()
 
@@ -111,77 +118,145 @@ const products: ProductSummary[] = [
   },
 ]
 
-export const handlers = [
-  http.get('/api/products', () =>
-    HttpResponse.json({ items: products, page: 1, size: 20, total: products.length }),
-  ),
+// happy 场景直接下单成功返回的订单，字段照 Order schema
+const happyOrder: Order = {
+  orderNo: 'SO' + Date.now(),
+  status: 'PENDING_PAYMENT',
+  amount: 12800,
+  freight: 0,
+  payDeadline: new Date(Date.now() + 900_000).toISOString(),
+  secondsLeft: 900,
+  serverTime: now(),
+  closeReason: null,
+  createdAt: now(),
+  items: [
+    {
+      productId: 1,
+      productName: '暗夜猎手 限定皮肤',
+      skuId: 10,
+      skuName: '默认',
+      kind: 'VIRTUAL',
+      quantity: 1,
+      unitPrice: 12800,
+      collectibleNumber: '0427',
+    },
+  ],
+}
 
-  http.get('/api/products/:productId', ({ params }) => {
-    const id = Number(params.productId)
-    const product = products.find((p) => p.id === id)
-    if (!product) {
-      return HttpResponse.json(
-        { code: 'PRODUCT_NOT_FOUND', message: '商品不存在' },
-        { status: 404 },
-      )
-    }
-    const detail: ProductDetail = {
-      ...product,
-      description: '假数据，仅用于前端开发',
-      totalLimit: product.limited ? 5000 : null,
-      purchaseLimit: product.kind === 'VIRTUAL' ? 1 : null,
-      skus: [
-        {
-          id: id * 10,
-          name: product.kind === 'VIRTUAL' ? '默认' : '黑色 L 码',
-          attrs: product.kind === 'VIRTUAL' ? {} : { 颜色: '黑', 尺码: 'L' },
-          price: product.minPrice,
-          stock: 100,
-        },
-      ],
-    }
-    return HttpResponse.json(detail)
-  }),
+function unknownScenarioResponse(id: string): Response {
+  return HttpResponse.json(
+    { code: 'BAD_REQUEST', message: `未知的 mock 场景「${id}」` },
+    { status: 400 },
+  )
+}
 
-  http.get('/api/campaigns/upcoming', () =>
-    HttpResponse.json({
-      serverTime: now(),
-      items: [
-        {
-          id: 1,
-          name: '暗夜猎手 首发',
-          type: 'FLASH',
-          productId: 1,
-          productName: '暗夜猎手 限定皮肤',
-          startAt: new Date(Date.now() + 3600_000).toISOString(),
-          coverUrl: '',
-        },
-      ],
-    }),
-  ),
+/** 按请求头解析场景；找不到场景时返回 400 响应（unknown 分支由调用方判 Response）。 */
+function resolveScenario(
+  request: Request,
+  registry: readonly MockScenario[],
+): MockScenario | Response {
+  const rawId = request.headers.get('X-Mock-Scenario')?.trim() ?? ''
+  const scenarioId = rawId === '' ? DEFAULT_SCENARIO_ID : rawId
+  const scenario = registry.find((item) => item.id === scenarioId)
+  return scenario ?? unknownScenarioResponse(scenarioId)
+}
 
-  http.get('/api/campaigns/:campaignId', ({ params }) => {
-    const id = Number(params.campaignId)
-    if (id === 3) return HttpResponse.json(flashCampaignLimitReached)
-    if (id === 4) return HttpResponse.json(flashAnonymousCampaign)
-    return HttpResponse.json(id === 2 ? discountCampaign : flashCampaign)
-  }),
+function failureResponse(failure: MockFailure): Response {
+  return HttpResponse.json(
+    { code: failure.code, message: failure.message },
+    { status: failure.status },
+  )
+}
 
-  http.post('/api/campaigns/:campaignId/claim', () =>
-    HttpResponse.json(
-      {
-        orderNo: 'SO' + Date.now(),
-        collectibleNumber: '0427',
-        payDeadline: new Date(Date.now() + 900_000).toISOString(),
-        serverTime: now(),
-      },
-      { status: 201 },
+export function createHandlers(registry: readonly MockScenario[] = scenarios): HttpHandler[] {
+  return [
+    http.get('/api/products', () =>
+      HttpResponse.json({ items: products, page: 1, size: 20, total: products.length }),
     ),
-  ),
 
-  // 各失败态（含冷却 409）由 #32 按场景实现并用测试钉住，本 ticket 只落契约。
+    http.get('/api/products/:productId', ({ params }) => {
+      const id = Number(params.productId)
+      const product = products.find((p) => p.id === id)
+      if (!product) {
+        return HttpResponse.json(
+          { code: 'PRODUCT_NOT_FOUND', message: '商品不存在' },
+          { status: 404 },
+        )
+      }
+      const detail: ProductDetail = {
+        ...product,
+        description: '假数据，仅用于前端开发',
+        totalLimit: product.limited ? 5000 : null,
+        purchaseLimit: product.kind === 'VIRTUAL' ? 1 : null,
+        skus: [
+          {
+            id: id * 10,
+            name: product.kind === 'VIRTUAL' ? '默认' : '黑色 L 码',
+            attrs: product.kind === 'VIRTUAL' ? {} : { 颜色: '黑', 尺码: 'L' },
+            price: product.minPrice,
+            stock: 100,
+          },
+        ],
+      }
+      return HttpResponse.json(detail)
+    }),
 
-  http.post('/api/auth/login', () => HttpResponse.json(me)),
+    http.get('/api/campaigns/upcoming', () =>
+      HttpResponse.json({
+        serverTime: now(),
+        items: [
+          {
+            id: 1,
+            name: '暗夜猎手 首发',
+            type: 'FLASH',
+            productId: 1,
+            productName: '暗夜猎手 限定皮肤',
+            startAt: new Date(Date.now() + 3600_000).toISOString(),
+            coverUrl: '',
+          },
+        ],
+      }),
+    ),
 
-  http.get('/api/me', () => HttpResponse.json(me)),
-]
+    http.get('/api/campaigns/:campaignId', ({ request, params }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.campaignDetail) return HttpResponse.json(resolved.campaignDetail)
+
+      const id = Number(params.campaignId)
+      if (id === 3) return HttpResponse.json(flashCampaignLimitReached)
+      if (id === 4) return HttpResponse.json(flashAnonymousCampaign)
+      return HttpResponse.json(id === 2 ? discountCampaign : flashCampaign)
+    }),
+
+    http.post('/api/campaigns/:campaignId/claim', ({ request }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.claimFailure) return failureResponse(resolved.claimFailure)
+
+      return HttpResponse.json(
+        {
+          orderNo: 'SO' + Date.now(),
+          collectibleNumber: '0427',
+          payDeadline: new Date(Date.now() + 900_000).toISOString(),
+          serverTime: now(),
+        },
+        { status: 201 },
+      )
+    }),
+
+    http.post('/api/orders', ({ request }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.orderFailure) return failureResponse(resolved.orderFailure)
+
+      return HttpResponse.json(happyOrder, { status: 201 })
+    }),
+
+    http.post('/api/auth/login', () => HttpResponse.json(me)),
+
+    http.get('/api/me', () => HttpResponse.json(me)),
+  ]
+}
+
+export const handlers = createHandlers()
