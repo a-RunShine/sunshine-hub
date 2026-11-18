@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw'
 import type { HttpHandler } from 'msw'
 import type { components } from '@/types/api'
 import { DEFAULT_SCENARIO_ID, scenarios } from './scenarios'
-import type { MockFailure, MockScenario } from './scenarios'
+import type { MockScenario } from './scenarios'
 
 /**
  * 开发期的假数据。响应结构严格照着 api/openapi.yaml，改契约时这里要跟着改。
@@ -24,6 +24,7 @@ type Me = components['schemas']['Me']
 type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
 type SimpleCampaignDetail = components['schemas']['SimpleCampaignDetail']
 type Order = components['schemas']['Order']
+type ClaimResult = components['schemas']['ClaimResult']
 
 const now = () => new Date().toISOString()
 
@@ -118,6 +119,14 @@ const products: ProductSummary[] = [
   },
 ]
 
+// happy 场景抢购成功返回的结果，字段照 ClaimResult schema
+const happyClaim: ClaimResult = {
+  orderNo: 'SO' + Date.now(),
+  collectibleNumber: '0427',
+  payDeadline: new Date(Date.now() + 900_000).toISOString(),
+  serverTime: now(),
+}
+
 // happy 场景直接下单成功返回的订单，字段照 Order schema
 const happyOrder: Order = {
   orderNo: 'SO' + Date.now(),
@@ -143,13 +152,6 @@ const happyOrder: Order = {
   ],
 }
 
-function unknownScenarioResponse(id: string): Response {
-  return HttpResponse.json(
-    { code: 'BAD_REQUEST', message: `未知的 mock 场景「${id}」` },
-    { status: 400 },
-  )
-}
-
 /** 按请求头解析场景；找不到场景时返回 400 响应（unknown 分支由调用方判 Response）。 */
 function resolveScenario(
   request: Request,
@@ -158,14 +160,12 @@ function resolveScenario(
   const rawId = request.headers.get('X-Mock-Scenario')?.trim() ?? ''
   const scenarioId = rawId === '' ? DEFAULT_SCENARIO_ID : rawId
   const scenario = registry.find((item) => item.id === scenarioId)
-  return scenario ?? unknownScenarioResponse(scenarioId)
+  return scenario ?? jsonError(400, 'BAD_REQUEST', `未知的 mock 场景「${scenarioId}」`)
 }
 
-function failureResponse(failure: MockFailure): Response {
-  return HttpResponse.json(
-    { code: failure.code, message: failure.message },
-    { status: failure.status },
-  )
+/** 契约 Error envelope：{ code, message }，status 由调用方按契约给定。 */
+function jsonError(status: number, code: string, message: string): Response {
+  return HttpResponse.json({ code, message }, { status })
 }
 
 export function createHandlers(registry: readonly MockScenario[] = scenarios): HttpHandler[] {
@@ -232,23 +232,27 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
     http.post('/api/campaigns/:campaignId/claim', ({ request }) => {
       const resolved = resolveScenario(request, registry)
       if (resolved instanceof Response) return resolved
-      if (resolved.claimFailure) return failureResponse(resolved.claimFailure)
+      if (resolved.claimFailure) {
+        return jsonError(
+          resolved.claimFailure.status,
+          resolved.claimFailure.code,
+          resolved.claimFailure.message,
+        )
+      }
 
-      return HttpResponse.json(
-        {
-          orderNo: 'SO' + Date.now(),
-          collectibleNumber: '0427',
-          payDeadline: new Date(Date.now() + 900_000).toISOString(),
-          serverTime: now(),
-        },
-        { status: 201 },
-      )
+      return HttpResponse.json(happyClaim, { status: 201 })
     }),
 
     http.post('/api/orders', ({ request }) => {
       const resolved = resolveScenario(request, registry)
       if (resolved instanceof Response) return resolved
-      if (resolved.orderFailure) return failureResponse(resolved.orderFailure)
+      if (resolved.orderFailure) {
+        return jsonError(
+          resolved.orderFailure.status,
+          resolved.orderFailure.code,
+          resolved.orderFailure.message,
+        )
+      }
 
       return HttpResponse.json(happyOrder, { status: 201 })
     }),

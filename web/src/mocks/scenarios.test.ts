@@ -96,16 +96,28 @@ describe('场景注册表：逐场景走 HTTP 边界', () => {
 })
 
 describe('默认 happy path（不带场景头）', () => {
-  it('claim 返回 201，ClaimResult 四个字段齐全且为合法时间串', async () => {
+  it('claim 返回 201、Content-Type 为 json，响应键集合恰好为 ClaimResult 四字段且取值对齐基线', async () => {
     const res = await postClaim()
     expect(res.status).toBe(201)
+    expect(res.headers.get('content-type')).toContain('application/json')
     const body = await res.json()
-    for (const key of ['orderNo', 'collectibleNumber', 'payDeadline', 'serverTime'] as const) {
-      expect(typeof body[key]).toBe('string')
-      expect(body[key].length).toBeGreaterThan(0)
-    }
-    expect(Number.isNaN(Date.parse(body.payDeadline))).toBe(false)
-    expect(Number.isNaN(Date.parse(body.serverTime))).toBe(false)
+    // 多一个少一个键都算红：键集合恰好是 ClaimResult 声明的四个字段
+    expect(Object.keys(body).sort()).toEqual([
+      'collectibleNumber',
+      'orderNo',
+      'payDeadline',
+      'serverTime',
+    ])
+    // 与 48e5cc7 基线 201 常量逐一对齐：编号固定 0427，单号 SO + 时间戳，截止时间为当前 +15 分钟，serverTime 为当前时间
+    expect(body.collectibleNumber).toBe('0427')
+    expect(body.orderNo).toMatch(/^SO\d+$/)
+    const payDeadline = Date.parse(body.payDeadline)
+    const serverTime = Date.parse(body.serverTime)
+    expect(Number.isNaN(payDeadline)).toBe(false)
+    expect(Number.isNaN(serverTime)).toBe(false)
+    expect(payDeadline - Date.now()).toBeGreaterThan(890_000)
+    expect(payDeadline - Date.now()).toBeLessThan(910_000)
+    expect(payDeadline - serverTime).toBeGreaterThan(0)
   })
 
   it('GET /campaigns/1 返回与今日数据等价的场次详情形状', async () => {
@@ -159,9 +171,19 @@ describe('五种禁用态形状', () => {
     expect(['UPCOMING', 'ONGOING', 'ENDED']).toContain(body.status)
   })
 
-  it('额度用尽：detail-limit-reached 的 remainingCampaignLimit 为 0', async () => {
-    const body = await (await getDetail('detail-limit-reached')).json()
-    expect(body.remainingCampaignLimit).toBe(0)
+  it('额度用尽：详情为额度用尽形状（remainingCampaignLimit=0、allocation.available>0）、无冷却字段；抢购买回 409 ALREADY_PURCHASED', async () => {
+    const detailRes = await getDetail('detail-limit-reached')
+    expect(detailRes.status).toBe(200)
+    const detailBody = await detailRes.json()
+    expect(detailBody.remainingCampaignLimit).toBe(0)
+    expect(detailBody.allocation.available).toBeGreaterThan(0)
+    expect('cooldown' in detailBody).toBe(false)
+    expect('cooldownUntil' in detailBody).toBe(false)
+
+    const claimRes = await postClaim('detail-limit-reached')
+    expect(claimRes.status).toBe(409)
+    const claimBody = await claimRes.json()
+    expect(claimBody.code).toBe('ALREADY_PURCHASED')
   })
 
   it('冷却：claim-cooldown 抢购回 409 PURCHASE_COOLDOWN，详情保持中性、无冷却字段', async () => {

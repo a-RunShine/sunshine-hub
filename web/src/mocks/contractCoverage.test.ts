@@ -47,11 +47,11 @@ function resolveResponse(node: ResponseNode): ResponseDescription {
   return node
 }
 
-/** 从 description 文本里抽 `code：` 后面声明的错误码列表。 */
+/** 从 description 文本里抽 `code：`（全角冒号）或 `code:`（半角冒号）后面声明的错误码列表。 */
 function extractCodes(description: string | undefined): string[] {
   if (!description) return []
   const codes = new Set<string>()
-  for (const match of description.matchAll(/code：([^\n]*)/g)) {
+  for (const match of description.matchAll(/code[：:]([^\n]*)/g)) {
     for (const token of match[1].split(/[、,，\s]+/)) {
       if (/^[A-Z][A-Z0-9_]+$/.test(token)) codes.add(token)
     }
@@ -59,13 +59,19 @@ function extractCodes(description: string | undefined): string[] {
   return [...codes]
 }
 
-function declaredCodes(responses: OpenApiResponses): string[] {
+function declaredCodes(responses: OpenApiResponses, operation: string): string[] {
   const codes = new Set<string>()
   for (const node of Object.values(responses)) {
     for (const code of extractCodes(resolveResponse(node).description)) {
       codes.add(code)
     }
   }
+  // 契约里某个 in-scope operation 一个码都没解析出来，说明 description 写法变了而正则没跟上，
+  // 必须当场失败，不能让空数组静默通过后续循环。
+  expect(
+    codes.size,
+    `契约 operation「${operation}」未解析出任何错误码，请核对 description 里的 code 声明格式`,
+  ).toBeGreaterThan(0)
   return [...codes]
 }
 
@@ -81,15 +87,13 @@ const orderScenarioCodes = new Set(
 
 describe('契约错误码 ↔ mock 场景覆盖', () => {
   it('claim 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(claimResponses)
-    expect(declared.length).toBeGreaterThan(0)
+    const declared = declaredCodes(claimResponses, 'POST /campaigns/{campaignId}/claim')
     const missing = declared.filter((code) => !claimScenarioCodes.has(code))
     expect(missing).toEqual([])
   })
 
   it('POST /orders 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(orderResponses)
-    expect(declared.length).toBeGreaterThan(0)
+    const declared = declaredCodes(orderResponses, 'POST /orders')
     const missing = declared.filter((code) => !orderScenarioCodes.has(code))
     expect(missing).toEqual([])
   })
