@@ -9,6 +9,8 @@
 
 相关页：[index](index.md) · [open-loops](open-loops.md) · [contract-gaps](contract-gaps.md) · [decisions](decisions.md)
 
+> **截至 2026-11-18，main `3b00192`**：`index.md` 已降为纯目录，不再复述本页的进度、区域范围与 ticket 拆分状态；当前进度以本页各带日期的小节为准。
+
 ## 里程碑
 
 | 日期 | 事件 | commit / PR |

@@ -4,6 +4,8 @@
 
 相关页：[index](index.md) · [stages](stages.md) · [contract-gaps](contract-gaps.md) · [decisions-2026-11-16](decisions-2026-11-16.md) · [issue-3-review](issue-3-review.md) · [guardrails](guardrails.md) · [environment](environment.md)
 
+> **截至 2026-11-18，main `3b00192`**：`index.md` 已降为纯目录，不再复述本页的未决项、阻塞与等待关系；未结的环以本页各带日期的小节为准。
+
 ## 已拍板（2026-11-16）
 
 - **2026-11-16**：阶段 0 完成后做阶段 1 还是阶段 2 —— **用户已拍板：先补契约，再开阶段 1 抢购页**。理由见 [contract-gaps](contract-gaps.md)：契约是阶段 1 与 2 的唯一硬依赖，不补两边都会照着不足的契约往下写。
