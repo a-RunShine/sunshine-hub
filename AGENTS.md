@@ -39,6 +39,8 @@ Issues 和 spec 都存在 GitHub Issues 里，用 `gh` CLI 操作。详见 `docs
 
 PR 描述按三段模板写：Summary 给图或树、Evidence 给 before/after、Merge Danger 标单向门还是双向门。详见 `docs/agents/pull-requests.md`。
 
+**push / 改正文前先查 PR 状态：** 跑 `scripts/pr-preflight.sh <pr-number>` 确认仍 OPEN，流程说明见 `docs/agents/pull-requests.md`。
+
 **PR 开完即止，不要自己合并。** 合并必须等仓库所有者明确同意，一个字都别替他省。
 
 **打标签不等于合并授权。** 代理可以给 issue 或 PR 使用仓库已有标签（如 `needs-triage`、`ready-for-agent`、`docs`）；新增标签仍按本文件的标签规则，不随意造。但 merge、关闭 PR、删除远端分支都必须等 owner 对**具体 PR** 明确同意。标签、review 结论、CI 全绿、“看起来没问题”都不是同意。
