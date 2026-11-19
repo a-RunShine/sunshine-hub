@@ -77,7 +77,8 @@ item	OpenAPI items 结构名与 order_item 表名的组成部分，不是「物�
 '
 allow_words=$(printf '%s\n' "$allow_table" | awk -F'\t' 'NF >= 2 { print $1 }')
 
-# 复合词保护：左列排除词作为右列更长合法词的子串时，那一处不算命中。
+# 复合词保护：左列排除词是右列更长合法词的子串。按行级剔除——只要行内
+# 出现受保护复合词，整行从候选里去掉；词位级精度未做，此处是已知盲区。
 # 只列已核实的复合词；匹配规则本身不放宽。
 protected_table='
 编号	收藏编号
@@ -127,7 +128,10 @@ while IFS= read -r term; do
     --exclude='*.lock' \
     2>/dev/null)
 
-  # 复合词保护：命中行里的该词只出现在受保护复合词中时，整行不算候选。
+  # 复合词保护（行级剔除，词位级精度未做，此处是已知盲区）：grep -vF 只要
+  # 该行出现受保护复合词就整行剔除，不检查短词是否真的只出现在复合词里。
+  # 同一句既有「收藏编号」又有独立「编号」写法时，整行会被连带放过；
+  # 「抢购场→抢购场景」「余量→剩余量」同机制。
   compound=$(protected_compound_for "$term")
   if [ -n "$compound" ]; then
     hits=$(printf '%s\n' "$hits" | grep -vF "$compound" || true)
