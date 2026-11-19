@@ -4,6 +4,7 @@ import { ApiError } from '@/api/client'
 import { cancelReserveCampaign, reserveCampaign } from '@/api/campaign'
 import { buildLoginUrl } from '@/lib/redirect'
 import { useCampaignDetail } from './useCampaignDetail'
+import { useCampaignClaim } from './useCampaignClaim'
 import { CampaignDetailView } from './CampaignDetailView'
 
 /**
@@ -13,6 +14,8 @@ import { CampaignDetailView } from './CampaignDetailView'
 export default function CampaignPage() {
   const { campaignId = '' } = useParams<{ campaignId: string }>()
   const { state, reload } = useCampaignDetail(campaignId)
+  // 抢购成功后重新拉一次详情，刷新剩余份数 / 剩余本场额度；提交状态留在页面内，不进全局 store。
+  const { state: claim, claim: onClaim } = useCampaignClaim(campaignId, { onClaimed: reload })
 
   const [reserving, setReserving] = useState(false)
   const [reserveError, setReserveError] = useState<string | null>(null)
@@ -96,6 +99,8 @@ export default function CampaignPage() {
         detail={state.detail}
         offsetMs={state.offsetMs}
         claimability={state.claimability}
+        claim={claim}
+        onClaim={onClaim}
         beforeStart={state.beforeStart}
         reserving={reserving}
         reserveError={reserveError}

@@ -239,6 +239,8 @@ describe('开售后预约入口消失', () => {
           detail={state.detail}
           offsetMs={state.offsetMs}
           claimability={state.claimability}
+          claim={{ phase: 'idle' }}
+          onClaim={() => {}}
           beforeStart={state.beforeStart}
         />
       )
