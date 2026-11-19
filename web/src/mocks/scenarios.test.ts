@@ -66,6 +66,10 @@ function getDetail(scenarioId?: string): Promise<Response> {
   return fetch(`${ORIGIN}/api/campaigns/1`, { headers: scenarioHeaders(scenarioId) })
 }
 
+function getDetailById(campaignId: number): Promise<Response> {
+  return fetch(`${ORIGIN}/api/campaigns/${campaignId}`)
+}
+
 describe('场景注册表：逐场景走 HTTP 边界', () => {
   it.each(scenarios)('$id：按声明产出失败响应或详情形状', async (scenario) => {
     if (scenario.claimFailure) {
@@ -171,14 +175,13 @@ describe('五种禁用态形状', () => {
     expect(['UPCOMING', 'ONGOING', 'ENDED']).toContain(body.status)
   })
 
-  it('额度用尽：详情为额度用尽形状（remainingCampaignLimit=0、allocation.available>0）、无冷却字段；抢购买回 409 ALREADY_PURCHASED', async () => {
+  it('额度用尽：详情为额度用尽形状（remainingCampaignLimit=0、allocation.available>0）、不在冷却中（cooldownUntil 为 null）；抢购买回 409 ALREADY_PURCHASED', async () => {
     const detailRes = await getDetail('detail-limit-reached')
     expect(detailRes.status).toBe(200)
     const detailBody = await detailRes.json()
     expect(detailBody.remainingCampaignLimit).toBe(0)
     expect(detailBody.allocation.available).toBeGreaterThan(0)
-    expect('cooldown' in detailBody).toBe(false)
-    expect('cooldownUntil' in detailBody).toBe(false)
+    expect(detailBody.cooldownUntil).toBeNull()
 
     const claimRes = await postClaim('detail-limit-reached')
     expect(claimRes.status).toBe(409)
@@ -186,15 +189,52 @@ describe('五种禁用态形状', () => {
     expect(claimBody.code).toBe('ALREADY_PURCHASED')
   })
 
-  it('冷却：claim-cooldown 抢购回 409 PURCHASE_COOLDOWN，详情保持中性、无冷却字段', async () => {
+  it('冷却：claim-cooldown 抢购回 409 PURCHASE_COOLDOWN，详情同口径下发未来时刻的 cooldownUntil，不再互相矛盾', async () => {
     const claimRes = await postClaim('claim-cooldown')
     expect(claimRes.status).toBe(409)
     const claimBody = await claimRes.json()
     expect(claimBody.code).toBe('PURCHASE_COOLDOWN')
 
     const detailBody = await (await getDetail('claim-cooldown')).json()
-    expect('cooldown' in detailBody).toBe(false)
-    expect('cooldownUntil' in detailBody).toBe(false)
+    expect(detailBody.cooldownUntil).not.toBeNull()
+    expect(Date.parse(detailBody.cooldownUntil as string)).toBeGreaterThan(Date.now())
+  })
+})
+
+describe('冷却详情语义（cooldownUntil）', () => {
+  it('同一商品在两个不同场次详情返回相同的 cooldownUntil（商品级、跨场生效，不随 campaignId 变）', async () => {
+    const first = await (await getDetail('claim-cooldown')).json()
+    const second = await (await getDetail('detail-cooldown')).json()
+
+    expect(first.productId).toBe(1)
+    expect(second.productId).toBe(1)
+    expect(first.id).not.toBe(second.id)
+    expect(first.cooldownUntil).not.toBeNull()
+    expect(second.cooldownUntil).not.toBeNull()
+    expect(first.cooldownUntil).toBe(second.cooldownUntil)
+  })
+
+  it('detail-cooldown：详情看得出冷却中，claim 仍回 201 成功（详情态与点击结果分离）', async () => {
+    const detailBody = await (await getDetail('detail-cooldown')).json()
+    expect(detailBody.cooldownUntil).not.toBeNull()
+    expect(Date.parse(detailBody.cooldownUntil as string)).toBeGreaterThan(Date.now())
+
+    const claimRes = await postClaim('detail-cooldown')
+    expect(claimRes.status).toBe(201)
+  })
+
+  it('匿名访问（/campaigns/4）cooldownUntil 为 null，与 remainingCampaignLimit、reserved 的匿名口径一致', async () => {
+    const detailBody = await (await getDetailById(4)).json()
+    expect(detailBody.type).toBe('FLASH')
+    expect(detailBody.remainingCampaignLimit).toBeNull()
+    expect(detailBody.reserved).toBeNull()
+    expect(detailBody.cooldownUntil).toBeNull()
+  })
+
+  it('默认已登录中性详情（/campaigns/1）不在冷却中，cooldownUntil 为 null', async () => {
+    const detailBody = await (await getDetail()).json()
+    expect(detailBody.id).toBe(1)
+    expect(detailBody.cooldownUntil).toBeNull()
   })
 })
 

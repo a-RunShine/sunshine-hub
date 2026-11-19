@@ -6,7 +6,8 @@ import type { components } from '@/types/api'
  * 选择场景，默认 `happy`；不持有全局可变状态。
  *
  * 口径守术语表：额度（remainingCampaignLimit）按 campaign 计、仅本场内有效；
- * 冷却（PURCHASE_COOLDOWN）按 product 计、跨场生效；购买人专属字段对匿名访问返回 null。
+ * 冷却（cooldownUntil / PURCHASE_COOLDOWN）按 product 计、跨场生效；
+ * 购买人专属字段对匿名访问返回 null。
  * 场景只是测试/演示概念，不进入 OpenAPI 契约与生成类型。
  */
 
@@ -51,6 +52,12 @@ function makeAllocation(total: number, available: number, sold = 0): FlashCampai
   return { total, available, occupied: total - available - sold, pendingRepool: 0, sold }
 }
 
+/**
+ * 商品 1 的冷却到期时刻。冷却是商品级、跨场生效：同一商品的不同场次详情共用这一个值，
+ * 不由 campaignId 派生；两个冷却详情场景都引用它，测试据此钉住跨场同值。
+ */
+const product1CooldownUntil = new Date(Date.now() + 3 * 24 * 3600_000).toISOString()
+
 /** 场次详情覆盖一律用 FLASH 形状：remainingCampaignLimit 只在 FLASH 上出现，售罄由 allocation.available 表达，不造 SOLD_OUT 状态。 */
 function flashDetail(overrides: {
   id: number
@@ -61,6 +68,7 @@ function flashDetail(overrides: {
   allocation: FlashCampaignDetail['allocation']
   campaignLimit: number
   remainingCampaignLimit: number | null
+  cooldownUntil: string | null
   reserved: boolean | null
 }): FlashCampaignDetail {
   return {
@@ -81,6 +89,7 @@ const detailUpcoming: FlashCampaignDetail = flashDetail({
   allocation: makeAllocation(5000, 4817),
   campaignLimit: 2,
   remainingCampaignLimit: 1,
+  cooldownUntil: null,
   reserved: true,
 })
 
@@ -94,6 +103,7 @@ const detailEnded: FlashCampaignDetail = flashDetail({
   allocation: makeAllocation(3000, 0, 3000),
   campaignLimit: 2,
   remainingCampaignLimit: 0,
+  cooldownUntil: null,
   reserved: false,
 })
 
@@ -107,10 +117,11 @@ const detailSoldOut: FlashCampaignDetail = flashDetail({
   allocation: makeAllocation(2000, 0, 2000),
   campaignLimit: 2,
   remainingCampaignLimit: 1,
+  cooldownUntil: null,
   reserved: false,
 })
 
-// 态四：本场额度用尽。配额仍有剩余，remainingCampaignLimit 为 0。
+// 态四：本场额度用尽。配额仍有剩余，remainingCampaignLimit 为 0；不在冷却中，cooldownUntil 为 null。
 const detailLimitReached: FlashCampaignDetail = flashDetail({
   id: 104,
   name: '暗夜猎手 返场（额度用尽）',
@@ -120,6 +131,35 @@ const detailLimitReached: FlashCampaignDetail = flashDetail({
   allocation: makeAllocation(2000, 300),
   campaignLimit: 2,
   remainingCampaignLimit: 0,
+  cooldownUntil: null,
+  reserved: false,
+})
+
+// 态五：冷却中（与 claim-cooldown 同场语义）。cooldownUntil 为未来时刻；商品级、跨场生效。
+const detailCooldownClaim: FlashCampaignDetail = flashDetail({
+  id: 105,
+  name: '暗夜猎手 加场（冷却中）',
+  status: 'ONGOING',
+  startAt: new Date(Date.now() - 1800_000).toISOString(),
+  endAt: null,
+  allocation: makeAllocation(2000, 1200),
+  campaignLimit: 2,
+  remainingCampaignLimit: 1,
+  cooldownUntil: product1CooldownUntil,
+  reserved: false,
+})
+
+// 态五演示：只改详情、不改抢购结果。与 detailCooldownClaim 同商品、不同场次，cooldownUntil 取同一个值。
+const detailCooldownDemo: FlashCampaignDetail = flashDetail({
+  id: 106,
+  name: '暗夜猎手 返场（冷却演示）',
+  status: 'ONGOING',
+  startAt: new Date(Date.now() - 1800_000).toISOString(),
+  endAt: null,
+  allocation: makeAllocation(2000, 1200),
+  campaignLimit: 2,
+  remainingCampaignLimit: 1,
+  cooldownUntil: product1CooldownUntil,
   reserved: false,
 })
 
@@ -151,6 +191,11 @@ export const scenarios: readonly MockScenario[] = [
     campaignDetail: detailLimitReached,
     claimFailure: { status: 409, code: 'ALREADY_PURCHASED', message: '这件商品你已经买过了' },
   },
+  {
+    id: 'detail-cooldown',
+    description: '详情处于冷却：ONGOING，cooldownUntil 为未来时刻；只改详情、不改抢购结果，claim 仍回 201 成功（演示详情态与点击结果分离）',
+    campaignDetail: detailCooldownDemo,
+  },
 
   // claim 失败覆盖（POST /campaigns/:campaignId/claim）
   {
@@ -170,7 +215,8 @@ export const scenarios: readonly MockScenario[] = [
   },
   {
     id: 'claim-cooldown',
-    description: '本商品处于购买冷却期（商品级、跨场；详情保持中性，不覆盖场次详情）',
+    description: '本商品处于购买冷却期（商品级、跨场）；详情与抢购结果一致，cooldownUntil 已下发为未来时刻',
+    campaignDetail: detailCooldownClaim,
     claimFailure: purchaseCooldownFailure,
   },
   {

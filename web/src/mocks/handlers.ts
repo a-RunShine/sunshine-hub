@@ -13,6 +13,7 @@ import type { MockScenario } from './scenarios'
  * - 匿名（未登录）：两者都为 null，与 false、0 等已知零值区分开。
  * remainingCampaignLimit 只出现在限时抢购（FLASH）形状上；普通售卖／折扣场形状只演示 discountPrice 与 reserved。
  * 冷却为商品级购买限制（按 productId、跨场生效）：FLASH 的 claim 与普通售卖／折扣场的 /orders 下单都会拦截；浏览与预约不拦。
+ * 详情通过 cooldownUntil 下发冷却到期时刻（匿名返回 null）；该字段与本场额度 remainingCampaignLimit 作用域不同，互不替代。
  *
  * 场景选择是请求级的：从请求头 `X-Mock-Scenario` 读场景 id，缺失或空串回落到 `happy`；
  * 未知 id 显式返回 400 BAD_REQUEST，不静默回落到成功。场景表见 scenarios.ts。
@@ -30,7 +31,7 @@ const now = () => new Date().toISOString()
 
 const me: Me = { id: 1, username: 'demo', realNameVerified: false }
 
-// 态一（限时抢购）：已登录，本场还有剩余额度（campaignLimit=2，已用 1 件，剩 1 件），已预约
+// 态一（限时抢购）：已登录，本场还有剩余额度（campaignLimit=2，已用 1 件，剩 1 件），已预约；不在冷却中
 const flashCampaign: FlashCampaignDetail = {
   id: 1,
   name: '暗夜猎手 首发',
@@ -43,10 +44,11 @@ const flashCampaign: FlashCampaignDetail = {
   allocation: { total: 5000, available: 4817, occupied: 183, pendingRepool: 0, sold: 0 },
   campaignLimit: 2,
   remainingCampaignLimit: 1,
+  cooldownUntil: null,
   reserved: true,
 }
 
-// 态二（限时抢购）：已登录但本场额度用尽（remainingCampaignLimit=0，按钮禁用）；配额仍有剩余，与售罄区分
+// 态二（限时抢购）：已登录但本场额度用尽（remainingCampaignLimit=0，按钮禁用）；配额仍有剩余，与售罄区分；不在冷却中
 const flashCampaignLimitReached: FlashCampaignDetail = {
   id: 3,
   name: '暗夜猎手 返场抢购',
@@ -59,6 +61,7 @@ const flashCampaignLimitReached: FlashCampaignDetail = {
   allocation: { total: 2000, available: 300, occupied: 1700, pendingRepool: 0, sold: 0 },
   campaignLimit: 2,
   remainingCampaignLimit: 0,
+  cooldownUntil: null,
   reserved: false,
 }
 
@@ -75,6 +78,7 @@ const flashAnonymousCampaign: FlashCampaignDetail = {
   allocation: { total: 3000, available: 2960, occupied: 40, pendingRepool: 0, sold: 0 },
   campaignLimit: 2,
   remainingCampaignLimit: null,
+  cooldownUntil: null,
   reserved: null,
 }
 
