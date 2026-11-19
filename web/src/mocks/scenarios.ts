@@ -28,6 +28,9 @@ export interface MockScenario {
 
 export const DEFAULT_SCENARIO_ID = 'happy'
 
+/** 场景选择请求头名；handler 与开发期切换器共用，协议见 handlers.ts 注释。 */
+export const MOCK_SCENARIO_HEADER = 'X-Mock-Scenario'
+
 type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
 
 const now = () => new Date().toISOString()

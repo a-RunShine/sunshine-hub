@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import type { HttpHandler } from 'msw'
 import type { components } from '@/types/api'
-import { DEFAULT_SCENARIO_ID, scenarios } from './scenarios'
+import { DEFAULT_SCENARIO_ID, MOCK_SCENARIO_HEADER, scenarios } from './scenarios'
 import type { MockScenario } from './scenarios'
 
 /**
@@ -157,7 +157,7 @@ function resolveScenario(
   request: Request,
   registry: readonly MockScenario[],
 ): MockScenario | Response {
-  const rawId = request.headers.get('X-Mock-Scenario')?.trim() ?? ''
+  const rawId = request.headers.get(MOCK_SCENARIO_HEADER)?.trim() ?? ''
   const scenarioId = rawId === '' ? DEFAULT_SCENARIO_ID : rawId
   const scenario = registry.find((item) => item.id === scenarioId)
   return scenario ?? jsonError(400, 'BAD_REQUEST', `未知的 mock 场景「${scenarioId}」`)
