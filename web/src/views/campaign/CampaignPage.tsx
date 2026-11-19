@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ApiError } from '@/api/client'
 import { cancelReserveCampaign, reserveCampaign } from '@/api/campaign'
+import { errorMessage } from '@/api/errors'
 import { submitRealName, type RealNameInput } from '@/api/identity'
 import { buildLoginUrl } from '@/lib/redirect'
 import { useAuth } from '@/stores/auth'
@@ -9,6 +9,7 @@ import { useCampaignDetail } from './useCampaignDetail'
 import { useCampaignClaim } from './useCampaignClaim'
 import { useVisibilityPolling, RECOVERABLE_REFETCH_INTERVAL_MS } from './polling'
 import { useRecoverableFailureReset } from './useClaimRecovery'
+import { isRecoverableBlock } from './claimability'
 import { CampaignDetailView } from './CampaignDetailView'
 import { CampaignRealNameDialog } from './CampaignRealNameDialog'
 
@@ -26,8 +27,6 @@ export default function CampaignPage() {
   const [realNameError, setRealNameError] = useState<string | null>(null)
 
   const setMe = useAuth((state) => state.setMe)
-  const isLoggedIn = useAuth((state) => state.isLoggedIn)
-  const needRealName = useAuth((state) => state.needRealName)
 
   // 匿名点预约 / 抢购：与 401 拦截器、RequireAuth 同一套回跳口径，登录后回到本场次。
   const navigate = useNavigate()
@@ -39,9 +38,9 @@ export default function CampaignPage() {
   // 抢购成功后重新拉一次详情，刷新剩余份数 / 剩余本场额度；提交状态留在页面内，不进全局 store。
   const { state: claim, claim: runClaim, clearFailure } = useCampaignClaim(campaignId, {
     onClaimed: reload,
-    // 本地会话态与服务端脱节：服务端回 403 未实名，与本地预判走同一个开表单入口。
+    // 服务端回 403 未实名：回到空闲态后由本层开实名表单。
     onRealNameRequired: () => setRealNameOpen(true),
-    // 会话过期回 401：走与匿名点击同一个登录回跳口径，不在按钮区落失败提示。
+    // 会话过期回 401：走登录回跳口径，不在按钮区落失败提示。
     onRequireLogin,
   })
 
@@ -50,7 +49,7 @@ export default function CampaignPage() {
   const detailReason = state.status === 'ready' ? state.claimability.reason : null
   const claimRecoverable = claim.phase === 'failed' && claim.failure.recoverable
   useVisibilityPolling({
-    active: detailReason === 'SOLD_OUT' || detailReason === 'COOLDOWN' || claimRecoverable,
+    active: isRecoverableBlock(detailReason) || claimRecoverable,
     intervalMs: RECOVERABLE_REFETCH_INTERVAL_MS,
     onTick: reload,
   })
@@ -73,7 +72,7 @@ export default function CampaignPage() {
         await action()
         await reload()
       } catch (error) {
-        setReserveError(error instanceof ApiError ? error.message : '网络出了点问题')
+        setReserveError(errorMessage(error))
       } finally {
         setReserving(false)
       }
@@ -90,20 +89,11 @@ export default function CampaignPage() {
     [campaignId, runReserveAction],
   )
 
-  // 点击抢购的拦截闸口：匿名先走登录回跳；未实名先弹表单；都满足才真正发抢购请求。
+  // 点击直接发抢购；未登录 / 未实名不在前端预判：由服务端 401 / 403 响应分别走登录回跳与实名弹窗。
   // 按钮全程可点，拦截发生在点击之后（ADR-0009）。
   const handleClaimClick = useCallback(() => {
-    if (!isLoggedIn()) {
-      onRequireLogin()
-      return
-    }
-    if (needRealName()) {
-      setRealNameError(null)
-      setRealNameOpen(true)
-      return
-    }
     runClaim()
-  }, [isLoggedIn, needRealName, onRequireLogin, runClaim])
+  }, [runClaim])
 
   // 实名提交成功：用回写的最新购买人档案更新 store 实名态，关掉表单后重放抢购；
   // 重放仍走 useCampaignClaim 的同一条 claim()，防重闸口与状态机不绕开。
@@ -117,7 +107,7 @@ export default function CampaignPage() {
         setRealNameOpen(false)
         runClaim()
       } catch (error) {
-        setRealNameError(error instanceof ApiError ? error.message : '网络出了点问题')
+        setRealNameError(errorMessage(error))
       } finally {
         setRealNameSubmitting(false)
       }
