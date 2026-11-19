@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '@/api/client'
 import { getCampaignDetail, type FlashCampaignDetail } from '@/api/campaign'
 import { evaluateClaimability, type Claimability } from './claimability'
+import { isBeforeStart } from './reserve'
 import { computeOffsetMs, serverNow } from './serverClock'
 
 /**
@@ -21,6 +22,8 @@ export type CampaignPageState =
       detail: FlashCampaignDetail
       offsetMs: number
       claimability: Claimability
+      /** 未开售（服务端口径）；开售后预约入口消失。 */
+      beforeStart: boolean
     }
 
 export interface UseCampaignDetailOptions {
@@ -60,8 +63,10 @@ export function useCampaignDetail(
       }
       // 每次取数成功都用最新响应重算服务端时间偏移
       const offsetMs = computeOffsetMs(raw.serverTime, now())
-      const claimability = evaluateClaimability(raw, serverNow(now(), offsetMs))
-      setState({ status: 'ready', detail: raw, offsetMs, claimability })
+      const serverNowMs = serverNow(now(), offsetMs)
+      const claimability = evaluateClaimability(raw, serverNowMs)
+      const beforeStart = isBeforeStart(raw, serverNowMs)
+      setState({ status: 'ready', detail: raw, offsetMs, claimability, beforeStart })
     } catch (error) {
       if (seq !== requestSeq.current) return
       if (error instanceof ApiError && error.code === 'CAMPAIGN_NOT_FOUND') {
