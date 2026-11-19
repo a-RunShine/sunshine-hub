@@ -230,7 +230,10 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
       const id = Number(params.campaignId)
       if (id === 3) return HttpResponse.json(flashCampaignLimitReached)
       if (id === 4) return HttpResponse.json(flashAnonymousCampaign)
-      return HttpResponse.json(id === 2 ? discountCampaign : flashCampaign)
+      if (id === 2) return HttpResponse.json(discountCampaign)
+      if (id === 1) return HttpResponse.json(flashCampaign)
+      // 契约 404：场次不存在，code：CAMPAIGN_NOT_FOUND
+      return jsonError(404, 'CAMPAIGN_NOT_FOUND', '场次不存在')
     }),
 
     http.post('/api/campaigns/:campaignId/claim', ({ request }) => {
