@@ -9,7 +9,7 @@ import { ApiError } from '@/api/client'
  * - `CAMPAIGN_NOT_STARTED` 场次未开售：回到倒计时口径
  * - `CAMPAIGN_ENDED` 场次已结束：终态提示
  * - `PURCHASE_COOLDOWN` 购买冷却：到期自动恢复，可恢复，挂通用轮询
- * - `UNIT_POOL_INCONSISTENT` 编号池与配额不同步：服务异常，不是用户的错
+ * - `UNIT_POOL_INCONSISTENT` 编号池与配额不同步：服务异常，不是购买人的问题
  * - `INTERNAL_ERROR` 服务内部错误兜底
  * - `RATE_LIMITED`（429）操作太快：限流，稍后再试
  * - `UNKNOWN` 兜底：非 ApiError 或契约外码

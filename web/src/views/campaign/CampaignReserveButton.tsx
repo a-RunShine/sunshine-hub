@@ -24,7 +24,7 @@ interface CampaignReserveButtonProps {
  * - 已预约（`true`）：点击取消预约。
  *
  * 开售后入口整体消失（`beforeStart === false`），不与抢购按钮同时出现。
- * 预约不占库存、不影响抢购按钮可点性，见契约与 #54 口径。
+ * 预约不预占配额、不影响抢购按钮可点性，见契约与 #54 口径。
  */
 export function CampaignReserveButton({
   detail,

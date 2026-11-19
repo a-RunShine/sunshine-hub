@@ -34,6 +34,25 @@ export const CLAIM_BLOCK_REASON_LABEL: Record<ClaimBlockReason, string> = {
   COOLDOWN: '购买冷却中',
 }
 
+/**
+ * 是否属于可自行恢复的不可点态：售罄配额回流、冷却到期。
+ * 详情轮询与失败 overlay 解除都按这一处判定；新增可恢复态只在这里登记。
+ */
+export function isRecoverableBlock(reason: ClaimBlockReason | null): boolean {
+  return reason === 'SOLD_OUT' || reason === 'COOLDOWN'
+}
+
+/** 按不可点原因选倒计时目标：未开售对开售时刻，冷却中对冷却到期时刻，进行中对结束时刻。 */
+export function countdownTargetFor(
+  detail: FlashCampaignDetail,
+  reason: ClaimBlockReason | null,
+): { target: string | null; label: string } {
+  if (reason === 'NOT_STARTED') return { target: detail.startAt, label: '距开售' }
+  if (reason === 'COOLDOWN') return { target: detail.cooldownUntil, label: '冷却剩余' }
+  if (detail.endAt != null) return { target: detail.endAt, label: '距结束' }
+  return { target: null, label: '' }
+}
+
 /** 冷却到期时刻是否还在未来；null（匿名或不在冷却中）一律视为否。 */
 function isFutureInstant(instant: string | null, now: number): boolean {
   if (instant === null) return false

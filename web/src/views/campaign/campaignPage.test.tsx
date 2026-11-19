@@ -1,19 +1,21 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { client } from '@/api/client'
+import { describe, expect, it, vi } from 'vitest'
 import type { ClaimResult, FlashCampaignDetail } from '@/api/campaign'
-import { createHandlers } from '@/mocks/handlers'
-import { MOCK_SCENARIO_HEADER, scenarios } from '@/mocks/scenarios'
+import { scenarios } from '@/mocks/scenarios'
 import { useAuth } from '@/stores/auth'
-import CampaignPage from './CampaignPage'
 import { CampaignDetailView } from './CampaignDetailView'
 import { useCampaignDetail } from './useCampaignDetail'
 import { useCampaignClaim } from './useCampaignClaim'
 import { useRecoverableFailureReset } from './useClaimRecovery'
 import { useVisibilityPolling } from './polling'
+import { isRecoverableBlock } from './claimability'
+import {
+  createCampaignTestServer,
+  registerCampaignTestServer,
+  renderCampaignPage,
+  setScenario,
+} from './campaignTestHarness'
 
 /**
  * 抢购页只读态测试：打在 MSW HTTP 边界与组件可见行为上——
@@ -21,36 +23,13 @@ import { useVisibilityPolling } from './polling'
  * 场景数据复用 scenarios 注册表；时间通过注入的 now / 冻结 Date.now 控制，不靠真跑 1 秒。
  */
 
-const server = setupServer(...createHandlers())
-
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-afterEach(() => {
-  server.resetHandlers()
-  delete client.defaults.headers.common[MOCK_SCENARIO_HEADER]
-  // store 是模块单例：每个用例回到未登录初始态，不带上一个用例的购买人
-  useAuth.setState({ me: null, status: 'uninitialized' })
-})
-afterAll(() => server.close())
+const testServer = createCampaignTestServer()
+registerCampaignTestServer(testServer.server, testServer.counters)
 
 /** 注入已实名购买人：claim 流程用例绕过登录 / 实名拦截，直接打抢购路径。 */
 function loginVerified() {
   useAuth.getState().setMe({ id: 1, username: 'demo', realNameVerified: true })
   useAuth.getState().setStatus('ready')
-}
-
-function renderPage(campaignId: string) {
-  return render(
-    <MemoryRouter initialEntries={[`/campaigns/${campaignId}`]}>
-      <Routes>
-        <Route path="/campaigns/:campaignId" element={<CampaignPage />} />
-      </Routes>
-    </MemoryRouter>,
-  )
-}
-
-/** 选中开发期场景：与 DevScenarioPanel 走同一个请求头协议。 */
-function setScenario(id: string) {
-  client.defaults.headers.common[MOCK_SCENARIO_HEADER] = id
 }
 
 const getButton = () => screen.getByRole('button', { name: '立即抢购' })
@@ -86,7 +65,7 @@ const successClaim: ClaimResult = {
 describe('五种不可点态', () => {
   it('未开售：UPCOMING，按钮禁用并给出「未开售」原因，倒计时指向开售时刻', async () => {
     setScenario('detail-upcoming')
-    renderPage('101')
+    renderCampaignPage('101')
 
     expect(await screen.findByRole('heading', { name: '暗夜猎手 首发（未开售）' })).toBeInTheDocument()
     expect(getButton()).toBeDisabled()
@@ -96,7 +75,7 @@ describe('五种不可点态', () => {
 
   it('已结束：ENDED，按钮禁用并给出「已结束」原因', async () => {
     setScenario('detail-ended')
-    renderPage('102')
+    renderCampaignPage('102')
 
     expect(await screen.findByRole('heading', { name: '暗夜猎手 收官场（已结束）' })).toBeInTheDocument()
     expect(getButton()).toBeDisabled()
@@ -105,7 +84,7 @@ describe('五种不可点态', () => {
 
   it('售罄：allocation.available 为 0，按钮禁用并给出「售罄」原因', async () => {
     setScenario('detail-sold-out')
-    renderPage('103')
+    renderCampaignPage('103')
 
     expect(await screen.findByRole('heading', { name: '暗夜猎手 加场（售罄）' })).toBeInTheDocument()
     expect(getButton()).toBeDisabled()
@@ -114,7 +93,7 @@ describe('五种不可点态', () => {
 
   it('剩余本场额度用尽：remainingCampaignLimit 为 0，按钮禁用；不出现冷却文案', async () => {
     setScenario('detail-limit-reached')
-    renderPage('104')
+    renderCampaignPage('104')
 
     expect(await screen.findByRole('heading', { name: '暗夜猎手 返场（额度用尽）' })).toBeInTheDocument()
     expect(getButton()).toBeDisabled()
@@ -124,7 +103,7 @@ describe('五种不可点态', () => {
 
   it('购买冷却：cooldownUntil 为未来时刻，按钮禁用并给出「购买冷却中」原因', async () => {
     setScenario('detail-cooldown')
-    renderPage('106')
+    renderCampaignPage('106')
 
     expect(await screen.findByRole('heading', { name: '暗夜猎手 返场（冷却演示）' })).toBeInTheDocument()
     expect(getButton()).toBeDisabled()
@@ -135,7 +114,7 @@ describe('五种不可点态', () => {
 describe('匿名访问', () => {
   it('按钮保持可点，且不显示「剩余本场额度用尽」与「购买冷却中」', async () => {
     // 匿名形状：购买人专属字段一律 null；配额有余量、场次进行中。
-    server.use(
+    testServer.server.use(
       http.get('/api/campaigns/4', () =>
         HttpResponse.json({
           id: 4,
@@ -155,7 +134,7 @@ describe('匿名访问', () => {
       ),
     )
 
-    renderPage('4')
+    renderCampaignPage('4')
 
     expect(await screen.findByRole('heading', { name: '暗夜猎手 加场' })).toBeInTheDocument()
     expect(getButton()).toBeEnabled()
@@ -168,7 +147,7 @@ describe('售罄恢复', () => {
   it('配额回升后重新取数，按钮从禁用恢复为可点', async () => {
     const soldOut = scenarios.find((item) => item.id === 'detail-sold-out')!.campaignDetail!
     let requests = 0
-    server.use(
+    testServer.server.use(
       http.get('/api/campaigns/103', () => {
         requests += 1
         // 首次售罄；之后配额回流回升，剩余份数恢复
@@ -185,7 +164,7 @@ describe('售罄恢复', () => {
       const { state, reload } = useCampaignDetail('103')
       const reason = state.status === 'ready' ? state.claimability.reason : null
       useVisibilityPolling({
-        active: reason === 'SOLD_OUT' || reason === 'COOLDOWN',
+        active: isRecoverableBlock(reason),
         intervalMs: 200,
         onTick: reload,
       })
@@ -214,7 +193,7 @@ describe('售罄恢复', () => {
 
 describe('场次不存在', () => {
   it('404 CAMPAIGN_NOT_FOUND 显示可理解的提示，不白屏不崩', async () => {
-    renderPage('999')
+    renderCampaignPage('999')
 
     expect(await screen.findByRole('heading', { name: '场次不存在' })).toBeInTheDocument()
     expect(screen.getByText('你要找的限时抢购场次可能已经下线，或链接有误。')).toBeInTheDocument()
@@ -226,7 +205,7 @@ describe('倒计时服务端校准', () => {
     // 本机被拨快 2 小时：本机视角已越过开售时刻 1 小时；服务端视角距开售还有 1 小时。
     const localClock = new Date('2026-01-01T12:00:00.000Z').getTime()
     const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(localClock)
-    server.use(
+    testServer.server.use(
       http.get('/api/campaigns/777', () =>
         HttpResponse.json({
           id: 777,
@@ -247,7 +226,7 @@ describe('倒计时服务端校准', () => {
     )
 
     try {
-      renderPage('777')
+      renderCampaignPage('777')
       expect(await screen.findByText('01:00:00')).toBeInTheDocument()
     } finally {
       dateNowSpy.mockRestore()
@@ -263,7 +242,7 @@ describe('抢购防重复提交', () => {
       resolveClaimRef.current = resolve
     })
 
-    server.use(
+    testServer.server.use(
       http.get('/api/campaigns/201', () => HttpResponse.json(ongoingDetail())),
       http.post('/api/campaigns/201/claim', () => {
         claimCalls += 1
@@ -272,7 +251,7 @@ describe('抢购防重复提交', () => {
     )
 
     loginVerified()
-    renderPage('201')
+    renderCampaignPage('201')
     const button = await screen.findByRole('button', { name: '立即抢购' })
     expect(button).toBeEnabled()
 
@@ -295,7 +274,7 @@ describe('抢购防重复提交', () => {
 
 describe('抢购成功展示', () => {
   it('收藏编号逐字展示保留前导零，给出订单详情入口且 href 正确，付款倒计时在走', async () => {
-    server.use(
+    testServer.server.use(
       http.get('/api/campaigns/202', () => HttpResponse.json(ongoingDetail())),
       http.post('/api/campaigns/202/claim', () =>
         HttpResponse.json(successClaim, { status: 201 }),
@@ -303,7 +282,7 @@ describe('抢购成功展示', () => {
     )
 
     loginVerified()
-    renderPage('202')
+    renderCampaignPage('202')
     fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
 
     // 编号原样展示：0427 逐字一致，前导零不被数字化掉
@@ -322,7 +301,7 @@ describe('抢购成功展示', () => {
     const serverTime = '2026-01-01T10:00:00.000Z'
     const payDeadline = '2026-01-01T11:00:00.000Z'
 
-    server.use(
+    testServer.server.use(
       http.get('/api/campaigns/203', () =>
         HttpResponse.json(ongoingDetail({ serverTime })),
       ),
@@ -336,7 +315,7 @@ describe('抢购成功展示', () => {
 
     try {
       loginVerified()
-      renderPage('203')
+      renderCampaignPage('203')
       fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
       expect(await screen.findByText('01:00:00')).toBeInTheDocument()
     } finally {
@@ -373,7 +352,7 @@ describe('抢购失败按错误码分流', () => {
     '$code：按码分流展示对应处置，按钮可点口径正确',
     async ({ status, code, message, summary, enabled, keepServerMessage }) => {
       const campaignId = `fail-${code}`
-      server.use(
+      testServer.server.use(
         http.get(`/api/campaigns/${campaignId}`, () => HttpResponse.json(ongoingDetail())),
         http.post(`/api/campaigns/${campaignId}/claim`, () =>
           HttpResponse.json({ code, message }, { status }),
@@ -381,7 +360,7 @@ describe('抢购失败按错误码分流', () => {
       )
 
       loginVerified()
-      renderPage(campaignId)
+      renderCampaignPage(campaignId)
       fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
 
       const retryButton = await screen.findByRole('button', { name: '立即抢购' })
@@ -400,7 +379,7 @@ describe('抢购失败按错误码分流', () => {
 
   it('限流失败后再次点击能发出第二次抢购请求，前一次失败提示被新操作清掉', async () => {
     let claimCalls = 0
-    server.use(
+    testServer.server.use(
       http.get('/api/campaigns/321', () => HttpResponse.json(ongoingDetail())),
       http.post('/api/campaigns/321/claim', () => {
         claimCalls += 1
@@ -412,7 +391,7 @@ describe('抢购失败按错误码分流', () => {
     )
 
     loginVerified()
-    renderPage('321')
+    renderCampaignPage('321')
     fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
 
     const retryButton = await screen.findByRole('button', { name: '立即抢购' })
@@ -433,7 +412,7 @@ function RecoveryHarness({ campaignId }: { campaignId: string }) {
   const reason = state.status === 'ready' ? state.claimability.reason : null
   const claimRecoverable = claim.phase === 'failed' && claim.failure.recoverable
   useVisibilityPolling({
-    active: reason === 'SOLD_OUT' || reason === 'COOLDOWN' || claimRecoverable,
+    active: isRecoverableBlock(reason) || claimRecoverable,
     intervalMs: 200,
     onTick: reload,
   })
@@ -455,7 +434,7 @@ function RecoveryHarness({ campaignId }: { campaignId: string }) {
 describe('可恢复态自行恢复', () => {
   it('抢购回 SOLD_OUT：进入售罄态，重取详情后配额回升，按钮自行恢复可点', async () => {
     let detailRequests = 0
-    server.use(
+    testServer.server.use(
       http.get('/api/campaigns/301', () => {
         detailRequests += 1
         return HttpResponse.json(
@@ -484,7 +463,7 @@ describe('可恢复态自行恢复', () => {
     const futureCooldown = new Date(Date.now() + 3 * 24 * 3600_000).toISOString()
     const pastCooldown = new Date(Date.now() - 3600_000).toISOString()
     let detailRequests = 0
-    server.use(
+    testServer.server.use(
       http.get('/api/campaigns/302', () => {
         detailRequests += 1
         return HttpResponse.json(
@@ -512,7 +491,7 @@ describe('可恢复态自行恢复', () => {
 describe('轮询可见性暂停与卸载清理', () => {
   it('页面不可见期间不增加详情请求；回前台先拉一轮；卸载后不再发请求', async () => {
     let detailRequests = 0
-    server.use(
+    testServer.server.use(
       http.get('/api/campaigns/303', () => {
         detailRequests += 1
         return HttpResponse.json(
@@ -546,7 +525,7 @@ describe('轮询可见性暂停与卸载清理', () => {
 describe('成功后详情刷新', () => {
   it('抢购成功后重新拉一次场次详情，剩余份数按新响应刷新', async () => {
     let detailRequests = 0
-    server.use(
+    testServer.server.use(
       http.get('/api/campaigns/205', () => {
         detailRequests += 1
         const refreshed = detailRequests > 1
@@ -564,7 +543,7 @@ describe('成功后详情刷新', () => {
     )
 
     loginVerified()
-    renderPage('205')
+    renderCampaignPage('205')
     expect(await screen.findByText('1200')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '立即抢购' }))
