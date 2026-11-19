@@ -6,11 +6,11 @@ import { parse } from 'yaml'
 import { scenarios } from './scenarios'
 
 /**
- * 契约覆盖测试：把 OpenAPI 里两个 in-scope operation（claim、POST /orders）
+ * 契约覆盖测试：把 OpenAPI 里 in-scope operation（claim、POST /orders、地址增删改/设默认、签收）
  * 声明的错误码，与 mock 场景表能产出的错误码对齐。
  * - 用真实 YAML parser 解析 api/openapi.yaml；
  * - 共享 401 / 429 响应是 `$ref`，必须显式跟进去拿 description，不能静默跳过；
- * - 只覆盖 claim 与 /orders，GET 详情 404 等其它接口不在本 ticket 范围。
+ * - GET 详情 404 等其它接口不在本 ticket 范围。
  */
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -28,8 +28,10 @@ type ResponseNode = ResponseDescription | RefNode
 
 type OpenApiResponses = Record<string, ResponseNode>
 
+type OperationNode = { responses: OpenApiResponses }
+
 interface OpenApiDoc {
-  paths: Record<string, { post: { responses: OpenApiResponses } }>
+  paths: Record<string, Partial<Record<'post' | 'put' | 'delete', OperationNode>>>
   components: { responses: Record<string, ResponseDescription> }
 }
 
@@ -59,10 +61,10 @@ function extractCodes(description: string | undefined): string[] {
   return [...codes]
 }
 
-function declaredCodes(responses: OpenApiResponses, operation: string): string[] {
+function declaredCodes(node: OperationNode, operation: string): string[] {
   const codes = new Set<string>()
-  for (const node of Object.values(responses)) {
-    for (const code of extractCodes(resolveResponse(node).description)) {
+  for (const response of Object.values(node.responses)) {
+    for (const code of extractCodes(resolveResponse(response).description)) {
       codes.add(code)
     }
   }
@@ -75,14 +77,37 @@ function declaredCodes(responses: OpenApiResponses, operation: string): string[]
   return [...codes]
 }
 
-const claimResponses = openapi.paths['/campaigns/{campaignId}/claim'].post.responses
-const orderResponses = openapi.paths['/orders'].post.responses
+const claimResponses = openapi.paths['/campaigns/{campaignId}/claim'].post!
+const orderResponses = openapi.paths['/orders'].post!
 
 const claimScenarioCodes = new Set(
   scenarios.map((scenario) => scenario.claimFailure?.code).filter((code): code is string => Boolean(code)),
 )
 const orderScenarioCodes = new Set(
   scenarios.map((scenario) => scenario.orderFailure?.code).filter((code): code is string => Boolean(code)),
+)
+const addressCreateScenarioCodes = new Set(
+  scenarios
+    .map((scenario) => scenario.addressCreateFailure?.code)
+    .filter((code): code is string => Boolean(code)),
+)
+const addressUpdateScenarioCodes = new Set(
+  scenarios
+    .map((scenario) => scenario.addressUpdateFailure?.code)
+    .filter((code): code is string => Boolean(code)),
+)
+const addressDeleteScenarioCodes = new Set(
+  scenarios
+    .map((scenario) => scenario.addressDeleteFailure?.code)
+    .filter((code): code is string => Boolean(code)),
+)
+const addressDefaultScenarioCodes = new Set(
+  scenarios
+    .map((scenario) => scenario.addressDefaultFailure?.code)
+    .filter((code): code is string => Boolean(code)),
+)
+const signScenarioCodes = new Set(
+  scenarios.map((scenario) => scenario.signFailure?.code).filter((code): code is string => Boolean(code)),
 )
 
 describe('契约错误码 ↔ mock 场景覆盖', () => {
@@ -95,6 +120,48 @@ describe('契约错误码 ↔ mock 场景覆盖', () => {
   it('POST /orders 契约声明的每个错误码都至少有一个场景产出', () => {
     const declared = declaredCodes(orderResponses, 'POST /orders')
     const missing = declared.filter((code) => !orderScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('POST /addresses 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(openapi.paths['/addresses'].post!, 'POST /addresses')
+    const missing = declared.filter((code) => !addressCreateScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('PUT /addresses/{addressId} 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(
+      openapi.paths['/addresses/{addressId}'].put!,
+      'PUT /addresses/{addressId}',
+    )
+    const missing = declared.filter((code) => !addressUpdateScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('DELETE /addresses/{addressId} 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(
+      openapi.paths['/addresses/{addressId}'].delete!,
+      'DELETE /addresses/{addressId}',
+    )
+    const missing = declared.filter((code) => !addressDeleteScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('PUT /addresses/{addressId}/default 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(
+      openapi.paths['/addresses/{addressId}/default'].put!,
+      'PUT /addresses/{addressId}/default',
+    )
+    const missing = declared.filter((code) => !addressDefaultScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('POST /fulfillments/{fulfillmentId}/sign 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(
+      openapi.paths['/fulfillments/{fulfillmentId}/sign'].post!,
+      'POST /fulfillments/{fulfillmentId}/sign',
+    )
+    const missing = declared.filter((code) => !signScenarioCodes.has(code))
     expect(missing).toEqual([])
   })
 })

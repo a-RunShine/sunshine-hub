@@ -499,6 +499,34 @@ paths:
                       $ref: '#/components/schemas/Fulfillment'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /fulfillments/{fulfillmentId}/sign:
+    post:
+      tags: [trade]
+      summary: 确认签收
+      description: 仅 PHYSICAL 且 SHIPPED 可签收；虚拟、未发货、已完成拒绝；重复签收幂等成功且不覆盖首次 signedAt。
+      parameters:
+        - $ref: '#/components/parameters/FulfillmentId'
+      responses:
+        '200':
+          description: 已签收
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fulfillment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 履约单不存在，或不属于当前账号。code：FULFILLMENT_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 这个履约单现在不能签收：仅实体且已发货可签收，虚拟、未发货、已完成拒绝。code：FULFILLMENT_NOT_SIGNABLE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /me/items:
     get:
       tags: [trade]
@@ -541,6 +569,7 @@ paths:
     post:
       tags: [trade]
       summary: 新增地址
+      description: 第一条地址自动成为默认；默认归属不接受入参，由独立的设默认动作维护。
       requestBody:
         required: true
         content:
@@ -555,7 +584,88 @@ paths:
               schema:
                 $ref: '#/components/schemas/Address'
         '400':
+          description: 参数不合法，或地址数量超过上限（最多 10 条）。code：BAD_REQUEST、ADDRESS_LIMIT_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /addresses/{addressId}:
+    put:
+      tags: [trade]
+      summary: 编辑收货地址
+      description: 编辑后未支付订单的收货信息随之变化（存的是 addressId）；已支付订单有履约单快照，不受影响。
+      parameters:
+        - $ref: '#/components/parameters/AddressId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressInput'
+      responses:
+        '200':
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 地址不存在，或不属于当前账号。code：ADDRESS_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [trade]
+      summary: 删除收货地址
+      description: 仍被未支付订单引用，先取消订单或换地址；已支付订单不受影响。
+      parameters:
+        - $ref: '#/components/parameters/AddressId'
+      responses:
+        '204':
+          description: 已删除
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 地址不存在，或不属于当前账号。code：ADDRESS_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 这个地址还被未支付订单使用，先取消订单或换地址。code：ADDRESS_IN_USE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /addresses/{addressId}/default:
+    put:
+      tags: [trade]
+      summary: 设为默认地址
+      description: 独立动作，不塞进编辑；任一时刻至多一条默认，设为默认会取消原默认。
+      parameters:
+        - $ref: '#/components/parameters/AddressId'
+      responses:
+        '200':
+          description: 已设为默认
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 地址不存在，或不属于当前账号。code：ADDRESS_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /refunds:
     post:
       tags: [trade]
@@ -1139,6 +1249,20 @@ components:
       schema:
         type: integer
         format: int64
+    AddressId:
+      name: addressId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    FulfillmentId:
+      name: fulfillmentId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
     Page:
       name: page
       in: query
@@ -1212,6 +1336,11 @@ components:
         - ORDER_NOT_CANCELLABLE
         - STOCK_INSUFFICIENT
         - ADDRESS_REQUIRED
+        - ADDRESS_NOT_FOUND
+        - ADDRESS_LIMIT_EXCEEDED
+        - ADDRESS_IN_USE
+        - FULFILLMENT_NOT_FOUND
+        - FULFILLMENT_NOT_SIGNABLE
         - REFUND_NOT_FOUND
         - REFUND_NOT_ALLOWED
         - REFUND_ALREADY_OPEN
@@ -1653,8 +1782,10 @@ components:
         signedAt:
           type: [string, 'null']
           format: date-time
+          description: 首次签收时刻，重复签收不覆盖
         address:
           $ref: '#/components/schemas/Address'
+          description: 下单时冻结的收货信息快照，不依赖地址行是否还存在
         items:
           type: array
           items:
@@ -1680,7 +1811,7 @@ components:
           format: date-time
     Address:
       type: object
-      required: [id, receiver, phone, province, city, district, detail]
+      required: [id, receiver, phone, province, city, district, detail, isDefault]
       properties:
         id:
           type: integer
@@ -1699,9 +1830,11 @@ components:
           type: string
         isDefault:
           type: boolean
+          description: 任一时刻至多一条默认；新增首条自动默认；删默认后自动提升剩余最早创建的一条
     AddressInput:
       type: object
       required: [receiver, phone, province, city, district, detail]
+      description: 默认归属是独立动作（首条自动、或调 /addresses/{id}/default），新增与编辑都不接受 isDefault 字段。
       properties:
         receiver:
           type: string
@@ -1715,8 +1848,6 @@ components:
           type: string
         detail:
           type: string
-        isDefault:
-          type: boolean
     RefundStatus:
       type: string
       enum: [REQUESTED, APPROVED, REFUNDED, REJECTED]
