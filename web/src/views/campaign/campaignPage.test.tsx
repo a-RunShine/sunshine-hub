@@ -7,6 +7,7 @@ import { client } from '@/api/client'
 import type { ClaimResult, FlashCampaignDetail } from '@/api/campaign'
 import { createHandlers } from '@/mocks/handlers'
 import { MOCK_SCENARIO_HEADER, scenarios } from '@/mocks/scenarios'
+import { useAuth } from '@/stores/auth'
 import CampaignPage from './CampaignPage'
 import { CampaignDetailView } from './CampaignDetailView'
 import { useCampaignDetail } from './useCampaignDetail'
@@ -26,8 +27,16 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   delete client.defaults.headers.common[MOCK_SCENARIO_HEADER]
+  // store 是模块单例：每个用例回到未登录初始态，不带上一个用例的购买人
+  useAuth.setState({ me: null, status: 'uninitialized' })
 })
 afterAll(() => server.close())
+
+/** 注入已实名购买人：claim 流程用例绕过登录 / 实名拦截，直接打抢购路径。 */
+function loginVerified() {
+  useAuth.getState().setMe({ id: 1, username: 'demo', realNameVerified: true })
+  useAuth.getState().setStatus('ready')
+}
 
 function renderPage(campaignId: string) {
   return render(
@@ -262,6 +271,7 @@ describe('抢购防重复提交', () => {
       }),
     )
 
+    loginVerified()
     renderPage('201')
     const button = await screen.findByRole('button', { name: '立即抢购' })
     expect(button).toBeEnabled()
@@ -292,6 +302,7 @@ describe('抢购成功展示', () => {
       ),
     )
 
+    loginVerified()
     renderPage('202')
     fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
 
@@ -324,6 +335,7 @@ describe('抢购成功展示', () => {
     )
 
     try {
+      loginVerified()
       renderPage('203')
       fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
       expect(await screen.findByText('01:00:00')).toBeInTheDocument()
@@ -354,8 +366,6 @@ const failureCases: readonly FailureCase[] = [
   { code: 'UNIT_POOL_INCONSISTENT', status: 500, message: '编号池与配额不同步', summary: '编号池与配额不同步', enabled: true, keepServerMessage: true },
   { code: 'INTERNAL_ERROR', status: 500, message: '服务出了点问题', summary: '服务出了点问题', enabled: true, keepServerMessage: true },
   { code: 'RATE_LIMITED', status: 429, message: '操作太快了，歇一下再试', summary: '操作太快了，歇一下再试', enabled: true, keepServerMessage: true },
-  { code: 'REAL_NAME_REQUIRED', status: 403, message: '请先完成实名认证', summary: '需要完成实名认证', enabled: true },
-  { code: 'UNAUTHORIZED', status: 401, message: '请先登录', summary: '请先登录', enabled: true },
 ]
 
 describe('抢购失败按错误码分流', () => {
@@ -370,6 +380,7 @@ describe('抢购失败按错误码分流', () => {
         ),
       )
 
+      loginVerified()
       renderPage(campaignId)
       fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
 
@@ -400,6 +411,7 @@ describe('抢购失败按错误码分流', () => {
       }),
     )
 
+    loginVerified()
     renderPage('321')
     fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
 
@@ -551,6 +563,7 @@ describe('成功后详情刷新', () => {
       ),
     )
 
+    loginVerified()
     renderPage('205')
     expect(await screen.findByText('1200')).toBeInTheDocument()
 

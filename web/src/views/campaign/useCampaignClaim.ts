@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { postCampaignClaim, type ClaimResult } from '@/api/campaign'
+import { ApiError } from '@/api/client'
 import { computeOffsetMs } from './serverClock'
 import { classifyClaimError, type ClaimFailure } from './claimFailure'
 
@@ -11,6 +12,9 @@ import { classifyClaimError, type ClaimFailure } from './claimFailure'
  * - `success` 抢到：带响应结果与按响应 `serverTime` 重算的时间偏移，供结果展示
  * - `failed` 未抢到：按错误码分流成 `ClaimFailure`；可恢复态（售罄 / 冷却）由详情轮询自行恢复，
  *   终态保持禁用，其余失败回到可点
+ *
+ * 403 `REAL_NAME_REQUIRED` 与 401 `UNAUTHORIZED` 不进失败态：直接回到 idle 并回调上层，
+ * 由上层分别走实名弹窗（提交后自动重放）与登录回跳，不在按钮区落占位失败文案。
  */
 export type ClaimState =
   | { readonly phase: 'idle' }
@@ -23,10 +27,10 @@ export interface UseCampaignClaimOptions {
   readonly now?: () => number
   /** 抢购成功后回调（页面据此重新拉详情，刷新份数 / 剩余本场额度）。 */
   readonly onClaimed?: () => void
-  /** #53 接管口：未登录失败回调；本票不接登录跳转，状态里保留 `UNAUTHORIZED` 码供后续分支。 */
+  /** 服务端回 403 `REAL_NAME_REQUIRED`（本地以为已实名但其实没有）：回到空闲态，由上层开实名表单。 */
+  readonly onRealNameRequired?: () => void
+  /** 会话过期回 401 `UNAUTHORIZED`：回到空闲态，由上层走登录回跳。 */
   readonly onRequireLogin?: () => void
-  /** #53 接管口：未实名失败回调；本票不接实名流程，状态里保留 `REAL_NAME_REQUIRED` 码供后续分支。 */
-  readonly onRequireRealName?: () => void
 }
 
 export interface UseCampaignClaimResult {
@@ -45,7 +49,7 @@ export function useCampaignClaim(
   campaignId: string,
   options: UseCampaignClaimOptions = {},
 ): UseCampaignClaimResult {
-  const { now = Date.now, onClaimed, onRequireLogin, onRequireRealName } = options
+  const { now = Date.now, onClaimed, onRealNameRequired, onRequireLogin } = options
   const [state, setState] = useState<ClaimState>({ phase: 'idle' })
   const inFlightRef = useRef(false)
 
@@ -67,17 +71,27 @@ export function useCampaignClaim(
         setState({ phase: 'success', result, offsetMs })
         onClaimed?.()
       } catch (error) {
-        // 按错误码分流：不读服务端 message 做判断，处置口径见 claimFailure.ts。
+        if (error instanceof ApiError && error.code === 'REAL_NAME_REQUIRED') {
+          // 本地会话态与服务端脱节：回到空闲态（不留在失败兜底文案上），上层开实名表单；
+          // 实名成功后的重放仍走本 hook 的 claim()，防重闸口与状态机同一条路径。
+          setState({ phase: 'idle' })
+          onRealNameRequired?.()
+          return
+        }
+        if (error instanceof ApiError && error.code === 'UNAUTHORIZED') {
+          // 会话过期：回到空闲态，上层走登录回跳；不在按钮区落失败提示。
+          setState({ phase: 'idle' })
+          onRequireLogin?.()
+          return
+        }
+        // 其余码按错误码分流：不读服务端 message 做判断，处置口径见 claimFailure.ts。
         const failure = classifyClaimError(error)
         setState({ phase: 'failed', failure })
-        // 登录 / 实名拦截由 #53 接管；本票只留回调口子，不在这里跳转或弹表单。
-        if (failure.code === 'UNAUTHORIZED') onRequireLogin?.()
-        if (failure.code === 'REAL_NAME_REQUIRED') onRequireRealName?.()
       } finally {
         inFlightRef.current = false
       }
     })()
-  }, [campaignId, now, onClaimed, onRequireLogin, onRequireRealName])
+  }, [campaignId, now, onClaimed, onRealNameRequired, onRequireLogin])
 
   const clearFailure = useCallback(() => {
     setState({ phase: 'idle' })

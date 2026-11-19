@@ -177,6 +177,9 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
   // GET 详情时叠加回 `reserved`；不写进共享场景常量，也不跨场次串味。
   // 开发期用模块级单例；测试里 createHandlers() 独立实例化，互不复用。
   const reservedByCampaign = new Map<number, boolean>()
+  // 实名档案只记在本次 handler 实例的闭包里：PUT 成功后回写，GET /me 读到新值；
+  // 不写进共享场景常量，测试实例之间互不复用。
+  let realNameProfile: Me | null = null
 
   const detailWithReserved = (
     base: FlashCampaignDetail | SimpleCampaignDetail,
@@ -292,7 +295,24 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
 
     http.post('/api/auth/login', () => HttpResponse.json(me)),
 
-    http.get('/api/me', () => HttpResponse.json(me)),
+    // 提交实名：成功回写最新购买人档案（realNameVerified 翻 true）；缺姓名或证件号按契约回 400。
+    http.put('/api/me/real-name', async ({ request }) => {
+      const body = (await request.json()) as Partial<{ realName: string; idNumber: string }>
+      const realName = typeof body?.realName === 'string' ? body.realName.trim() : ''
+      const idNumber = typeof body?.idNumber === 'string' ? body.idNumber.trim() : ''
+      if (realName === '' || idNumber === '') {
+        return jsonError(400, 'BAD_REQUEST', '姓名与证件号不能为空')
+      }
+      realNameProfile = {
+        ...me,
+        realNameVerified: true,
+        realName,
+        idNumberTail: idNumber.slice(-4),
+      }
+      return HttpResponse.json(realNameProfile, { status: 200 })
+    }),
+
+    http.get('/api/me', () => HttpResponse.json(realNameProfile ?? me)),
   ]
 }
 

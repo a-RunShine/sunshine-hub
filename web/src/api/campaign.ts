@@ -22,7 +22,7 @@ export async function getCampaignDetail(campaignId: string): Promise<CampaignDet
  * 成功（201）返回订单号、收藏编号、付款截止时间与服务端时间。错误沿响应拦截器包成
  * ApiError 抛出，页面层按错误码分流处置。
  *
- * 401 不走拦截器的自动回登录页：未登录拦截由 #53 接管（本票只留可读提示与回调口子），
+ * 401 不走拦截器的自动回登录页：登录回跳由页面层显式触发（#53），
  * 这里把跳转权交回页面层，避免在拦截器里抢先跳走。
  */
 export async function postCampaignClaim(campaignId: string): Promise<ClaimResult> {

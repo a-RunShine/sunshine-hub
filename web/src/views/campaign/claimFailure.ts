@@ -12,9 +12,10 @@ import { ApiError } from '@/api/client'
  * - `UNIT_POOL_INCONSISTENT` 编号池与配额不同步：服务异常，不是用户的错
  * - `INTERNAL_ERROR` 服务内部错误兜底
  * - `RATE_LIMITED`（429）操作太快：限流，稍后再试
- * - `REAL_NAME_REQUIRED`（403）未实名：#53 接实名流程，本票只给可读提示
- * - `UNAUTHORIZED`（401）未登录：#53 接登录跳转，本票只给可读提示
  * - `UNKNOWN` 兜底：非 ApiError 或契约外码
+ *
+ * `REAL_NAME_REQUIRED`（403）与 `UNAUTHORIZED`（401）不进失败态：在状态机里直接回 idle 并
+ * 回调上层（实名弹窗 / 登录回跳），不经过本处置表。
  */
 export type ClaimFailureCode =
   | 'ALREADY_PURCHASED'
@@ -25,8 +26,6 @@ export type ClaimFailureCode =
   | 'UNIT_POOL_INCONSISTENT'
   | 'INTERNAL_ERROR'
   | 'RATE_LIMITED'
-  | 'REAL_NAME_REQUIRED'
-  | 'UNAUTHORIZED'
   | 'UNKNOWN'
 
 /** 单个错误码的处置口径：主提示、下一步、失败后按钮是否回可点、是否可自行恢复。 */
@@ -99,20 +98,6 @@ const DISPOSITIONS: Record<ClaimFailureCode, ClaimFailureDisposition> = {
     clickableAfter: true,
     recoverable: false,
     preserveServerMessage: true,
-  },
-  REAL_NAME_REQUIRED: {
-    summary: '需要完成实名认证',
-    nextStep: '完成实名认证后即可购买；实名流程由后续环节接入',
-    clickableAfter: true,
-    recoverable: false,
-    preserveServerMessage: false,
-  },
-  UNAUTHORIZED: {
-    summary: '请先登录',
-    nextStep: '登录后回到本场次继续抢购；登录跳转由后续环节接入',
-    clickableAfter: true,
-    recoverable: false,
-    preserveServerMessage: false,
   },
   UNKNOWN: {
     summary: '抢购未成功',
