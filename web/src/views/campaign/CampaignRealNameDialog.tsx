@@ -1,10 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { RealNameInput } from '@/api/identity'
-
-/** 证件号格式照契约 `idNumber` 的 pattern：17 位数字 + 1 位数字或 X/x。 */
-const ID_NUMBER_PATTERN = /^\d{17}[\dXx]$/
-/** 姓名长度上限照契约 `realName` 的 maxLength。 */
-const REAL_NAME_MAX_LENGTH = 32
+import { ID_NUMBER_PATTERN, REAL_NAME_MAX_LENGTH } from './realNameFieldRules'
 
 interface CampaignRealNameDialogProps {
   /** 表单是否打开；false 时不渲染任何节点。 */

@@ -1,5 +1,5 @@
 import { client } from './client'
-import type { components } from '@/types/api'
+import type { components, paths } from '@/types/api'
 
 export type Me = components['schemas']['Me']
 
@@ -12,11 +12,8 @@ export async function getMe(): Promise<Me> {
   return data
 }
 
-/** 实名提交入参：契约 `/me/real-name` 请求体，姓名 + 证件号。 */
-export interface RealNameInput {
-  readonly realName: string
-  readonly idNumber: string
-}
+/** 实名提交入参：契约 `/me/real-name` 请求体，姓名 + 证件号；类型从生成契约派生，不手抄字段。 */
+export type RealNameInput = paths['/me/real-name']['put']['requestBody']['content']['application/json']
 
 /**
  * 提交实名。PUT /me/real-name，成功（200）回写最新的购买人档案（`realNameVerified` 翻成 true）；

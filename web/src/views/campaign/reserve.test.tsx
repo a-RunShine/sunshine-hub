@@ -1,12 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import { createHandlers } from '@/mocks/handlers'
-import CampaignPage from './CampaignPage'
+import { describe, expect, it } from 'vitest'
 import { CampaignDetailView } from './CampaignDetailView'
 import { useCampaignDetail } from './useCampaignDetail'
+import {
+  createCampaignTestServer,
+  registerCampaignTestServer,
+  renderCampaignPage,
+  renderCampaignPageWithProbe,
+} from './campaignTestHarness'
 
 /**
  * #54 预约 / 取消预约测试：打在 MSW HTTP 边界与可见行为上。
@@ -14,59 +16,8 @@ import { useCampaignDetail } from './useCampaignDetail'
  * 成功后重拉详情刷新 `reserved`；开售后入口消失；预约不动配额与抢购按钮可点性。
  */
 
-const server = setupServer(...createHandlers())
-
-const reserveRequests: { method: string; path: string }[] = []
-const detailRequests: string[] = []
-
-beforeAll(() => {
-  server.listen({ onUnhandledRequest: 'error' })
-  server.events.on('request:start', ({ request }) => {
-    const url = new URL(request.url)
-    if (url.pathname.endsWith('/reserve')) {
-      reserveRequests.push({ method: request.method, path: url.pathname })
-    }
-    if (/^\/api\/campaigns\/\d+$/.test(url.pathname)) {
-      detailRequests.push(url.pathname)
-    }
-  })
-})
-
-afterEach(() => {
-  server.resetHandlers()
-  reserveRequests.length = 0
-  detailRequests.length = 0
-})
-
-afterAll(() => {
-  server.close()
-})
-
-function renderPage(campaignId: string) {
-  return render(
-    <MemoryRouter initialEntries={[`/campaigns/${campaignId}`]}>
-      <Routes>
-        <Route path="/campaigns/:campaignId" element={<CampaignPage />} />
-      </Routes>
-    </MemoryRouter>,
-  )
-}
-
-function ProbeLocation() {
-  const location = useLocation()
-  return <div data-testid="probe">{location.pathname}{location.search}</div>
-}
-
-function renderPageWithProbe(campaignId: string) {
-  return render(
-    <MemoryRouter initialEntries={[`/campaigns/${campaignId}`]}>
-      <ProbeLocation />
-      <Routes>
-        <Route path="/campaigns/:campaignId" element={<CampaignPage />} />
-      </Routes>
-    </MemoryRouter>,
-  )
-}
+const { server, counters } = createCampaignTestServer()
+registerCampaignTestServer(server, counters)
 
 const getReserveButton = () => screen.getByRole('button', { name: '预约' })
 const queryCancelButton = () => screen.queryByRole('button', { name: '取消预约' })
@@ -114,7 +65,7 @@ function notReservedDetail() {
 
 describe('预约三态', () => {
   it('匿名（reserved === null）：显示预约入口，不显示已预约态；点击走登录回跳，不发预约请求', async () => {
-    renderPageWithProbe('4')
+    renderCampaignPageWithProbe('4')
 
     expect(await screen.findByRole('heading', { name: '暗夜猎手 加场' })).toBeInTheDocument()
     expect(getReserveButton()).toBeEnabled()
@@ -126,12 +77,12 @@ describe('预约三态', () => {
     await waitFor(() => {
       expect(screen.getByTestId('probe').textContent).toBe('/login?next=%2Fcampaigns%2F4')
     })
-    expect(reserveRequests).toHaveLength(0)
+    expect(counters.reserve).toHaveLength(0)
   })
 
   it('已登录未预约（reserved === false）：显示预约入口', async () => {
     server.use(http.get('/api/campaigns/41', () => HttpResponse.json(notReservedDetail())))
-    renderPage('41')
+    renderCampaignPage('41')
 
     expect(await screen.findByRole('heading', { name: '预约测试场（未预约）' })).toBeInTheDocument()
     expect(getReserveButton()).toBeEnabled()
@@ -139,7 +90,7 @@ describe('预约三态', () => {
   })
 
   it('已预约（reserved === true）：显示取消预约入口，不显示预约入口', async () => {
-    renderPage('1')
+    renderCampaignPage('1')
 
     expect(await screen.findByRole('heading', { name: '暗夜猎手 首发' })).toBeInTheDocument()
     expect(queryCancelButton()).toBeInTheDocument()
@@ -150,23 +101,23 @@ describe('预约三态', () => {
 describe('预约成功', () => {
   it('POST /reserve 返回 204 空体：不解析响应体，重拉详情后 reserved 翻成 true', async () => {
     server.use(...reserveScenarioHandlers(41))
-    renderPage('41')
+    renderCampaignPage('41')
 
     expect(await screen.findByRole('heading', { name: '预约测试场（未预约）' })).toBeInTheDocument()
-    const getCountBefore = detailRequests.length
+    const getCountBefore = counters.detail.length
 
     fireEvent.click(getReserveButton())
 
     await waitFor(() => expect(queryCancelButton()).toBeInTheDocument())
     // 请求方法与路径钉住：POST /api/campaigns/41/reserve
-    expect(reserveRequests).toEqual([{ method: 'POST', path: '/api/campaigns/41/reserve' }])
+    expect(counters.reserve).toEqual([{ method: 'POST', path: '/api/campaigns/41/reserve' }])
     // 成功后重拉了详情，reserved 以服务端最新值为准
-    expect(detailRequests.length).toBeGreaterThan(getCountBefore)
+    expect(counters.detail.length).toBeGreaterThan(getCountBefore)
   })
 
   it('预约不改变剩余份数，也不改变抢购按钮的可点性（未开售仍禁用并给出未开售原因）', async () => {
     server.use(...reserveScenarioHandlers(41))
-    renderPage('41')
+    renderCampaignPage('41')
 
     expect(await screen.findByText('4817')).toBeInTheDocument()
     expect(getClaimButton()).toBeDisabled()
@@ -184,7 +135,7 @@ describe('预约成功', () => {
 
 describe('取消预约成功', () => {
   it('DELETE /reserve 返回 204：重拉详情后回到未预约入口，份数与抢购按钮不变', async () => {
-    renderPage('1')
+    renderCampaignPage('1')
 
     expect(await screen.findByRole('heading', { name: '暗夜猎手 首发' })).toBeInTheDocument()
     expect(screen.getByText('4817')).toBeInTheDocument()
@@ -192,7 +143,7 @@ describe('取消预约成功', () => {
     fireEvent.click(queryCancelButton()!)
     await waitFor(() => expect(getReserveButton()).toBeInTheDocument())
 
-    expect(reserveRequests).toEqual([{ method: 'DELETE', path: '/api/campaigns/1/reserve' }])
+    expect(counters.reserve).toEqual([{ method: 'DELETE', path: '/api/campaigns/1/reserve' }])
     expect(screen.getByText('4817')).toBeInTheDocument()
     expect(getClaimButton()).toBeDisabled()
   })
@@ -200,7 +151,7 @@ describe('取消预约成功', () => {
 
 describe('开售后预约入口消失', () => {
   it('status 已离开 UPCOMING（ONGOING）：预约与取消入口都不出现', async () => {
-    renderPage('3')
+    renderCampaignPage('3')
 
     expect(await screen.findByRole('heading', { name: '暗夜猎手 返场抢购' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '预约' })).not.toBeInTheDocument()
@@ -261,7 +212,7 @@ describe('预约 / 取消失败', () => {
         HttpResponse.json({ code: 'CAMPAIGN_ENDED', message: '本场已经结束' }, { status: 409 }),
       ),
     )
-    renderPage('41')
+    renderCampaignPage('41')
 
     expect(await screen.findByRole('heading', { name: '预约测试场（未预约）' })).toBeInTheDocument()
     fireEvent.click(getReserveButton())

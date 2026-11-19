@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '@/api/client'
+import { errorMessage } from '@/api/errors'
 import { getCampaignDetail, type FlashCampaignDetail } from '@/api/campaign'
 import { evaluateClaimability, type Claimability } from './claimability'
 import { isBeforeStart } from './reserve'
@@ -67,8 +68,7 @@ export function useCampaignDetail(
         setState({ status: 'not-found' })
         return
       }
-      const message = error instanceof ApiError ? error.message : '网络出了点问题'
-      setState({ status: 'error', message })
+      setState({ status: 'error', message: errorMessage(error) })
     }
   }, [campaignId, now])
 
