@@ -11,6 +11,10 @@
 # 所以先把「正名」从排除词里剔掉，只留真正不该出现的词。
 #
 # 用法：./scripts/check-glossary.sh
+#
+# 测试专用开关：CHECK_GLOSSARY_FULL=1 跳过每词 head -3 截断，输出全部命中行。
+# 它只影响展示条数上限，不改变匹配规则、白名单、复合词保护与退出码；
+# 这是给测试断言取全量集合用的，日常运行不要带。
 
 set -uo pipefail
 
@@ -141,8 +145,13 @@ while IFS= read -r term; do
   [ "$n" -eq 0 ] && continue
 
   echo "── ${term}（${n} 处）"
-  printf '%s\n' "$hits" | head -3
-  [ "$n" -gt 3 ] && echo "   ……还有 $((n - 3)) 处"
+  if [ "${CHECK_GLOSSARY_FULL:-0}" = "1" ]; then
+    # 测试专用：不截断，输出全量命中行，供断言对完整集合取证。
+    printf '%s\n' "$hits"
+  else
+    printf '%s\n' "$hits" | head -3
+    [ "$n" -gt 3 ] && echo "   ……还有 $((n - 3)) 处"
+  fi
   echo
   found=1
 done <<< "$terms"

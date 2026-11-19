@@ -11,6 +11,10 @@
 # - 输出里不再出现 `binary file matches`
 # - GLOSSARY.md 缺失时维持既有前置失败行为（exit 1 + 提示文案）
 #
+# 取值方式：涉及「某词命中了哪些文件」的断言，都对 CHECK_GLOSSARY_FULL=1
+# 的全量输出取证；默认展示模式每词只 head -3，不能拿来判断完整命中集合。
+# 匹配 / 白名单 / 复合词保护只有 check-glossary.sh 里一份实现，测试不复制。
+#
 # 用法：./scripts/test-check-glossary.sh
 
 set -uo pipefail
@@ -25,14 +29,19 @@ pass() { echo "✓ $*"; }
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-# --- 跑两种 locale ---
+# --- 默认展示模式：两种 locale ---
 LC_ALL=C ./scripts/check-glossary.sh >"$tmp/C.out" 2>&1
 c_exit=$?
 LC_ALL=en_US.UTF-8 ./scripts/check-glossary.sh >"$tmp/utf8.out" 2>&1
 u_exit=$?
 
+# --- 全量模式：不截断，仅供断言取完整命中集合 ---
+CHECK_GLOSSARY_FULL=1 LC_ALL=en_US.UTF-8 ./scripts/check-glossary.sh >"$tmp/full.out" 2>&1
+full_exit=$?
+
 if [ "$c_exit" -eq 0 ]; then pass "C locale 退出码 0（advisory）"; else fail "C locale 退出码 $c_exit"; fi
 if [ "$u_exit" -eq 0 ]; then pass "UTF-8 locale 退出码 0（advisory）"; else fail "UTF-8 locale 退出码 $u_exit"; fi
+if [ "$full_exit" -eq 0 ]; then pass "全量模式退出码 0"; else fail "全量模式退出码 $full_exit"; fi
 
 # 候选词条目：形如 `── 词（N 处）`
 terms_of() { grep -a '^── ' "$1" | sed -E 's/^── (.*)（[0-9]+ 处）$/\1/'; }
@@ -49,7 +58,7 @@ fi
 
 # --- 无 mojibake / 单字碎片 / 已知截断词 ---
 if python3 - "$tmp/utf8.terms" <<'PY'
-import sys, re
+import sys
 bad = []
 for line in open(sys.argv[1], encoding="utf-8"):
     t = line.strip()
@@ -85,13 +94,13 @@ else
   fail "GLOSSARY.md 未把「大区」列入排除词"
 fi
 
-if grep -aq '^── 大区（' "$tmp/utf8.out"; then
+if grep -aq '^── 大区（' "$tmp/full.out"; then
   pass "脚本把「大区」报为候选"
 else
   fail "脚本未把「大区」报为候选"
 fi
 
-# 「大区」候选的命中行要覆盖 ADR-0009 与 ADR-0011
+# 某词小节下的全部命中行；从全量输出取，不受 head -3 截断影响。
 section_of() { # $1 词条, $2 文件 → 打印该词条小节下的命中行
   awk -v prefix="── $1（" '
     $0 ~ ("^" prefix) { in_section = 1; next }
@@ -101,14 +110,14 @@ section_of() { # $1 词条, $2 文件 → 打印该词条小节下的命中行
 }
 
 for adr in 0009-real-name-at-purchase.md 0011-no-regional-stock.md; do
-  if section_of 大区 "$tmp/utf8.out" | grep -q "docs/adr/$adr"; then
+  if section_of 大区 "$tmp/full.out" | grep -q "docs/adr/$adr"; then
     pass "「大区」候选命中 $adr"
   else
     fail "「大区」候选未命中 $adr"
   fi
 done
 
-# --- 误报不得出现 ---
+# --- 误报不得出现（对全量命中集合断言）---
 if grep -qx 'ID' "$tmp/utf8.terms"; then
   fail "资源标识 ID 被误报为候选"
 else
@@ -120,20 +129,39 @@ else
   pass "item 不进候选"
 fi
 
-if section_of 编号 "$tmp/utf8.out" | grep -q '收藏编号'; then
+if section_of 编号 "$tmp/full.out" | grep -q '收藏编号'; then
   fail "「收藏编号」被「编号」子串误报"
 else
   pass "「收藏编号」不因含「编号」被报"
 fi
-if section_of 抢购场 "$tmp/utf8.out" | grep -q '抢购场景'; then
+if section_of 抢购场 "$tmp/full.out" | grep -q '抢购场景'; then
   fail "「抢购场景」被「抢购场」子串误报"
 else
   pass "「抢购场景」不被「抢购场」命中"
 fi
-if section_of 余量 "$tmp/utf8.out" | grep -q '剩余量'; then
+if section_of 余量 "$tmp/full.out" | grep -q '剩余量'; then
   fail "「剩余量」被「余量」子串误报"
 else
   pass "「剩余量」不被「余量」命中"
+fi
+
+# --- 默认展示模式仍截断：每个词最多 3 行命中，超出时有「……还有 N 处」 ---
+if awk '
+  /^── / { cur = 0; next }
+  /^   ……还有/ { next }
+  /^$/ { next }
+  { cur++; if (cur > 3) bad = 1 }
+  END { exit bad + 0 }
+' "$tmp/utf8.out"; then
+  pass "默认模式每词最多展示 3 行命中"
+else
+  fail "默认模式出现超过 3 行命中（截断行为被改动）"
+fi
+
+if grep -aq '……还有' "$tmp/utf8.out"; then
+  pass "默认模式超出 3 行时有「……还有 N 处」提示"
+else
+  fail "默认模式缺少「……还有 N 处」截断提示"
 fi
 
 # --- 不再有 binary file matches 警告 ---
