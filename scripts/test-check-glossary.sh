@@ -101,6 +101,10 @@ else
 fi
 
 # 某词小节下的全部命中行；从全量输出取，不受 head -3 截断影响。
+# 注意：不要写成 `section_of ... | grep -q ...`。本脚本带 pipefail，
+# grep -q 匹配后立刻退出会关闭管道读端，上游 awk 收到 SIGPIPE（141），
+# 管道状态取到 141 被 if 判假，明明命中也会报未命中（间歇红，负载越高越易踩）。
+# 必须先把结果取到变量，再对变量匹配。
 section_of() { # $1 词条, $2 文件 → 打印该词条小节下的命中行
   awk -v prefix="── $1（" '
     $0 ~ ("^" prefix) { in_section = 1; next }
@@ -110,7 +114,8 @@ section_of() { # $1 词条, $2 文件 → 打印该词条小节下的命中行
 }
 
 for adr in 0009-real-name-at-purchase.md 0011-no-regional-stock.md; do
-  if section_of 大区 "$tmp/full.out" | grep -q "docs/adr/$adr"; then
+  sec=$(section_of 大区 "$tmp/full.out")
+  if grep -q "docs/adr/$adr" <<<"$sec"; then
     pass "「大区」候选命中 $adr"
   else
     fail "「大区」候选未命中 $adr"
@@ -129,17 +134,20 @@ else
   pass "item 不进候选"
 fi
 
-if section_of 编号 "$tmp/full.out" | grep -q '收藏编号'; then
+sec=$(section_of 编号 "$tmp/full.out")
+if grep -q '收藏编号' <<<"$sec"; then
   fail "「收藏编号」被「编号」子串误报"
 else
   pass "「收藏编号」不因含「编号」被报"
 fi
-if section_of 抢购场 "$tmp/full.out" | grep -q '抢购场景'; then
+sec=$(section_of 抢购场 "$tmp/full.out")
+if grep -q '抢购场景' <<<"$sec"; then
   fail "「抢购场景」被「抢购场」子串误报"
 else
   pass "「抢购场景」不被「抢购场」命中"
 fi
-if section_of 余量 "$tmp/full.out" | grep -q '剩余量'; then
+sec=$(section_of 余量 "$tmp/full.out")
+if grep -q '剩余量' <<<"$sec"; then
   fail "「剩余量」被「余量」子串误报"
 else
   pass "「剩余量」不被「余量」命中"
