@@ -10,6 +10,9 @@ import { MOCK_SCENARIO_HEADER, scenarios } from '@/mocks/scenarios'
 import CampaignPage from './CampaignPage'
 import { CampaignDetailView } from './CampaignDetailView'
 import { useCampaignDetail } from './useCampaignDetail'
+import { useCampaignClaim } from './useCampaignClaim'
+import { useRecoverableFailureReset } from './useClaimRecovery'
+import { useVisibilityPolling } from './polling'
 
 /**
  * 抢购页只读态测试：打在 MSW HTTP 边界与组件可见行为上——
@@ -169,8 +172,14 @@ describe('售罄恢复', () => {
     )
 
     function RecoveryHarness() {
-      // 测试用短间隔驱动重取；生产默认 15 秒，见 useCampaignDetail 注释
-      const { state } = useCampaignDetail('103', { soldOutRefetchIntervalMs: 200 })
+      // 测试用短间隔驱动重取；生产默认 15 秒，见 polling.ts 注释
+      const { state, reload } = useCampaignDetail('103')
+      const reason = state.status === 'ready' ? state.claimability.reason : null
+      useVisibilityPolling({
+        active: reason === 'SOLD_OUT' || reason === 'COOLDOWN',
+        intervalMs: 200,
+        onTick: reload,
+      })
       if (state.status === 'loading') return <p>加载中</p>
       if (state.status === 'error') return <p>{state.message}</p>
       if (state.status === 'not-found') return <p>场次不存在</p>
@@ -324,12 +333,65 @@ describe('抢购成功展示', () => {
   })
 })
 
-describe('抢购失败恢复', () => {
-  it('失败后按钮回到可点态并显示兜底提示，不会永久卡在抢购中，恢复后可再次提交', async () => {
+interface FailureCase {
+  readonly code: string
+  readonly status: number
+  readonly message: string
+  /** 页面主提示断言文案；保留服务端原文的码等于服务端 message。 */
+  readonly summary: string
+  /** 失败后按钮是否回到可点。 */
+  readonly enabled: boolean
+  /** 断言页面文案包含服务端 message 原文（500 / 429）。 */
+  readonly keepServerMessage?: boolean
+}
+
+const failureCases: readonly FailureCase[] = [
+  { code: 'ALREADY_PURCHASED', status: 409, message: '这件商品你已经买过了', summary: '本场额度已用尽', enabled: false },
+  { code: 'SOLD_OUT', status: 410, message: '已经抢完了', summary: '售罄', enabled: false },
+  { code: 'CAMPAIGN_NOT_STARTED', status: 409, message: '还没到开售时间', summary: '还没开售', enabled: false },
+  { code: 'CAMPAIGN_ENDED', status: 409, message: '本场已经结束', summary: '本场已结束', enabled: false },
+  { code: 'PURCHASE_COOLDOWN', status: 409, message: '这件商品处于购买冷却期，到期后自动恢复可购', summary: '购买冷却中', enabled: false },
+  { code: 'UNIT_POOL_INCONSISTENT', status: 500, message: '编号池与配额不同步', summary: '编号池与配额不同步', enabled: true, keepServerMessage: true },
+  { code: 'INTERNAL_ERROR', status: 500, message: '服务出了点问题', summary: '服务出了点问题', enabled: true, keepServerMessage: true },
+  { code: 'RATE_LIMITED', status: 429, message: '操作太快了，歇一下再试', summary: '操作太快了，歇一下再试', enabled: true, keepServerMessage: true },
+  { code: 'REAL_NAME_REQUIRED', status: 403, message: '请先完成实名认证', summary: '需要完成实名认证', enabled: true },
+  { code: 'UNAUTHORIZED', status: 401, message: '请先登录', summary: '请先登录', enabled: true },
+]
+
+describe('抢购失败按错误码分流', () => {
+  it.each(failureCases)(
+    '$code：按码分流展示对应处置，按钮可点口径正确',
+    async ({ status, code, message, summary, enabled, keepServerMessage }) => {
+      const campaignId = `fail-${code}`
+      server.use(
+        http.get(`/api/campaigns/${campaignId}`, () => HttpResponse.json(ongoingDetail())),
+        http.post(`/api/campaigns/${campaignId}/claim`, () =>
+          HttpResponse.json({ code, message }, { status }),
+        ),
+      )
+
+      renderPage(campaignId)
+      fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
+
+      const retryButton = await screen.findByRole('button', { name: '立即抢购' })
+      if (enabled) {
+        expect(retryButton).toBeEnabled()
+      } else {
+        expect(retryButton).toBeDisabled()
+      }
+      expect(screen.getByText(summary)).toBeInTheDocument()
+      if (keepServerMessage) {
+        // 500 / 429：服务端 message 原文必须出现在页面上，不被前端兜底文案盖掉
+        expect(screen.getByText(message)).toBeInTheDocument()
+      }
+    },
+  )
+
+  it('限流失败后再次点击能发出第二次抢购请求，前一次失败提示被新操作清掉', async () => {
     let claimCalls = 0
     server.use(
-      http.get('/api/campaigns/204', () => HttpResponse.json(ongoingDetail())),
-      http.post('/api/campaigns/204/claim', () => {
+      http.get('/api/campaigns/321', () => HttpResponse.json(ongoingDetail())),
+      http.post('/api/campaigns/321/claim', () => {
         claimCalls += 1
         return HttpResponse.json(
           { code: 'RATE_LIMITED', message: '操作太快了，歇一下再试' },
@@ -338,16 +400,134 @@ describe('抢购失败恢复', () => {
       }),
     )
 
-    renderPage('204')
+    renderPage('321')
     fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
 
     const retryButton = await screen.findByRole('button', { name: '立即抢购' })
     expect(retryButton).toBeEnabled()
-    expect(screen.getByText('抢购未成功，请稍后再试')).toBeInTheDocument()
+    expect(screen.getByText('操作太快了，歇一下再试')).toBeInTheDocument()
 
-    // 恢复可点后再次点击，能发出第二次抢购请求
     fireEvent.click(retryButton)
     await waitFor(() => expect(claimCalls).toBe(2))
+  })
+})
+
+/** 与 CampaignPage 相同的 hook 组合：详情取数 + 提交状态机 + 页面层可见性轮询。 */
+function RecoveryHarness({ campaignId }: { campaignId: string }) {
+  const { state, reload } = useCampaignDetail(campaignId)
+  const { state: claim, claim: onClaim, clearFailure } = useCampaignClaim(campaignId, {
+    onClaimed: reload,
+  })
+  const reason = state.status === 'ready' ? state.claimability.reason : null
+  const claimRecoverable = claim.phase === 'failed' && claim.failure.recoverable
+  useVisibilityPolling({
+    active: reason === 'SOLD_OUT' || reason === 'COOLDOWN' || claimRecoverable,
+    intervalMs: 200,
+    onTick: reload,
+  })
+  useRecoverableFailureReset(claim, state, clearFailure)
+  if (state.status === 'loading') return <p>加载中</p>
+  if (state.status === 'error') return <p>{state.message}</p>
+  if (state.status === 'not-found') return <p>场次不存在</p>
+  return (
+    <CampaignDetailView
+      detail={state.detail}
+      offsetMs={state.offsetMs}
+      claimability={state.claimability}
+      claim={claim}
+      onClaim={onClaim}
+    />
+  )
+}
+
+describe('可恢复态自行恢复', () => {
+  it('抢购回 SOLD_OUT：进入售罄态，重取详情后配额回升，按钮自行恢复可点', async () => {
+    let detailRequests = 0
+    server.use(
+      http.get('/api/campaigns/301', () => {
+        detailRequests += 1
+        return HttpResponse.json(
+          detailRequests === 1
+            ? ongoingDetail()
+            : ongoingDetail({
+                allocation: { total: 2000, available: 300, occupied: 1700, pendingRepool: 0, sold: 0 },
+              }),
+        )
+      }),
+      http.post('/api/campaigns/301/claim', () =>
+        HttpResponse.json({ code: 'SOLD_OUT', message: '已经抢完了' }, { status: 410 }),
+      ),
+    )
+
+    render(<RecoveryHarness campaignId="301" />)
+    fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
+
+    expect(await screen.findByText('售罄')).toBeInTheDocument()
+    expect(getButton()).toBeDisabled()
+
+    await waitFor(() => expect(getButton()).toBeEnabled(), { timeout: 1500 })
+  })
+
+  it('抢购回 PURCHASE_COOLDOWN：进入冷却态，冷却到期后按钮自行恢复可点', async () => {
+    const futureCooldown = new Date(Date.now() + 3 * 24 * 3600_000).toISOString()
+    const pastCooldown = new Date(Date.now() - 3600_000).toISOString()
+    let detailRequests = 0
+    server.use(
+      http.get('/api/campaigns/302', () => {
+        detailRequests += 1
+        return HttpResponse.json(
+          ongoingDetail({ cooldownUntil: detailRequests === 1 ? futureCooldown : pastCooldown }),
+        )
+      }),
+      http.post('/api/campaigns/302/claim', () =>
+        HttpResponse.json(
+          { code: 'PURCHASE_COOLDOWN', message: '这件商品处于购买冷却期，到期后自动恢复可购' },
+          { status: 409 },
+        ),
+      ),
+    )
+
+    render(<RecoveryHarness campaignId="302" />)
+    fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
+
+    expect(await screen.findByText('购买冷却中')).toBeInTheDocument()
+    expect(getButton()).toBeDisabled()
+
+    await waitFor(() => expect(getButton()).toBeEnabled(), { timeout: 1500 })
+  })
+})
+
+describe('轮询可见性暂停与卸载清理', () => {
+  it('页面不可见期间不增加详情请求；回前台先拉一轮；卸载后不再发请求', async () => {
+    let detailRequests = 0
+    server.use(
+      http.get('/api/campaigns/303', () => {
+        detailRequests += 1
+        return HttpResponse.json(
+          ongoingDetail({ allocation: { total: 2000, available: 0, occupied: 2000, pendingRepool: 0, sold: 0 } }),
+        )
+      }),
+    )
+
+    const { unmount } = render(<RecoveryHarness campaignId="303" />)
+    expect(await screen.findByText('售罄')).toBeInTheDocument()
+    const baseline = detailRequests
+
+    // 切到后台：定时器暂停，期间不发详情请求
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    expect(detailRequests).toBe(baseline)
+
+    // 回前台：先拉一轮再继续计时
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() => expect(detailRequests).toBe(baseline + 1))
+
+    // 卸载：定时器与 visibilitychange 监听一并清理，之后不再有详情请求
+    unmount()
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    expect(detailRequests).toBe(baseline + 1)
   })
 })
 

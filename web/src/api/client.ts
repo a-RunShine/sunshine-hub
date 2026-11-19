@@ -55,10 +55,15 @@ client.interceptors.response.use(
       )
     }
 
-    // 5xx 的原始 message 是给运维看的，对用户统一兜底
+    // 5xx 保留服务端 message 原文（契约 Error.message 口径为可直接展示给用户的中文文案）；
+    // 仅在响应体缺 message 时才落前端兜底，不用前端文案盖掉服务端提示。
     if (status >= 500) {
       return Promise.reject(
-        new ApiError(body?.code ?? 'INTERNAL_ERROR', '服务出了点问题，稍后再试', status),
+        new ApiError(
+          body?.code ?? 'INTERNAL_ERROR',
+          body?.message ?? '服务出了点问题，稍后再试',
+          status,
+        ),
       )
     }
 

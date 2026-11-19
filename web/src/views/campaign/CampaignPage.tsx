@@ -5,6 +5,8 @@ import { cancelReserveCampaign, reserveCampaign } from '@/api/campaign'
 import { buildLoginUrl } from '@/lib/redirect'
 import { useCampaignDetail } from './useCampaignDetail'
 import { useCampaignClaim } from './useCampaignClaim'
+import { useVisibilityPolling, RECOVERABLE_REFETCH_INTERVAL_MS } from './polling'
+import { useRecoverableFailureReset } from './useClaimRecovery'
 import { CampaignDetailView } from './CampaignDetailView'
 
 /**
@@ -15,7 +17,22 @@ export default function CampaignPage() {
   const { campaignId = '' } = useParams<{ campaignId: string }>()
   const { state, reload } = useCampaignDetail(campaignId)
   // 抢购成功后重新拉一次详情，刷新剩余份数 / 剩余本场额度；提交状态留在页面内，不进全局 store。
-  const { state: claim, claim: onClaim } = useCampaignClaim(campaignId, { onClaimed: reload })
+  const { state: claim, claim: onClaim, clearFailure } = useCampaignClaim(campaignId, {
+    onClaimed: reload,
+  })
+
+  // 可恢复态（售罄配额回流 / 冷却到期）统一挂一套可见性轮询：详情口径与抢购失败口径任一命中即开启，
+  // 配额回升 / 到期后按钮自行恢复可点；轮询只在可恢复态运行，页面不可见时暂停，卸载时清理。
+  const detailReason = state.status === 'ready' ? state.claimability.reason : null
+  const claimRecoverable = claim.phase === 'failed' && claim.failure.recoverable
+  useVisibilityPolling({
+    active: detailReason === 'SOLD_OUT' || detailReason === 'COOLDOWN' || claimRecoverable,
+    intervalMs: RECOVERABLE_REFETCH_INTERVAL_MS,
+    onTick: reload,
+  })
+
+  // 可恢复失败态解除：失败后新一轮详情回到可点口径时，清掉失败 overlay（门槛与判定见共享 hook）。
+  useRecoverableFailureReset(claim, state, clearFailure)
 
   const [reserving, setReserving] = useState(false)
   const [reserveError, setReserveError] = useState<string | null>(null)
