@@ -6,7 +6,7 @@ import { parse } from 'yaml'
 import { scenarios } from './scenarios'
 
 /**
- * 契约覆盖测试：把 OpenAPI 里 in-scope operation（claim、POST /orders、地址增删改/设默认、签收）
+ * 契约覆盖测试：把 OpenAPI 里 in-scope operation（claim、POST /orders、地址增删改/设默认、签收、分类管理端增删改）
  * 声明的错误码，与 mock 场景表能产出的错误码对齐。
  * - 用真实 YAML parser 解析 api/openapi.yaml；
  * - 共享 401 / 429 响应是 `$ref`，必须显式跟进去拿 description，不能静默跳过；
@@ -109,6 +109,11 @@ const addressDefaultScenarioCodes = new Set(
 const signScenarioCodes = new Set(
   scenarios.map((scenario) => scenario.signFailure?.code).filter((code): code is string => Boolean(code)),
 )
+const categoryScenarioCodes = new Set(
+  scenarios
+    .map((scenario) => scenario.categoryFailure?.code)
+    .filter((code): code is string => Boolean(code)),
+)
 
 describe('契约错误码 ↔ mock 场景覆盖', () => {
   it('claim 契约声明的每个错误码都至少有一个场景产出', () => {
@@ -162,6 +167,30 @@ describe('契约错误码 ↔ mock 场景覆盖', () => {
       'POST /fulfillments/{fulfillmentId}/sign',
     )
     const missing = declared.filter((code) => !signScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('POST /admin/categories 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(openapi.paths['/admin/categories'].post!, 'POST /admin/categories')
+    const missing = declared.filter((code) => !categoryScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('PUT /admin/categories/{categoryId} 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(
+      openapi.paths['/admin/categories/{categoryId}'].put!,
+      'PUT /admin/categories/{categoryId}',
+    )
+    const missing = declared.filter((code) => !categoryScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('DELETE /admin/categories/{categoryId} 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(
+      openapi.paths['/admin/categories/{categoryId}'].delete!,
+      'DELETE /admin/categories/{categoryId}',
+    )
+    const missing = declared.filter((code) => !categoryScenarioCodes.has(code))
     expect(missing).toEqual([])
   })
 })

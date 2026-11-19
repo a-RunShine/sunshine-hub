@@ -37,7 +37,11 @@ function addressBody(receiver: string): Record<string, string> {
 async function listAddresses(): Promise<Array<Record<string, unknown>>> {
   const res = await fetch(`${ORIGIN}/api/addresses`)
   expect(res.status).toBe(200)
-  return res.json()
+  const body = await res.json()
+  // 契约形状：响应体是对象，列表在 `items` 数组里；别再按裸数组锁死。
+  expect(body).toBeTypeOf('object')
+  expect(Array.isArray(body.items)).toBe(true)
+  return body.items
 }
 
 async function createAddress(
@@ -59,24 +63,31 @@ async function signFulfillment(id: number, scenarioId?: string): Promise<Respons
 }
 
 describe('地址与履约单种子数据', () => {
-  it('GET /addresses 返回 3 条地址，第一条默认，其余非默认，至多一条默认', async () => {
+  it('GET /addresses 响应体为对象且 items 是数组：3 条地址，第一条默认，其余非默认，至多一条默认', async () => {
+    const res = await fetch(`${ORIGIN}/api/addresses`)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toBeTypeOf('object')
+    expect(Array.isArray(body.items)).toBe(true)
+    expect(body.items).toHaveLength(3)
+
     const list = await listAddresses()
-    expect(list).toHaveLength(3)
     const defaults = list.filter((a) => a.isDefault === true)
     expect(defaults).toHaveLength(1)
     expect(list[0].id).toBe(1)
     expect(list[0].isDefault).toBe(true)
   })
 
-  it('GET /fulfillments 返回实体已发货、虚拟已完成、实体待发货三张履约单', async () => {
+  it('GET /fulfillments 返回实体已发货、虚拟已完成、实体待发货、实体已完成四张履约单', async () => {
     const res = await fetch(`${ORIGIN}/api/fulfillments`)
     expect(res.status).toBe(200)
     const body = await res.json()
     const items = body.items as Array<{ id: number; kind: string; status: string }>
-    expect(items.map((f) => f.id)).toEqual([1, 2, 3])
+    expect(items.map((f) => f.id)).toEqual([1, 2, 3, 4])
     expect(items.find((f) => f.id === 1)).toMatchObject({ kind: 'PHYSICAL', status: 'SHIPPED' })
     expect(items.find((f) => f.id === 2)).toMatchObject({ kind: 'VIRTUAL', status: 'COMPLETED' })
     expect(items.find((f) => f.id === 3)).toMatchObject({ kind: 'PHYSICAL', status: 'PENDING' })
+    expect(items.find((f) => f.id === 4)).toMatchObject({ kind: 'PHYSICAL', status: 'COMPLETED' })
   })
 })
 
@@ -97,7 +108,7 @@ describe('默认地址不变量', () => {
     expect(list).toHaveLength(1)
     expect(list[0].isDefault).toBe(true)
 
-    // 默认种子已有一条默认：新增地址不应顶替默认
+    // 当前闭包是空种子（刚由首条占位）：第二条新增不应顶替首条默认
     const created = await createAddress(addressBody('追加一条'))
     expect(created.status).toBe(201)
     const createdBody = await created.json()
@@ -168,6 +179,23 @@ describe('地址新增上限与编辑删除', () => {
     const list = await listAddresses()
     const target = list.find((a) => a.id === 3)
     expect(target).toMatchObject({ receiver: '周野改', detail: '科技园 9 栋 502' })
+  })
+
+  it('PUT 编辑夹带 isDefault: true 不落库：响应与列表里默认标记保持原值', async () => {
+    // id 2 原是非默认；AddressInput 不接受 isDefault，请求体夹带该字段必须被忽略。
+    const payload = { ...addressBody('林晚改名'), isDefault: true }
+    const res = await fetch(`${ORIGIN}/api/addresses/2`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.isDefault).toBe(false)
+
+    const list = await listAddresses()
+    const target = list.find((a) => a.id === 2)
+    expect(target?.isDefault).toBe(false)
   })
 
   it('删除被未支付订单引用的地址回 409 ADDRESS_IN_USE', async () => {
@@ -251,6 +279,12 @@ describe('用户签收履约单', () => {
     expect((await pending.json()).code).toBe('FULFILLMENT_NOT_SIGNABLE')
   })
 
+  it('PHYSICAL + COMPLETED 实体履约单签收回 409 FULFILLMENT_NOT_SIGNABLE', async () => {
+    const res = await signFulfillment(4)
+    expect(res.status).toBe(409)
+    expect((await res.json()).code).toBe('FULFILLMENT_NOT_SIGNABLE')
+  })
+
   it('履约单不存在（含他人资源）回 404 FULFILLMENT_NOT_FOUND，不返 403', async () => {
     const res = await signFulfillment(999)
     expect(res.status).toBe(404)
@@ -323,5 +357,32 @@ describe('地址与签收场景覆盖', () => {
     const res = await signFulfillment(1, 'fulfillment-not-signable')
     expect(res.status).toBe(409)
     expect((await res.json()).code).toBe('FULFILLMENT_NOT_SIGNABLE')
+  })
+})
+
+describe('未支付订单支付后释放地址引用', () => {
+  it('被未支付订单引用的地址先 409；支付成功后再删除回 204', async () => {
+    // SO-UNPAID-1 未支付，引用地址 id 3；支付前删除被挡。
+    const blocked = await fetch(`${ORIGIN}/api/addresses/3`, { method: 'DELETE' })
+    expect(blocked.status).toBe(409)
+    expect((await blocked.json()).code).toBe('ADDRESS_IN_USE')
+
+    const pay = await fetch(`${ORIGIN}/api/orders/SO-UNPAID-1/pay`, { method: 'POST' })
+    expect(pay.status).toBe(200)
+    const payBody = await pay.json()
+    expect(payBody.tradeNo).toBeTypeOf('string')
+    expect(payBody.amount).toBeTypeOf('number')
+    expect(payBody.payUrl).toBeTypeOf('string')
+
+    // 订单已支付：地址引用释放，同一地址可删除。
+    const deleted = await fetch(`${ORIGIN}/api/addresses/3`, { method: 'DELETE' })
+    expect(deleted.status).toBe(204)
+    expect(await deleted.text()).toBe('')
+  })
+
+  it('支付不存在的订单回 404 ORDER_NOT_FOUND', async () => {
+    const res = await fetch(`${ORIGIN}/api/orders/SO-MISSING/pay`, { method: 'POST' })
+    expect(res.status).toBe(404)
+    expect((await res.json()).code).toBe('ORDER_NOT_FOUND')
   })
 })

@@ -27,6 +27,7 @@ type Me = components['schemas']['Me']
 type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
 type SimpleCampaignDetail = components['schemas']['SimpleCampaignDetail']
 type Order = components['schemas']['Order']
+type OrderStatus = components['schemas']['OrderStatus']
 type ClaimResult = components['schemas']['ClaimResult']
 type Address = components['schemas']['Address']
 type AddressInput = components['schemas']['AddressInput']
@@ -35,6 +36,13 @@ type Fulfillment = components['schemas']['Fulfillment']
 /** 地址种子：闭包内额外记 createdAt（创建先后），不进响应体；默认提升按它取最早一条。 */
 interface SeedAddress extends Address {
   createdAt: number
+}
+
+/** 闭包内的最小订单记录：只记挡删/支付演示所需的状态与引用地址，不进响应体。 */
+interface SeedOrder {
+  orderNo: string
+  status: OrderStatus
+  addressId: number
 }
 
 /** 测试可注入地址种子（例如空地址表验证首条自动默认）；缺省用模块内初始数据。 */
@@ -157,7 +165,7 @@ const initialAddresses: SeedAddress[] = [
   { id: 3, receiver: '周野', phone: '13800000003', province: '广东省', city: '深圳市', district: '南山区', detail: '科技园 3 号', isDefault: false, createdAt: 3 },
 ]
 
-// 初始三张履约单：实体已发货（带地址快照）、虚拟已完成、实体待发货。
+// 初始四张履约单：实体已发货、虚拟已完成、实体待发货、实体已完成。
 // address 是下单时冻结的完整快照，与地址行互不引用；地址行删除后快照仍完整返回。
 const initialFulfillments: Fulfillment[] = [
   {
@@ -228,6 +236,37 @@ const initialFulfillments: Fulfillment[] = [
       city: '深圳市',
       district: '南山区',
       detail: '科技园 3 号',
+      isDefault: false,
+    },
+    items: [
+      {
+        productId: 3,
+        productName: '赛季队服',
+        skuId: 30,
+        skuName: '黑色 M 码',
+        kind: 'PHYSICAL',
+        quantity: 1,
+        unitPrice: 19900,
+        collectibleNumber: null,
+      },
+    ],
+  },
+  {
+    id: 4,
+    orderNo: 'SO-SEED-4',
+    kind: 'PHYSICAL',
+    status: 'COMPLETED',
+    trackingNo: null,
+    shippedAt: null,
+    signedAt: null,
+    address: {
+      id: 2,
+      receiver: '林晚',
+      phone: '13800000002',
+      province: '四川省',
+      city: '成都市',
+      district: '锦江区',
+      detail: '春熙路 2 号',
       isDefault: false,
     },
     items: [
@@ -320,8 +359,11 @@ export function createHandlers(
   const fulfillments = new Map<number, Fulfillment>(
     initialFulfillments.map((f) => [f.id, f]),
   )
-  // 未支付订单引用的地址：只有 PENDING_PAYMENT 订单挡住删除；已支付订单有履约快照，不挡。
-  const pendingOrderAddressIds = new Set<number>([3])
+  // 订单表同样只记在闭包里：挡删判断读订单状态，已支付订单有履约快照、不挡地址删除；
+  // 种子可由测试隔离，不写进共享场景常量。
+  const orders = new Map<string, SeedOrder>([
+    ['SO-UNPAID-1', { orderNo: 'SO-UNPAID-1', status: 'PENDING_PAYMENT', addressId: 3 }],
+  ])
 
   const toAddress = (address: SeedAddress): Address => ({
     id: address.id,
@@ -449,7 +491,7 @@ export function createHandlers(
 
     http.get('/api/addresses', () => {
       const items = [...addresses.values()].sort((a, b) => a.createdAt - b.createdAt)
-      return HttpResponse.json(items.map(toAddress))
+      return HttpResponse.json({ items: items.map(toAddress) })
     }),
 
     http.post('/api/addresses', async ({ request }) => {
@@ -494,7 +536,16 @@ export function createHandlers(
         return jsonError(404, 'ADDRESS_NOT_FOUND', '地址不存在，或不属于当前账号')
       }
       const body = (await request.json()) as AddressInput
-      const updated: SeedAddress = { ...existing, ...body }
+      // AddressInput 不接受 isDefault：只落库六个输入字段，默认标记保持原值不变。
+      const updated: SeedAddress = {
+        ...existing,
+        receiver: body.receiver,
+        phone: body.phone,
+        province: body.province,
+        city: body.city,
+        district: body.district,
+        detail: body.detail,
+      }
       addresses.set(id, updated)
       return HttpResponse.json(toAddress(updated), { status: 200 })
     }),
@@ -514,7 +565,10 @@ export function createHandlers(
       if (!existing) {
         return jsonError(404, 'ADDRESS_NOT_FOUND', '地址不存在，或不属于当前账号')
       }
-      if (pendingOrderAddressIds.has(id)) {
+      const referencedByPendingOrder = [...orders.values()].some(
+        (order) => order.addressId === id && order.status === 'PENDING_PAYMENT',
+      )
+      if (referencedByPendingOrder) {
         return jsonError(409, 'ADDRESS_IN_USE', '这个地址还被未支付订单使用，先取消订单或换地址')
       }
       const wasDefault = existing.isDefault
@@ -654,6 +708,23 @@ export function createHandlers(
       }
 
       return HttpResponse.json(happyOrder, { status: 201 })
+    }),
+
+    // 发起支付：成功后把订单标记为已支付，释放对收货地址的未支付引用；订单不存在回 404。
+    http.post('/api/orders/:orderNo/pay', ({ params }) => {
+      const order = orders.get(String(params.orderNo))
+      if (!order) {
+        return jsonError(404, 'ORDER_NOT_FOUND', '订单不存在')
+      }
+      order.status = 'PAID'
+      return HttpResponse.json(
+        {
+          tradeNo: `T${order.orderNo}`,
+          amount: 19900,
+          payUrl: `/payment/pay?tradeNo=T${order.orderNo}`,
+        },
+        { status: 200 },
+      )
     }),
 
     http.post('/api/auth/login', () => HttpResponse.json(me)),

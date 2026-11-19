@@ -102,6 +102,8 @@ describe('管理端分类增删改查', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.name).toBe('金属徽章')
+    // 名称可改、id 不变：响应 id 必须与请求路径 id 相同。
+    expect(body.id).toBe(3)
 
     const list = await (await fetch(`${ORIGIN}/api/categories`)).json()
     expect(list[0].id).toBe(3)
