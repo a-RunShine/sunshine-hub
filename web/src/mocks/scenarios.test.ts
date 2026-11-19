@@ -78,6 +78,13 @@ function getDetailById(campaignId: number): Promise<Response> {
   return fetch(`${ORIGIN}/api/campaigns/${campaignId}`)
 }
 
+function deleteCategory(scenarioId?: string): Promise<Response> {
+  return fetch(`${ORIGIN}/api/admin/categories/1`, {
+    method: 'DELETE',
+    headers: scenarioHeaders(scenarioId),
+  })
+}
+
 describe('场景注册表：逐场景走 HTTP 边界', () => {
   it.each(scenarios)('$id：按声明产出失败响应或详情形状', async (scenario) => {
     if (scenario.claimFailure) {
@@ -94,6 +101,15 @@ describe('场景注册表：逐场景走 HTTP 边界', () => {
       expect(res.status).toBe(scenario.orderFailure.status)
       const body = await res.json()
       expect(body.code).toBe(scenario.orderFailure.code)
+      expect(typeof body.message).toBe('string')
+      expect(body.message.length).toBeGreaterThan(0)
+    }
+
+    if (scenario.categoryFailure) {
+      const res = await deleteCategory(scenario.id)
+      expect(res.status).toBe(scenario.categoryFailure.status)
+      const body = await res.json()
+      expect(body.code).toBe(scenario.categoryFailure.code)
       expect(typeof body.message).toBe('string')
       expect(body.message.length).toBeGreaterThan(0)
     }

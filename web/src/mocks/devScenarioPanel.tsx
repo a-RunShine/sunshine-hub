@@ -13,6 +13,7 @@ function scenarioTargets(scenario: MockScenario): string[] {
   if (scenario.campaignDetail) targets.push('详情')
   if (scenario.claimFailure) targets.push('抢购')
   if (scenario.orderFailure) targets.push('下单')
+  if (scenario.categoryFailure) targets.push('分类管理')
   return targets
 }
 

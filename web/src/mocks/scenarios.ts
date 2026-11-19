@@ -25,6 +25,7 @@ export interface MockScenario {
   readonly campaignDetail?: CampaignDetailOverride
   readonly claimFailure?: MockFailure
   readonly orderFailure?: MockFailure
+  readonly categoryFailure?: MockFailure
 }
 
 export const DEFAULT_SCENARIO_ID = 'happy'
@@ -48,6 +49,27 @@ const unauthorizedFailure: MockFailure = {
   status: 401,
   code: 'UNAUTHORIZED',
   message: '请先登录',
+}
+
+/** 管理端未授权：分类新增、更新、删除共用同一段失败响应，码与文案不改动。 */
+const forbiddenFailure: MockFailure = {
+  status: 403,
+  code: 'FORBIDDEN',
+  message: '没有权限',
+}
+
+/** 分类不存在：更新、删除回 404。 */
+const categoryNotFoundFailure: MockFailure = {
+  status: 404,
+  code: 'CATEGORY_NOT_FOUND',
+  message: '分类不存在',
+}
+
+/** 分类下仍有商品，删除被拒绝：先迁移商品再删除。 */
+const categoryInUseFailure: MockFailure = {
+  status: 409,
+  code: 'CATEGORY_IN_USE',
+  message: '分类下还有商品，先迁移商品再删除',
 }
 
 /** 配额计数自洽：total = available + occupied + sold（pendingRepool 恒为 0）。 */
@@ -282,5 +304,22 @@ export const scenarios: readonly MockScenario[] = [
     id: 'order-cooldown',
     description: '本商品处于购买冷却期（商品级、跨场）',
     orderFailure: purchaseCooldownFailure,
+  },
+
+  // 分类管理端失败覆盖（POST/PUT/DELETE /admin/categories…）
+  {
+    id: 'category-forbidden',
+    description: '管理端未授权：分类新增、更新、删除均回 403',
+    categoryFailure: forbiddenFailure,
+  },
+  {
+    id: 'category-in-use',
+    description: '分类下还有商品，删除被拒绝；先迁移商品再删除',
+    categoryFailure: categoryInUseFailure,
+  },
+  {
+    id: 'category-not-found',
+    description: '分类不存在：更新、删除回 404',
+    categoryFailure: categoryNotFoundFailure,
   },
 ]

@@ -21,6 +21,8 @@ import type { MockScenario } from './scenarios'
 
 type ProductSummary = components['schemas']['ProductSummary']
 type ProductDetail = components['schemas']['ProductDetail']
+type Category = components['schemas']['Category']
+type CategoryInput = components['schemas']['CategoryInput']
 type Me = components['schemas']['Me']
 type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
 type SimpleCampaignDetail = components['schemas']['SimpleCampaignDetail']
@@ -101,6 +103,7 @@ const products: ProductSummary[] = [
     id: 1,
     name: '暗夜猎手 限定皮肤',
     kind: 'VIRTUAL',
+    categoryId: 1,
     coverUrl: '',
     minPrice: 12800,
     limited: true,
@@ -109,6 +112,7 @@ const products: ProductSummary[] = [
     id: 2,
     name: '破晓之环 典藏手办',
     kind: 'PHYSICAL',
+    categoryId: 4,
     coverUrl: '',
     minPrice: 59900,
     limited: true,
@@ -117,10 +121,20 @@ const products: ProductSummary[] = [
     id: 3,
     name: '赛季队服',
     kind: 'PHYSICAL',
+    categoryId: 5,
     coverUrl: '',
     minPrice: 19900,
     limited: false,
   },
+]
+
+// 初始五个分类（ADR-0014）：分类取值不进契约枚举，这里只是开发期种子数据。
+const initialCategories: Category[] = [
+  { id: 1, name: '武器皮肤', sortOrder: 1 },
+  { id: 2, name: '角色皮肤', sortOrder: 2 },
+  { id: 3, name: '徽章', sortOrder: 3 },
+  { id: 4, name: '手办', sortOrder: 4 },
+  { id: 5, name: '服饰', sortOrder: 5 },
 ]
 
 // happy 场景抢购成功返回的结果，字段照 ClaimResult schema
@@ -180,6 +194,10 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
   // 实名档案只记在本次 handler 实例的闭包里：PUT 成功后回写，GET /me 读到新值；
   // 不写进共享场景常量，测试实例之间互不复用。
   let realNameProfile: Me | null = null
+  // 分类表同样只记在闭包里：新增/改名/调序/删除都在本次 handler 实例上回写，
+  // 不写进共享场景常量；商品对分类的引用由上面的 products 数据决定。
+  const categories = new Map<number, Category>(initialCategories.map((c) => [c.id, c]))
+  let nextCategoryId = initialCategories.length + 1
 
   const detailWithReserved = (
     base: FlashCampaignDetail | SimpleCampaignDetail,
@@ -191,9 +209,22 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
   }
 
   return [
-    http.get('/api/products', () =>
-      HttpResponse.json({ items: products, page: 1, size: 20, total: products.length }),
-    ),
+    http.get('/api/products', ({ request }) => {
+      const url = new URL(request.url, 'http://localhost:3000')
+      const kind = url.searchParams.get('kind')
+      const categoryId = url.searchParams.get('categoryId')
+      let items = products
+      if (kind !== null) items = items.filter((p) => p.kind === kind)
+      if (categoryId !== null) {
+        items = items.filter((p) => p.categoryId === Number(categoryId))
+      }
+      return HttpResponse.json({ items, page: 1, size: 20, total: items.length })
+    }),
+
+    http.get('/api/categories', () => {
+      const sorted = [...categories.values()].sort((a, b) => a.sortOrder - b.sortOrder)
+      return HttpResponse.json(sorted)
+    }),
 
     http.get('/api/products/:productId', ({ params }) => {
       const id = Number(params.productId)
@@ -220,6 +251,65 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
         ],
       }
       return HttpResponse.json(detail)
+    }),
+
+    http.post('/api/admin/categories', async ({ request }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.categoryFailure) {
+        return jsonError(
+          resolved.categoryFailure.status,
+          resolved.categoryFailure.code,
+          resolved.categoryFailure.message,
+        )
+      }
+      const body = (await request.json()) as CategoryInput
+      const created: Category = { id: nextCategoryId++, name: body.name, sortOrder: body.sortOrder }
+      categories.set(created.id, created)
+      return HttpResponse.json(created, { status: 201 })
+    }),
+
+    http.put('/api/admin/categories/:categoryId', async ({ request, params }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.categoryFailure) {
+        return jsonError(
+          resolved.categoryFailure.status,
+          resolved.categoryFailure.code,
+          resolved.categoryFailure.message,
+        )
+      }
+      const id = Number(params.categoryId)
+      const existing = categories.get(id)
+      if (!existing) {
+        return jsonError(404, 'CATEGORY_NOT_FOUND', '分类不存在')
+      }
+      const body = (await request.json()) as CategoryInput
+      const updated: Category = { ...existing, name: body.name, sortOrder: body.sortOrder }
+      categories.set(id, updated)
+      return HttpResponse.json(updated, { status: 200 })
+    }),
+
+    http.delete('/api/admin/categories/:categoryId', ({ request, params }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.categoryFailure) {
+        return jsonError(
+          resolved.categoryFailure.status,
+          resolved.categoryFailure.code,
+          resolved.categoryFailure.message,
+        )
+      }
+      const id = Number(params.categoryId)
+      if (!categories.has(id)) {
+        return jsonError(404, 'CATEGORY_NOT_FOUND', '分类不存在')
+      }
+      const referenced = products.some((p) => p.categoryId === id)
+      if (referenced) {
+        return jsonError(409, 'CATEGORY_IN_USE', '分类下还有商品，先迁移商品再删除')
+      }
+      categories.delete(id)
+      return new HttpResponse(null, { status: 204 })
     }),
 
     http.get('/api/campaigns/upcoming', () =>

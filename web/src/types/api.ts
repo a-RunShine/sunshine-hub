@@ -250,6 +250,8 @@ export interface paths {
             parameters: {
                 query?: {
                     kind?: components["schemas"]["ProductKind"];
+                    /** @description 按所属分类筛选；与 kind 同时出现时为 AND 组合。参数名与分类资源标识一致。 */
+                    categoryId?: number;
                     page?: components["parameters"]["Page"];
                     size?: components["parameters"]["Size"];
                 };
@@ -319,6 +321,46 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 分类列表
+         * @description 分类由运营维护，加分类不需要改契约。不分页，直接返回数组，按 sortOrder 升序。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 按 sortOrder 升序 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Category"][];
+                    };
+                };
+                429: components["responses"]["TooManyRequests"];
             };
         };
         put?: never;
@@ -1409,6 +1451,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 新增分类 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CategoryInput"];
+                };
+            };
+            responses: {
+                /** @description 已创建 */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Category"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/categories/{categoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 更新分类
+         * @description 名称与排序可改，id 不变；商品引用的是 id，改名不影响既有商品归属。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    categoryId: components["parameters"]["CategoryId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CategoryInput"];
+                };
+            };
+            responses: {
+                /** @description 已更新 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Category"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description 分类不存在。code：CATEGORY_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * 删除分类
+         * @description 分类下仍有商品时拒绝删除，先迁移商品再删除；不做逻辑删除，不做级联改归属。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    categoryId: components["parameters"]["CategoryId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 已删除 */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description 分类不存在。code：CATEGORY_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 分类下还有商品，先迁移商品再删除。code：CATEGORY_IN_USE */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/campaigns": {
         parameters: {
             query?: never;
@@ -1867,7 +2047,7 @@ export interface components {
          * @description 业务错误码，与 src/main/java/com/sunshinefps/shared/ErrorCode.java 一一对应。新增错误码必须两边同步
          * @enum {string}
          */
-        ErrorCode: "UNAUTHORIZED" | "FORBIDDEN" | "REAL_NAME_REQUIRED" | "REAL_NAME_ALREADY_SET" | "USERNAME_TAKEN" | "BAD_CREDENTIALS" | "PRODUCT_NOT_FOUND" | "CAMPAIGN_NOT_FOUND" | "CAMPAIGN_NOT_STARTED" | "CAMPAIGN_ENDED" | "QUOTA_EXCEEDED" | "ALREADY_PURCHASED" | "PURCHASE_COOLDOWN" | "SOLD_OUT" | "UNIT_POOL_INCONSISTENT" | "RATE_LIMITED" | "ORDER_NOT_FOUND" | "ORDER_NOT_PAYABLE" | "ORDER_NOT_CANCELLABLE" | "STOCK_INSUFFICIENT" | "ADDRESS_REQUIRED" | "REFUND_NOT_FOUND" | "REFUND_NOT_ALLOWED" | "REFUND_ALREADY_OPEN" | "ANNOUNCEMENT_NOT_FOUND" | "EVENT_NOT_FOUND" | "BAD_REQUEST" | "INTERNAL_ERROR";
+        ErrorCode: "UNAUTHORIZED" | "FORBIDDEN" | "REAL_NAME_REQUIRED" | "REAL_NAME_ALREADY_SET" | "USERNAME_TAKEN" | "BAD_CREDENTIALS" | "PRODUCT_NOT_FOUND" | "CATEGORY_NOT_FOUND" | "CATEGORY_IN_USE" | "CAMPAIGN_NOT_FOUND" | "CAMPAIGN_NOT_STARTED" | "CAMPAIGN_ENDED" | "QUOTA_EXCEEDED" | "ALREADY_PURCHASED" | "PURCHASE_COOLDOWN" | "SOLD_OUT" | "UNIT_POOL_INCONSISTENT" | "RATE_LIMITED" | "ORDER_NOT_FOUND" | "ORDER_NOT_PAYABLE" | "ORDER_NOT_CANCELLABLE" | "STOCK_INSUFFICIENT" | "ADDRESS_REQUIRED" | "REFUND_NOT_FOUND" | "REFUND_NOT_ALLOWED" | "REFUND_ALREADY_OPEN" | "ANNOUNCEMENT_NOT_FOUND" | "EVENT_NOT_FOUND" | "BAD_REQUEST" | "INTERNAL_ERROR";
         Error: {
             code: components["schemas"]["ErrorCode"];
             /** @description 可直接展示给用户的中文文案 */
@@ -1877,11 +2057,27 @@ export interface components {
         };
         /** @enum {string} */
         ProductKind: "VIRTUAL" | "PHYSICAL";
+        Category: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** @description 列表按该值升序 */
+            sortOrder: number;
+        };
+        CategoryInput: {
+            name: string;
+            sortOrder: number;
+        };
         ProductSummary: {
             /** Format: int64 */
             id: number;
             name: string;
             kind: components["schemas"]["ProductKind"];
+            /**
+             * Format: int64
+             * @description 所属分类的 id
+             */
+            categoryId: number;
             coverUrl: string;
             /**
              * Format: int64
@@ -1902,6 +2098,11 @@ export interface components {
             id: number;
             name: string;
             kind: components["schemas"]["ProductKind"];
+            /**
+             * Format: int64
+             * @description 所属分类的 id
+             */
+            categoryId: number;
             description: string;
             coverUrl: string;
             limited: boolean;
@@ -1914,6 +2115,11 @@ export interface components {
         ProductInput: {
             name: string;
             kind: components["schemas"]["ProductKind"];
+            /**
+             * Format: int64
+             * @description 所属分类的 id
+             */
+            categoryId: number;
             description: string;
             coverUrl: string;
             totalLimit?: number | null;
@@ -2299,6 +2505,7 @@ export interface components {
     };
     parameters: {
         ProductId: number;
+        CategoryId: number;
         CampaignId: number;
         OrderNo: string;
         RefundId: number;
