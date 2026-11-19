@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { client } from '@/api/client'
+import type { ClaimResult, FlashCampaignDetail } from '@/api/campaign'
 import { createHandlers } from '@/mocks/handlers'
 import { MOCK_SCENARIO_HEADER, scenarios } from '@/mocks/scenarios'
 import CampaignPage from './CampaignPage'
@@ -41,6 +42,34 @@ function setScenario(id: string) {
 }
 
 const getButton = () => screen.getByRole('button', { name: '立即抢购' })
+
+/** 进行中、可点的场次详情：配额有余量、本场额度剩 1、不在冷却中。 */
+function ongoingDetail(overrides: Partial<FlashCampaignDetail> = {}): FlashCampaignDetail {
+  return {
+    id: 201,
+    name: '暗夜猎手 加场（进行中）',
+    type: 'FLASH',
+    productId: 1,
+    startAt: new Date(Date.now() - 1800_000).toISOString(),
+    endAt: null,
+    status: 'ONGOING',
+    serverTime: new Date().toISOString(),
+    allocation: { total: 2000, available: 1200, occupied: 800, pendingRepool: 0, sold: 0 },
+    campaignLimit: 2,
+    remainingCampaignLimit: 1,
+    cooldownUntil: null,
+    reserved: false,
+    ...overrides,
+  }
+}
+
+/** 抢购成功响应：编号带前导零，订单号 / 付款截止时间照 ClaimResult 契约形状。 */
+const successClaim: ClaimResult = {
+  orderNo: 'SO1001',
+  collectibleNumber: '0427',
+  payDeadline: new Date(Date.now() + 900_000).toISOString(),
+  serverTime: new Date().toISOString(),
+}
 
 describe('五种不可点态', () => {
   it('未开售：UPCOMING，按钮禁用并给出「未开售」原因，倒计时指向开售时刻', async () => {
@@ -150,6 +179,8 @@ describe('售罄恢复', () => {
           detail={state.detail}
           offsetMs={state.offsetMs}
           claimability={state.claimability}
+          claim={{ phase: 'idle' }}
+          onClaim={() => {}}
         />
       )
     }
@@ -203,5 +234,151 @@ describe('倒计时服务端校准', () => {
     } finally {
       dateNowSpy.mockRestore()
     }
+  })
+})
+
+describe('抢购防重复提交', () => {
+  it('在途期间连点三次只发出一个抢购请求，按钮显示进行中且禁用', async () => {
+    let claimCalls = 0
+    const resolveClaimRef: { current: ((response: Response) => void) | null } = { current: null }
+    const claimPending = new Promise<Response>((resolve) => {
+      resolveClaimRef.current = resolve
+    })
+
+    server.use(
+      http.get('/api/campaigns/201', () => HttpResponse.json(ongoingDetail())),
+      http.post('/api/campaigns/201/claim', () => {
+        claimCalls += 1
+        return claimPending
+      }),
+    )
+
+    renderPage('201')
+    const button = await screen.findByRole('button', { name: '立即抢购' })
+    expect(button).toBeEnabled()
+
+    fireEvent.click(button)
+    // 第一次点击后进入抢购中：文案变进行中，按钮禁用
+    const pendingButton = await screen.findByRole('button', { name: '抢购中…' })
+    expect(pendingButton).toBeDisabled()
+
+    // 在途未归时再快速连点两次
+    fireEvent.click(pendingButton)
+    fireEvent.click(pendingButton)
+    expect(claimCalls).toBe(1)
+
+    resolveClaimRef.current?.(HttpResponse.json(successClaim, { status: 201 }))
+    expect(await screen.findByText('0427')).toBeInTheDocument()
+    // 成功落定后抢购请求仍然只有一个
+    expect(claimCalls).toBe(1)
+  })
+})
+
+describe('抢购成功展示', () => {
+  it('收藏编号逐字展示保留前导零，给出订单详情入口且 href 正确，付款倒计时在走', async () => {
+    server.use(
+      http.get('/api/campaigns/202', () => HttpResponse.json(ongoingDetail())),
+      http.post('/api/campaigns/202/claim', () =>
+        HttpResponse.json(successClaim, { status: 201 }),
+      ),
+    )
+
+    renderPage('202')
+    fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
+
+    // 编号原样展示：0427 逐字一致，前导零不被数字化掉
+    expect(await screen.findByText('0427')).toBeInTheDocument()
+    expect(screen.queryByText('427')).not.toBeInTheDocument()
+
+    const orderLink = screen.getByRole('link', { name: '去订单详情付款' })
+    expect(orderLink).toHaveAttribute('href', '/orders/SO1001')
+    expect(screen.getByText(/付款剩余/)).toBeInTheDocument()
+  })
+
+  it('付款倒计时按响应 serverTime 偏移后的服务端口径计算，不读裸本机时间', async () => {
+    // 本机被拨快 2 小时：本机视角已越过付款截止；服务端视角距截止还有 1 小时。
+    const localClock = new Date('2026-01-01T12:00:00.000Z').getTime()
+    const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(localClock)
+    const serverTime = '2026-01-01T10:00:00.000Z'
+    const payDeadline = '2026-01-01T11:00:00.000Z'
+
+    server.use(
+      http.get('/api/campaigns/203', () =>
+        HttpResponse.json(ongoingDetail({ serverTime })),
+      ),
+      http.post('/api/campaigns/203/claim', () =>
+        HttpResponse.json(
+          { orderNo: 'SO1001', collectibleNumber: '0427', payDeadline, serverTime },
+          { status: 201 },
+        ),
+      ),
+    )
+
+    try {
+      renderPage('203')
+      fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
+      expect(await screen.findByText('01:00:00')).toBeInTheDocument()
+    } finally {
+      dateNowSpy.mockRestore()
+    }
+  })
+})
+
+describe('抢购失败恢复', () => {
+  it('失败后按钮回到可点态并显示兜底提示，不会永久卡在抢购中，恢复后可再次提交', async () => {
+    let claimCalls = 0
+    server.use(
+      http.get('/api/campaigns/204', () => HttpResponse.json(ongoingDetail())),
+      http.post('/api/campaigns/204/claim', () => {
+        claimCalls += 1
+        return HttpResponse.json(
+          { code: 'RATE_LIMITED', message: '操作太快了，歇一下再试' },
+          { status: 429 },
+        )
+      }),
+    )
+
+    renderPage('204')
+    fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
+
+    const retryButton = await screen.findByRole('button', { name: '立即抢购' })
+    expect(retryButton).toBeEnabled()
+    expect(screen.getByText('抢购未成功，请稍后再试')).toBeInTheDocument()
+
+    // 恢复可点后再次点击，能发出第二次抢购请求
+    fireEvent.click(retryButton)
+    await waitFor(() => expect(claimCalls).toBe(2))
+  })
+})
+
+describe('成功后详情刷新', () => {
+  it('抢购成功后重新拉一次场次详情，剩余份数按新响应刷新', async () => {
+    let detailRequests = 0
+    server.use(
+      http.get('/api/campaigns/205', () => {
+        detailRequests += 1
+        const refreshed = detailRequests > 1
+        return HttpResponse.json(
+          ongoingDetail({
+            allocation: refreshed
+              ? { total: 2000, available: 1199, occupied: 801, pendingRepool: 0, sold: 0 }
+              : { total: 2000, available: 1200, occupied: 800, pendingRepool: 0, sold: 0 },
+          }),
+        )
+      }),
+      http.post('/api/campaigns/205/claim', () =>
+        HttpResponse.json(successClaim, { status: 201 }),
+      ),
+    )
+
+    renderPage('205')
+    expect(await screen.findByText('1200')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '立即抢购' }))
+    expect(await screen.findByText('0427')).toBeInTheDocument()
+
+    // 成功后详情被重新拉取（GET 次数从 1 涨到 2），份数刷新为抢后值
+    await waitFor(() => expect(detailRequests).toBe(2))
+    expect(await screen.findByText('1199')).toBeInTheDocument()
   })
 })

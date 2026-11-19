@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { useCampaignDetail } from './useCampaignDetail'
+import { useCampaignClaim } from './useCampaignClaim'
 import { CampaignDetailView } from './CampaignDetailView'
 
 /**
@@ -9,6 +10,8 @@ import { CampaignDetailView } from './CampaignDetailView'
 export default function CampaignPage() {
   const { campaignId = '' } = useParams<{ campaignId: string }>()
   const { state, reload } = useCampaignDetail(campaignId)
+  // 抢购成功后重新拉一次详情，刷新剩余份数 / 剩余本场额度；提交状态留在页面内，不进全局 store。
+  const { state: claim, claim: onClaim } = useCampaignClaim(campaignId, { onClaimed: reload })
 
   if (state.status === 'loading') {
     return (
@@ -52,6 +55,8 @@ export default function CampaignPage() {
         detail={state.detail}
         offsetMs={state.offsetMs}
         claimability={state.claimability}
+        claim={claim}
+        onClaim={onClaim}
       />
     </main>
   )
