@@ -20,6 +20,8 @@ public enum ErrorCode {
 
     // 商品与售卖
     PRODUCT_NOT_FOUND("商品不存在", HttpStatus.NOT_FOUND),
+    CATEGORY_NOT_FOUND("分类不存在", HttpStatus.NOT_FOUND),
+    CATEGORY_IN_USE("分类下还有商品，先迁移商品再删除", HttpStatus.CONFLICT),
     CAMPAIGN_NOT_FOUND("场次不存在", HttpStatus.NOT_FOUND),
     CAMPAIGN_NOT_STARTED("还没到开售时间", HttpStatus.CONFLICT),
     CAMPAIGN_ENDED("本场已经结束", HttpStatus.CONFLICT),

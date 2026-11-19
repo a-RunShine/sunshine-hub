@@ -159,6 +159,12 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/ProductKind'
+        - name: categoryId
+          in: query
+          description: 按所属分类筛选；与 kind 同时出现时为 AND 组合。参数名与分类资源标识一致。
+          schema:
+            type: integer
+            format: int64
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
       responses:
@@ -191,6 +197,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /categories:
+    get:
+      tags: [catalog]
+      summary: 分类列表
+      description: 分类由运营维护，加分类不需要改契约。不分页，直接返回数组，按 sortOrder 升序。
+      security: []
+      responses:
+        '200':
+          description: 按 sortOrder 升序
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /campaigns/upcoming:
     get:
       tags: [catalog]
@@ -759,6 +782,76 @@ paths:
                   $ref: '#/components/schemas/Sku'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /admin/categories:
+    post:
+      tags: [admin]
+      summary: 新增分类
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryInput'
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/categories/{categoryId}:
+    put:
+      tags: [admin]
+      summary: 更新分类
+      description: 名称与排序可改，id 不变；商品引用的是 id，改名不影响既有商品归属。
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryInput'
+      responses:
+        '200':
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 分类不存在。code：CATEGORY_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [admin]
+      summary: 删除分类
+      description: 分类下仍有商品时拒绝删除，先迁移商品再删除；不做逻辑删除，不做级联改归属。
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
+      responses:
+        '204':
+          description: 已删除
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 分类不存在。code：CATEGORY_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 分类下还有商品，先迁移商品再删除。code：CATEGORY_IN_USE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /admin/campaigns:
     post:
       tags: [admin]
@@ -1019,6 +1112,13 @@ components:
       schema:
         type: integer
         format: int64
+    CategoryId:
+      name: categoryId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
     CampaignId:
       name: campaignId
       in: path
@@ -1096,6 +1196,8 @@ components:
         - USERNAME_TAKEN
         - BAD_CREDENTIALS
         - PRODUCT_NOT_FOUND
+        - CATEGORY_NOT_FOUND
+        - CATEGORY_IN_USE
         - CAMPAIGN_NOT_FOUND
         - CAMPAIGN_NOT_STARTED
         - CAMPAIGN_ENDED
@@ -1132,9 +1234,29 @@ components:
     ProductKind:
       type: string
       enum: [VIRTUAL, PHYSICAL]
+    Category:
+      type: object
+      required: [id, name, sortOrder]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        sortOrder:
+          type: integer
+          description: 列表按该值升序
+    CategoryInput:
+      type: object
+      required: [name, sortOrder]
+      properties:
+        name:
+          type: string
+        sortOrder:
+          type: integer
     ProductSummary:
       type: object
-      required: [id, name, kind, coverUrl, minPrice, limited]
+      required: [id, name, kind, categoryId, coverUrl, minPrice, limited]
       properties:
         id:
           type: integer
@@ -1143,6 +1265,10 @@ components:
           type: string
         kind:
           $ref: '#/components/schemas/ProductKind'
+        categoryId:
+          type: integer
+          format: int64
+          description: 所属分类的 id
         coverUrl:
           type: string
         minPrice:
@@ -1168,7 +1294,7 @@ components:
           type: integer
     ProductDetail:
       type: object
-      required: [id, name, kind, description, coverUrl, skus, limited]
+      required: [id, name, kind, categoryId, description, coverUrl, skus, limited]
       properties:
         id:
           type: integer
@@ -1177,6 +1303,10 @@ components:
           type: string
         kind:
           $ref: '#/components/schemas/ProductKind'
+        categoryId:
+          type: integer
+          format: int64
+          description: 所属分类的 id
         description:
           type: string
         coverUrl:
@@ -1195,13 +1325,17 @@ components:
             $ref: '#/components/schemas/Sku'
     ProductInput:
       type: object
-      required: [name, kind, description, coverUrl]
+      required: [name, kind, categoryId, description, coverUrl]
       properties:
         name:
           type: string
           maxLength: 100
         kind:
           $ref: '#/components/schemas/ProductKind'
+        categoryId:
+          type: integer
+          format: int64
+          description: 所属分类的 id
         description:
           type: string
         coverUrl:
