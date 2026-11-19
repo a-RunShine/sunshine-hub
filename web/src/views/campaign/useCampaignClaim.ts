@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { postCampaignClaim, type ClaimResult } from '@/api/campaign'
 import { ApiError } from '@/api/client'
 import { computeOffsetMs } from './serverClock'
+import { classifyClaimError, type ClaimFailure } from './claimFailure'
 
 /**
  * 抢购提交状态机（页面内状态，不进全局 store：刷新页面就该丢掉）。
@@ -9,16 +10,17 @@ import { computeOffsetMs } from './serverClock'
  * - `idle` 未提交：按钮按只读态口径可点 / 不可点
  * - `pending` 请求在途：按钮「抢购中」且不可重复触发
  * - `success` 抢到：带响应结果与按响应 `serverTime` 重算的时间偏移，供结果展示
- * - `failed` 未抢到：回到可点，只给一句兜底提示；错误码文案分流是后续票的范围
+ * - `failed` 未抢到：按错误码分流成 `ClaimFailure`；可恢复态（售罄 / 冷却）由详情轮询自行恢复，
+ *   终态保持禁用，其余失败回到可点
+ *
+ * 403 `REAL_NAME_REQUIRED` 与 401 `UNAUTHORIZED` 不进失败态：直接回到 idle 并回调上层，
+ * 由上层分别走实名弹窗（提交后自动重放）与登录回跳，不在按钮区落占位失败文案。
  */
 export type ClaimState =
   | { readonly phase: 'idle' }
   | { readonly phase: 'pending' }
   | { readonly phase: 'success'; readonly result: ClaimResult; readonly offsetMs: number }
-  | { readonly phase: 'failed'; readonly message: string }
-
-/** 失败兜底提示：本票不按错误码做文案映射，统一给一句可读默认文案。 */
-const CLAIM_FAILED_FALLBACK_MESSAGE = '抢购未成功，请稍后再试'
+  | { readonly phase: 'failed'; readonly failure: ClaimFailure }
 
 export interface UseCampaignClaimOptions {
   /** 注入当前时刻；默认 Date.now，测试里用来冻结本机时间。 */
@@ -27,11 +29,15 @@ export interface UseCampaignClaimOptions {
   readonly onClaimed?: () => void
   /** 服务端回 403 `REAL_NAME_REQUIRED`（本地以为已实名但其实没有）：回到空闲态，由上层开实名表单。 */
   readonly onRealNameRequired?: () => void
+  /** 会话过期回 401 `UNAUTHORIZED`：回到空闲态，由上层走登录回跳。 */
+  readonly onRequireLogin?: () => void
 }
 
 export interface UseCampaignClaimResult {
   readonly state: ClaimState
   readonly claim: () => void
+  /** 清掉失败态：可恢复状态（售罄回流 / 冷却到期）经详情重取解除后，由页面调用回到可点口径。 */
+  readonly clearFailure: () => void
 }
 
 /**
@@ -43,7 +49,7 @@ export function useCampaignClaim(
   campaignId: string,
   options: UseCampaignClaimOptions = {},
 ): UseCampaignClaimResult {
-  const { now = Date.now, onClaimed, onRealNameRequired } = options
+  const { now = Date.now, onClaimed, onRealNameRequired, onRequireLogin } = options
   const [state, setState] = useState<ClaimState>({ phase: 'idle' })
   const inFlightRef = useRef(false)
 
@@ -72,13 +78,24 @@ export function useCampaignClaim(
           onRealNameRequired?.()
           return
         }
-        // 不读错误码、不做文案分流：统一回到可点 + 兜底提示（#52 再按码映射）。
-        setState({ phase: 'failed', message: CLAIM_FAILED_FALLBACK_MESSAGE })
+        if (error instanceof ApiError && error.code === 'UNAUTHORIZED') {
+          // 会话过期：回到空闲态，上层走登录回跳；不在按钮区落失败提示。
+          setState({ phase: 'idle' })
+          onRequireLogin?.()
+          return
+        }
+        // 其余码按错误码分流：不读服务端 message 做判断，处置口径见 claimFailure.ts。
+        const failure = classifyClaimError(error)
+        setState({ phase: 'failed', failure })
       } finally {
         inFlightRef.current = false
       }
     })()
-  }, [campaignId, now, onClaimed, onRealNameRequired])
+  }, [campaignId, now, onClaimed, onRealNameRequired, onRequireLogin])
 
-  return { state, claim }
+  const clearFailure = useCallback(() => {
+    setState({ phase: 'idle' })
+  }, [])
+
+  return { state, claim, clearFailure }
 }

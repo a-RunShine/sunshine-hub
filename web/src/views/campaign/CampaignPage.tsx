@@ -7,6 +7,8 @@ import { buildLoginUrl } from '@/lib/redirect'
 import { useAuth } from '@/stores/auth'
 import { useCampaignDetail } from './useCampaignDetail'
 import { useCampaignClaim } from './useCampaignClaim'
+import { useVisibilityPolling, RECOVERABLE_REFETCH_INTERVAL_MS } from './polling'
+import { useRecoverableFailureReset } from './useClaimRecovery'
 import { CampaignDetailView } from './CampaignDetailView'
 import { CampaignRealNameDialog } from './CampaignRealNameDialog'
 
@@ -27,12 +29,34 @@ export default function CampaignPage() {
   const isLoggedIn = useAuth((state) => state.isLoggedIn)
   const needRealName = useAuth((state) => state.needRealName)
 
+  // 匿名点预约 / 抢购：与 401 拦截器、RequireAuth 同一套回跳口径，登录后回到本场次。
+  const navigate = useNavigate()
+  const location = useLocation()
+  const onRequireLogin = useCallback(() => {
+    navigate(buildLoginUrl(location))
+  }, [navigate, location])
+
   // 抢购成功后重新拉一次详情，刷新剩余份数 / 剩余本场额度；提交状态留在页面内，不进全局 store。
-  const { state: claim, claim: runClaim } = useCampaignClaim(campaignId, {
+  const { state: claim, claim: runClaim, clearFailure } = useCampaignClaim(campaignId, {
     onClaimed: reload,
     // 本地会话态与服务端脱节：服务端回 403 未实名，与本地预判走同一个开表单入口。
     onRealNameRequired: () => setRealNameOpen(true),
+    // 会话过期回 401：走与匿名点击同一个登录回跳口径，不在按钮区落失败提示。
+    onRequireLogin,
   })
+
+  // 可恢复态（售罄配额回流 / 冷却到期）统一挂一套可见性轮询：详情口径与抢购失败口径任一命中即开启，
+  // 配额回升 / 到期后按钮自行恢复可点；轮询只在可恢复态运行，页面不可见时暂停，卸载时清理。
+  const detailReason = state.status === 'ready' ? state.claimability.reason : null
+  const claimRecoverable = claim.phase === 'failed' && claim.failure.recoverable
+  useVisibilityPolling({
+    active: detailReason === 'SOLD_OUT' || detailReason === 'COOLDOWN' || claimRecoverable,
+    intervalMs: RECOVERABLE_REFETCH_INTERVAL_MS,
+    onTick: reload,
+  })
+
+  // 可恢复失败态解除：失败后新一轮详情回到可点口径时，清掉失败 overlay（门槛与判定见共享 hook）。
+  useRecoverableFailureReset(claim, state, clearFailure)
 
   const [reserving, setReserving] = useState(false)
   const [reserveError, setReserveError] = useState<string | null>(null)
@@ -65,13 +89,6 @@ export default function CampaignPage() {
     () => void runReserveAction(() => cancelReserveCampaign(campaignId)),
     [campaignId, runReserveAction],
   )
-
-  // 匿名点预约 / 抢购：与 401 拦截器、RequireAuth 同一套回跳口径，登录后回到本场次。
-  const navigate = useNavigate()
-  const location = useLocation()
-  const onRequireLogin = useCallback(() => {
-    navigate(buildLoginUrl(location))
-  }, [navigate, location])
 
   // 点击抢购的拦截闸口：匿名先走登录回跳；未实名先弹表单；都满足才真正发抢购请求。
   // 按钮全程可点，拦截发生在点击之后（ADR-0009）。

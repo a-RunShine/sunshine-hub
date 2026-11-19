@@ -20,11 +20,16 @@ export async function getCampaignDetail(campaignId: string): Promise<CampaignDet
 /**
  * 提交抢购。POST /campaigns/:campaignId/claim 原子完成扣配额、校验限购、分配编号；
  * 成功（201）返回订单号、收藏编号、付款截止时间与服务端时间。错误沿响应拦截器包成
- * ApiError 抛出，页面层只负责恢复可点与兜底提示，错误码分流是后续票的范围。
+ * ApiError 抛出，页面层按错误码分流处置。
+ *
+ * 401 不走拦截器的自动回登录页：登录回跳由页面层显式触发（#53），
+ * 这里把跳转权交回页面层，避免在拦截器里抢先跳走。
  */
 export async function postCampaignClaim(campaignId: string): Promise<ClaimResult> {
   const { data } = await client.post<ClaimResult>(
     `/campaigns/${encodeURIComponent(campaignId)}/claim`,
+    undefined,
+    { skipAuthRedirect: true },
   )
   return data
 }

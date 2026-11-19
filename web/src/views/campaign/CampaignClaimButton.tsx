@@ -9,7 +9,7 @@ interface CampaignClaimButtonProps {
   readonly reason: ClaimBlockReason | null
   /** 当前场次数据；#53（未登录、未实名拦截）在这个组件里取用。 */
   readonly detail: FlashCampaignDetail
-  /** 抢购提交状态：在途时按钮进入「抢购中」，失败时回到可点并给兜底提示。 */
+  /** 抢购提交状态：在途时按钮进入「抢购中」，失败时按错误码分流给处置提示。 */
   readonly claim: ClaimState
   /** 点击抢购。 */
   readonly onClaim: () => void
@@ -18,16 +18,12 @@ interface CampaignClaimButtonProps {
 /**
  * 抢购按钮区，独立成组件：上层只传「能不能点 + 原因 + 当前场次数据 + 提交状态」。
  * 在途期间按钮禁用，连点不会触发第二次提交（真正的防重闸口在 useCampaignClaim 的在途标记）。
+ * 失败后除不可恢复终态外按钮回到可点；可恢复态（售罄 / 冷却）由详情轮询自行恢复。
  */
 export function CampaignClaimButton({ clickable, reason, claim, onClaim }: CampaignClaimButtonProps) {
   const pending = claim.phase === 'pending'
-  const disabled = !clickable || pending
-  const message =
-    claim.phase === 'failed'
-      ? claim.message
-      : reason !== null
-        ? CLAIM_BLOCK_REASON_LABEL[reason]
-        : null
+  const failure = claim.phase === 'failed' ? claim.failure : null
+  const disabled = !clickable || pending || (failure !== null && !failure.clickableAfter)
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -39,7 +35,14 @@ export function CampaignClaimButton({ clickable, reason, claim, onClaim }: Campa
       >
         {pending ? '抢购中…' : '立即抢购'}
       </button>
-      {message !== null && <p className="text-sm text-neutral-400">{message}</p>}
+      {failure !== null ? (
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-sm text-neutral-400">{failure.summary}</p>
+          {failure.nextStep !== '' && <p className="text-xs text-neutral-500">{failure.nextStep}</p>}
+        </div>
+      ) : reason !== null ? (
+        <p className="text-sm text-neutral-400">{CLAIM_BLOCK_REASON_LABEL[reason]}</p>
+      ) : null}
     </div>
   )
 }
