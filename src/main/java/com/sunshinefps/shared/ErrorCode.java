@@ -40,6 +40,11 @@ public enum ErrorCode {
     ORDER_NOT_CANCELLABLE("这个订单现在不能取消", HttpStatus.CONFLICT),
     STOCK_INSUFFICIENT("库存不足", HttpStatus.CONFLICT),
     ADDRESS_REQUIRED("包含实体商品时必须选择收货地址", HttpStatus.BAD_REQUEST),
+    ADDRESS_NOT_FOUND("地址不存在，或不属于当前账号", HttpStatus.NOT_FOUND),
+    ADDRESS_LIMIT_EXCEEDED("最多保存 10 条收货地址", HttpStatus.BAD_REQUEST),
+    ADDRESS_IN_USE("这个地址还被未支付订单使用，先取消订单或换地址", HttpStatus.CONFLICT),
+    FULFILLMENT_NOT_FOUND("履约单不存在，或不属于当前账号", HttpStatus.NOT_FOUND),
+    FULFILLMENT_NOT_SIGNABLE("这个履约单现在不能签收", HttpStatus.CONFLICT),
 
     // 退款
     REFUND_NOT_FOUND("退款单不存在", HttpStatus.NOT_FOUND),
