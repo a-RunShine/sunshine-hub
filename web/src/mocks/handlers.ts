@@ -173,6 +173,20 @@ function jsonError(status: number, code: string, message: string): Response {
 }
 
 export function createHandlers(registry: readonly MockScenario[] = scenarios): HttpHandler[] {
+  // 预约态只记在本次 handler 实例的闭包里：POST 置 true、DELETE 置 false，
+  // GET 详情时叠加回 `reserved`；不写进共享场景常量，也不跨场次串味。
+  // 开发期用模块级单例；测试里 createHandlers() 独立实例化，互不复用。
+  const reservedByCampaign = new Map<number, boolean>()
+
+  const detailWithReserved = (
+    base: FlashCampaignDetail | SimpleCampaignDetail,
+    campaignId: number,
+  ) => {
+    const reserved = reservedByCampaign.get(campaignId)
+    const body = reserved === undefined ? base : { ...base, reserved }
+    return HttpResponse.json(body)
+  }
+
   return [
     http.get('/api/products', () =>
       HttpResponse.json({ items: products, page: 1, size: 20, total: products.length }),
@@ -225,13 +239,13 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
     http.get('/api/campaigns/:campaignId', ({ request, params }) => {
       const resolved = resolveScenario(request, registry)
       if (resolved instanceof Response) return resolved
-      if (resolved.campaignDetail) return HttpResponse.json(resolved.campaignDetail)
-
       const id = Number(params.campaignId)
-      if (id === 3) return HttpResponse.json(flashCampaignLimitReached)
-      if (id === 4) return HttpResponse.json(flashAnonymousCampaign)
-      if (id === 2) return HttpResponse.json(discountCampaign)
-      if (id === 1) return HttpResponse.json(flashCampaign)
+      if (resolved.campaignDetail) return detailWithReserved(resolved.campaignDetail, id)
+
+      if (id === 3) return detailWithReserved(flashCampaignLimitReached, id)
+      if (id === 4) return detailWithReserved(flashAnonymousCampaign, id)
+      if (id === 2) return detailWithReserved(discountCampaign, id)
+      if (id === 1) return detailWithReserved(flashCampaign, id)
       // 契约 404：场次不存在，code：CAMPAIGN_NOT_FOUND
       return jsonError(404, 'CAMPAIGN_NOT_FOUND', '场次不存在')
     }),
@@ -248,6 +262,18 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
       }
 
       return HttpResponse.json(happyClaim, { status: 201 })
+    }),
+
+    // 预约 / 取消预约：契约均为 204 空体；成功后把闭包里的预约态翻转，
+    // 下一次 GET 详情即可读到新的 `reserved`。不改变配额与本场额度。
+    http.post('/api/campaigns/:campaignId/reserve', ({ params }) => {
+      reservedByCampaign.set(Number(params.campaignId), true)
+      return new HttpResponse(null, { status: 204 })
+    }),
+
+    http.delete('/api/campaigns/:campaignId/reserve', ({ params }) => {
+      reservedByCampaign.set(Number(params.campaignId), false)
+      return new HttpResponse(null, { status: 204 })
     }),
 
     http.post('/api/orders', ({ request }) => {

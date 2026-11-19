@@ -1,4 +1,8 @@
-import { Link, useParams } from 'react-router-dom'
+import { useCallback, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { ApiError } from '@/api/client'
+import { cancelReserveCampaign, reserveCampaign } from '@/api/campaign'
+import { buildLoginUrl } from '@/lib/redirect'
 import { useCampaignDetail } from './useCampaignDetail'
 import { CampaignDetailView } from './CampaignDetailView'
 
@@ -9,6 +13,46 @@ import { CampaignDetailView } from './CampaignDetailView'
 export default function CampaignPage() {
   const { campaignId = '' } = useParams<{ campaignId: string }>()
   const { state, reload } = useCampaignDetail(campaignId)
+
+  const [reserving, setReserving] = useState(false)
+  const [reserveError, setReserveError] = useState<string | null>(null)
+
+  /**
+   * 预约 / 取消预约：204 无响应体，成功后重拉详情把 `reserved` 刷成新值；
+   * 失败时给一句可理解的提示，界面状态不与服务端脱节（不做乐观更新）。
+   */
+  const runReserveAction = useCallback(
+    async (action: () => Promise<void>) => {
+      setReserving(true)
+      setReserveError(null)
+      try {
+        await action()
+        await reload()
+      } catch (error) {
+        setReserveError(error instanceof ApiError ? error.message : '网络出了点问题')
+      } finally {
+        setReserving(false)
+      }
+    },
+    [reload],
+  )
+
+  const onReserve = useCallback(
+    () => void runReserveAction(() => reserveCampaign(campaignId)),
+    [campaignId, runReserveAction],
+  )
+  const onCancelReserve = useCallback(
+    () => void runReserveAction(() => cancelReserveCampaign(campaignId)),
+    [campaignId, runReserveAction],
+  )
+
+  // 匿名点预约：与 401 拦截器、RequireAuth 同一套回跳口径，登录后回到本场次；
+  // 本票不做未实名拦截（#53）。
+  const navigate = useNavigate()
+  const location = useLocation()
+  const onRequireLogin = useCallback(() => {
+    navigate(buildLoginUrl(location))
+  }, [navigate, location])
 
   if (state.status === 'loading') {
     return (
@@ -52,6 +96,12 @@ export default function CampaignPage() {
         detail={state.detail}
         offsetMs={state.offsetMs}
         claimability={state.claimability}
+        beforeStart={state.beforeStart}
+        reserving={reserving}
+        reserveError={reserveError}
+        onReserve={onReserve}
+        onCancelReserve={onCancelReserve}
+        onRequireLogin={onRequireLogin}
       />
     </main>
   )

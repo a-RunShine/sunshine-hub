@@ -2,11 +2,21 @@ import type { FlashCampaignDetail } from '@/api/campaign'
 import type { Claimability } from './claimability'
 import { CampaignClaimButton } from './CampaignClaimButton'
 import { CampaignCountdown } from './CampaignCountdown'
+import { CampaignReserveButton } from './CampaignReserveButton'
 
 interface CampaignDetailViewProps {
   readonly detail: FlashCampaignDetail
   readonly offsetMs: number
   readonly claimability: Claimability
+  /** 未开售；开售后预约入口消失。 */
+  readonly beforeStart?: boolean
+  /** 预约 / 取消请求在途。 */
+  readonly reserving?: boolean
+  /** 预约 / 取消失败的提示；null 表示无错误。 */
+  readonly reserveError?: string | null
+  readonly onReserve?: () => void
+  readonly onCancelReserve?: () => void
+  readonly onRequireLogin?: () => void
 }
 
 /** 按当前状态选倒计时目标：未开售对开售时刻，冷却中对冷却到期时刻，进行中对结束时刻。 */
@@ -20,8 +30,18 @@ function countdownTarget(
   return { target: null, label: '' }
 }
 
-/** 有数据时的展示：场次名、剩余份数（配额口径）、倒计时、抢购按钮区。 */
-export function CampaignDetailView({ detail, offsetMs, claimability }: CampaignDetailViewProps) {
+/** 有数据时的展示：场次名、剩余份数（配额口径）、倒计时、预约入口区、抢购按钮区。 */
+export function CampaignDetailView({
+  detail,
+  offsetMs,
+  claimability,
+  beforeStart = false,
+  reserving = false,
+  reserveError = null,
+  onReserve,
+  onCancelReserve,
+  onRequireLogin,
+}: CampaignDetailViewProps) {
   const countdown = countdownTarget(detail, claimability.reason)
 
   return (
@@ -31,6 +51,15 @@ export function CampaignDetailView({ detail, offsetMs, claimability }: CampaignD
         剩余份数：<span className="text-neutral-100">{detail.allocation.available}</span> 份
       </p>
       <CampaignCountdown target={countdown.target} offsetMs={offsetMs} label={countdown.label} />
+      <CampaignReserveButton
+        detail={detail}
+        beforeStart={beforeStart}
+        reserving={reserving}
+        reserveError={reserveError}
+        onReserve={onReserve}
+        onCancelReserve={onCancelReserve}
+        onRequireLogin={onRequireLogin}
+      />
       <CampaignClaimButton
         clickable={claimability.clickable}
         reason={claimability.reason}

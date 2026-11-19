@@ -15,3 +15,20 @@ export async function getCampaignDetail(campaignId: string): Promise<CampaignDet
   )
   return data
 }
+
+/**
+ * 预约场次。POST /campaigns/:campaignId/reserve，契约 204 无响应体。
+ * 成功后不读响应内容（不解析 204 body），由调用方重拉详情把 `reserved` 刷成新值，
+ * 不做与后端可能不一致的乐观更新。
+ */
+export async function reserveCampaign(campaignId: string): Promise<void> {
+  await client.post(`/campaigns/${encodeURIComponent(campaignId)}/reserve`)
+}
+
+/**
+ * 取消预约。DELETE /campaigns/:campaignId/reserve，契约 204 无响应体，口径同预约：
+ * 不读响应内容，成功后重拉详情刷新 `reserved`。
+ */
+export async function cancelReserveCampaign(campaignId: string): Promise<void> {
+  await client.delete(`/campaigns/${encodeURIComponent(campaignId)}/reserve`)
+}
