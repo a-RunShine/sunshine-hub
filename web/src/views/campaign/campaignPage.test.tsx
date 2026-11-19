@@ -7,6 +7,7 @@ import { client } from '@/api/client'
 import type { ClaimResult, FlashCampaignDetail } from '@/api/campaign'
 import { createHandlers } from '@/mocks/handlers'
 import { MOCK_SCENARIO_HEADER, scenarios } from '@/mocks/scenarios'
+import { useAuth } from '@/stores/auth'
 import CampaignPage from './CampaignPage'
 import { CampaignDetailView } from './CampaignDetailView'
 import { useCampaignDetail } from './useCampaignDetail'
@@ -23,8 +24,16 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   delete client.defaults.headers.common[MOCK_SCENARIO_HEADER]
+  // store 是模块单例：每个用例回到未登录初始态，不带上一个用例的购买人
+  useAuth.setState({ me: null, status: 'uninitialized' })
 })
 afterAll(() => server.close())
+
+/** 注入已实名购买人：claim 流程用例绕过登录 / 实名拦截，直接打抢购路径。 */
+function loginVerified() {
+  useAuth.getState().setMe({ id: 1, username: 'demo', realNameVerified: true })
+  useAuth.getState().setStatus('ready')
+}
 
 function renderPage(campaignId: string) {
   return render(
@@ -253,6 +262,7 @@ describe('抢购防重复提交', () => {
       }),
     )
 
+    loginVerified()
     renderPage('201')
     const button = await screen.findByRole('button', { name: '立即抢购' })
     expect(button).toBeEnabled()
@@ -283,6 +293,7 @@ describe('抢购成功展示', () => {
       ),
     )
 
+    loginVerified()
     renderPage('202')
     fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
 
@@ -315,6 +326,7 @@ describe('抢购成功展示', () => {
     )
 
     try {
+      loginVerified()
       renderPage('203')
       fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
       expect(await screen.findByText('01:00:00')).toBeInTheDocument()
@@ -338,6 +350,7 @@ describe('抢购失败恢复', () => {
       }),
     )
 
+    loginVerified()
     renderPage('204')
     fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
 
@@ -371,6 +384,7 @@ describe('成功后详情刷新', () => {
       ),
     )
 
+    loginVerified()
     renderPage('205')
     expect(await screen.findByText('1200')).toBeInTheDocument()
 
