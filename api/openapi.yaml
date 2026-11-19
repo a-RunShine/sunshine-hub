@@ -1275,7 +1275,7 @@ components:
       description: |
         场次详情。按 type 区分两种形状，前端先按 type 收窄，再读配额或折扣价。
 
-        `reserved` 与限时抢购形状里的 `remainingCampaignLimit` 属于购买人专属字段：按当前购买人计算，从共享场次缓存读出公共数据之后再叠加，不得写入共享缓存，避免不同购买人互相看到对方的预约状态与剩余额度。未登录（匿名）访问时这两个字段为 `null`，与 `false`、`0` 等已知零值区分开：`null` 表示「不知道」，`false` 表示已登录且未预约，`0` 表示本场额度用尽。
+        `reserved`、限时抢购形状里的 `remainingCampaignLimit` 与 `cooldownUntil` 属于购买人专属字段：按当前购买人计算，从共享场次缓存读出公共数据之后再叠加，不得写入共享缓存，避免不同购买人互相看到对方的预约状态、剩余额度与冷却时刻。未登录（匿名）访问时这些字段为 `null`，与 `false`、`0` 等已知零值区分开：`null` 表示「不知道」，`false` 表示已登录且未预约，`0` 表示本场额度用尽。
       oneOf:
         - $ref: '#/components/schemas/FlashCampaignDetail'
         - $ref: '#/components/schemas/SimpleCampaignDetail'
@@ -1288,7 +1288,7 @@ components:
     FlashCampaignDetail:
       type: object
       description: 限时抢购详情。配额与本场额度必填；售罄由 allocation.available 表达，不是 status 终态，回流释放后可恢复（ADR-0003）。
-      required: [id, name, type, productId, startAt, status, serverTime, allocation, campaignLimit, remainingCampaignLimit, reserved]
+      required: [id, name, type, productId, startAt, status, serverTime, allocation, campaignLimit, remainingCampaignLimit, cooldownUntil, reserved]
       properties:
         id:
           type: integer
@@ -1323,6 +1323,16 @@ components:
         remainingCampaignLimit:
           type: [integer, 'null']
           description: 当前购买人在本场还剩多少件可购（剩余本场额度）。按实名计算，同一实名下的不同账号看到一致结果；只反映本场，不跨场累计。`null` = 匿名（未登录，不知道）；`0` = 本场额度用尽。
+        cooldownUntil:
+          type: [string, 'null']
+          format: date-time
+          description: |
+            当前购买人在本商品上的购买冷却到期时刻；`null` = 当前购买人不在本商品的冷却中。
+
+            - **匿名（未登录）时返回 `null`**：不下发冷却态，与 `remainingCampaignLimit`、`reserved` 的匿名口径一致；未登录不预判冷却，按钮保持可点。
+            - **按商品计、跨场生效**（ADR-0013 / D4）：冷却挂 `productId`、不挂 `campaignId`，同一商品在不同场次的详情返回相同的 `cooldownUntil`。
+            - **与本场额度是两套互不替代的约束**：`remainingCampaignLimit` 按实名、按场独立计，只在本场内有效；本字段按商品、跨场累计。两者作用域不同是有意的不对称（ADR-0012 vs ADR-0013），不要当成 bug 抹平成同一把尺子。
+            - 只表达到期时刻：不表达未支付次数，也不表达冷却档位；7 天滚动窗口的计数结构仍待设计，不在本契约范围。
         reserved:
           type: [boolean, 'null']
           description: 当前购买人是否已预约。未登录（匿名）时为 `null`（不知道）；`false` = 已登录且未预约。

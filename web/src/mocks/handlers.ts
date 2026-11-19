@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import type { HttpHandler } from 'msw'
 import type { components } from '@/types/api'
-import { DEFAULT_SCENARIO_ID, scenarios } from './scenarios'
+import { DEFAULT_SCENARIO_ID, MOCK_SCENARIO_HEADER, scenarios } from './scenarios'
 import type { MockScenario } from './scenarios'
 
 /**
@@ -13,6 +13,7 @@ import type { MockScenario } from './scenarios'
  * - 匿名（未登录）：两者都为 null，与 false、0 等已知零值区分开。
  * remainingCampaignLimit 只出现在限时抢购（FLASH）形状上；普通售卖／折扣场形状只演示 discountPrice 与 reserved。
  * 冷却为商品级购买限制（按 productId、跨场生效）：FLASH 的 claim 与普通售卖／折扣场的 /orders 下单都会拦截；浏览与预约不拦。
+ * 详情通过 cooldownUntil 下发冷却到期时刻（匿名返回 null）；该字段与本场额度 remainingCampaignLimit 作用域不同，互不替代。
  *
  * 场景选择是请求级的：从请求头 `X-Mock-Scenario` 读场景 id，缺失或空串回落到 `happy`；
  * 未知 id 显式返回 400 BAD_REQUEST，不静默回落到成功。场景表见 scenarios.ts。
@@ -30,7 +31,7 @@ const now = () => new Date().toISOString()
 
 const me: Me = { id: 1, username: 'demo', realNameVerified: false }
 
-// 态一（限时抢购）：已登录，本场还有剩余额度（campaignLimit=2，已用 1 件，剩 1 件），已预约
+// 态一（限时抢购）：已登录，本场还有剩余额度（campaignLimit=2，已用 1 件，剩 1 件），已预约；不在冷却中
 const flashCampaign: FlashCampaignDetail = {
   id: 1,
   name: '暗夜猎手 首发',
@@ -43,10 +44,11 @@ const flashCampaign: FlashCampaignDetail = {
   allocation: { total: 5000, available: 4817, occupied: 183, pendingRepool: 0, sold: 0 },
   campaignLimit: 2,
   remainingCampaignLimit: 1,
+  cooldownUntil: null,
   reserved: true,
 }
 
-// 态二（限时抢购）：已登录但本场额度用尽（remainingCampaignLimit=0，按钮禁用）；配额仍有剩余，与售罄区分
+// 态二（限时抢购）：已登录但本场额度用尽（remainingCampaignLimit=0，按钮禁用）；配额仍有剩余，与售罄区分；不在冷却中
 const flashCampaignLimitReached: FlashCampaignDetail = {
   id: 3,
   name: '暗夜猎手 返场抢购',
@@ -59,6 +61,7 @@ const flashCampaignLimitReached: FlashCampaignDetail = {
   allocation: { total: 2000, available: 300, occupied: 1700, pendingRepool: 0, sold: 0 },
   campaignLimit: 2,
   remainingCampaignLimit: 0,
+  cooldownUntil: null,
   reserved: false,
 }
 
@@ -75,6 +78,7 @@ const flashAnonymousCampaign: FlashCampaignDetail = {
   allocation: { total: 3000, available: 2960, occupied: 40, pendingRepool: 0, sold: 0 },
   campaignLimit: 2,
   remainingCampaignLimit: null,
+  cooldownUntil: null,
   reserved: null,
 }
 
@@ -157,7 +161,7 @@ function resolveScenario(
   request: Request,
   registry: readonly MockScenario[],
 ): MockScenario | Response {
-  const rawId = request.headers.get('X-Mock-Scenario')?.trim() ?? ''
+  const rawId = request.headers.get(MOCK_SCENARIO_HEADER)?.trim() ?? ''
   const scenarioId = rawId === '' ? DEFAULT_SCENARIO_ID : rawId
   const scenario = registry.find((item) => item.id === scenarioId)
   return scenario ?? jsonError(400, 'BAD_REQUEST', `未知的 mock 场景「${scenarioId}」`)
@@ -169,6 +173,23 @@ function jsonError(status: number, code: string, message: string): Response {
 }
 
 export function createHandlers(registry: readonly MockScenario[] = scenarios): HttpHandler[] {
+  // 预约态只记在本次 handler 实例的闭包里：POST 置 true、DELETE 置 false，
+  // GET 详情时叠加回 `reserved`；不写进共享场景常量，也不跨场次串味。
+  // 开发期用模块级单例；测试里 createHandlers() 独立实例化，互不复用。
+  const reservedByCampaign = new Map<number, boolean>()
+  // 实名档案只记在本次 handler 实例的闭包里：PUT 成功后回写，GET /me 读到新值；
+  // 不写进共享场景常量，测试实例之间互不复用。
+  let realNameProfile: Me | null = null
+
+  const detailWithReserved = (
+    base: FlashCampaignDetail | SimpleCampaignDetail,
+    campaignId: number,
+  ) => {
+    const reserved = reservedByCampaign.get(campaignId)
+    const body = reserved === undefined ? base : { ...base, reserved }
+    return HttpResponse.json(body)
+  }
+
   return [
     http.get('/api/products', () =>
       HttpResponse.json({ items: products, page: 1, size: 20, total: products.length }),
@@ -221,12 +242,15 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
     http.get('/api/campaigns/:campaignId', ({ request, params }) => {
       const resolved = resolveScenario(request, registry)
       if (resolved instanceof Response) return resolved
-      if (resolved.campaignDetail) return HttpResponse.json(resolved.campaignDetail)
-
       const id = Number(params.campaignId)
-      if (id === 3) return HttpResponse.json(flashCampaignLimitReached)
-      if (id === 4) return HttpResponse.json(flashAnonymousCampaign)
-      return HttpResponse.json(id === 2 ? discountCampaign : flashCampaign)
+      if (resolved.campaignDetail) return detailWithReserved(resolved.campaignDetail, id)
+
+      if (id === 3) return detailWithReserved(flashCampaignLimitReached, id)
+      if (id === 4) return detailWithReserved(flashAnonymousCampaign, id)
+      if (id === 2) return detailWithReserved(discountCampaign, id)
+      if (id === 1) return detailWithReserved(flashCampaign, id)
+      // 契约 404：场次不存在，code：CAMPAIGN_NOT_FOUND
+      return jsonError(404, 'CAMPAIGN_NOT_FOUND', '场次不存在')
     }),
 
     http.post('/api/campaigns/:campaignId/claim', ({ request }) => {
@@ -241,6 +265,18 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
       }
 
       return HttpResponse.json(happyClaim, { status: 201 })
+    }),
+
+    // 预约 / 取消预约：契约均为 204 空体；成功后把闭包里的预约态翻转，
+    // 下一次 GET 详情即可读到新的 `reserved`。不改变配额与本场额度。
+    http.post('/api/campaigns/:campaignId/reserve', ({ params }) => {
+      reservedByCampaign.set(Number(params.campaignId), true)
+      return new HttpResponse(null, { status: 204 })
+    }),
+
+    http.delete('/api/campaigns/:campaignId/reserve', ({ params }) => {
+      reservedByCampaign.set(Number(params.campaignId), false)
+      return new HttpResponse(null, { status: 204 })
     }),
 
     http.post('/api/orders', ({ request }) => {
@@ -259,7 +295,24 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
 
     http.post('/api/auth/login', () => HttpResponse.json(me)),
 
-    http.get('/api/me', () => HttpResponse.json(me)),
+    // 提交实名：成功回写最新购买人档案（realNameVerified 翻 true）；缺姓名或证件号按契约回 400。
+    http.put('/api/me/real-name', async ({ request }) => {
+      const body = (await request.json()) as Partial<{ realName: string; idNumber: string }>
+      const realName = typeof body?.realName === 'string' ? body.realName.trim() : ''
+      const idNumber = typeof body?.idNumber === 'string' ? body.idNumber.trim() : ''
+      if (realName === '' || idNumber === '') {
+        return jsonError(400, 'BAD_REQUEST', '姓名与证件号不能为空')
+      }
+      realNameProfile = {
+        ...me,
+        realNameVerified: true,
+        realName,
+        idNumberTail: idNumber.slice(-4),
+      }
+      return HttpResponse.json(realNameProfile, { status: 200 })
+    }),
+
+    http.get('/api/me', () => HttpResponse.json(realNameProfile ?? me)),
   ]
 }
 
