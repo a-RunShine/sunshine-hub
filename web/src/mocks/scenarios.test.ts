@@ -85,6 +85,57 @@ function deleteCategory(scenarioId?: string): Promise<Response> {
   })
 }
 
+function postAddress(scenarioId?: string): Promise<Response> {
+  return fetch(`${ORIGIN}/api/addresses`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...scenarioHeaders(scenarioId) },
+    body: JSON.stringify({
+      receiver: 'x',
+      phone: '13800000000',
+      province: '四川省',
+      city: '成都市',
+      district: '武侯区',
+      detail: '天府三街 1 号',
+    }),
+  })
+}
+
+function putAddress(scenarioId?: string): Promise<Response> {
+  return fetch(`${ORIGIN}/api/addresses/1`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...scenarioHeaders(scenarioId) },
+    body: JSON.stringify({
+      receiver: 'x',
+      phone: '13800000000',
+      province: '四川省',
+      city: '成都市',
+      district: '武侯区',
+      detail: '天府三街 1 号',
+    }),
+  })
+}
+
+function deleteAddress(scenarioId?: string): Promise<Response> {
+  return fetch(`${ORIGIN}/api/addresses/1`, {
+    method: 'DELETE',
+    headers: scenarioHeaders(scenarioId),
+  })
+}
+
+function putAddressDefault(scenarioId?: string): Promise<Response> {
+  return fetch(`${ORIGIN}/api/addresses/1/default`, {
+    method: 'PUT',
+    headers: scenarioHeaders(scenarioId),
+  })
+}
+
+function signFulfillment(scenarioId?: string): Promise<Response> {
+  return fetch(`${ORIGIN}/api/fulfillments/1/sign`, {
+    method: 'POST',
+    headers: scenarioHeaders(scenarioId),
+  })
+}
+
 describe('场景注册表：逐场景走 HTTP 边界', () => {
   it.each(scenarios)('$id：按声明产出失败响应或详情形状', async (scenario) => {
     if (scenario.claimFailure) {
@@ -110,6 +161,51 @@ describe('场景注册表：逐场景走 HTTP 边界', () => {
       expect(res.status).toBe(scenario.categoryFailure.status)
       const body = await res.json()
       expect(body.code).toBe(scenario.categoryFailure.code)
+      expect(typeof body.message).toBe('string')
+      expect(body.message.length).toBeGreaterThan(0)
+    }
+
+    if (scenario.addressCreateFailure) {
+      const res = await postAddress(scenario.id)
+      expect(res.status).toBe(scenario.addressCreateFailure.status)
+      const body = await res.json()
+      expect(body.code).toBe(scenario.addressCreateFailure.code)
+      expect(typeof body.message).toBe('string')
+      expect(body.message.length).toBeGreaterThan(0)
+    }
+
+    if (scenario.addressUpdateFailure) {
+      const res = await putAddress(scenario.id)
+      expect(res.status).toBe(scenario.addressUpdateFailure.status)
+      const body = await res.json()
+      expect(body.code).toBe(scenario.addressUpdateFailure.code)
+      expect(typeof body.message).toBe('string')
+      expect(body.message.length).toBeGreaterThan(0)
+    }
+
+    if (scenario.addressDeleteFailure) {
+      const res = await deleteAddress(scenario.id)
+      expect(res.status).toBe(scenario.addressDeleteFailure.status)
+      const body = await res.json()
+      expect(body.code).toBe(scenario.addressDeleteFailure.code)
+      expect(typeof body.message).toBe('string')
+      expect(body.message.length).toBeGreaterThan(0)
+    }
+
+    if (scenario.addressDefaultFailure) {
+      const res = await putAddressDefault(scenario.id)
+      expect(res.status).toBe(scenario.addressDefaultFailure.status)
+      const body = await res.json()
+      expect(body.code).toBe(scenario.addressDefaultFailure.code)
+      expect(typeof body.message).toBe('string')
+      expect(body.message.length).toBeGreaterThan(0)
+    }
+
+    if (scenario.signFailure) {
+      const res = await signFulfillment(scenario.id)
+      expect(res.status).toBe(scenario.signFailure.status)
+      const body = await res.json()
+      expect(body.code).toBe(scenario.signFailure.code)
       expect(typeof body.message).toBe('string')
       expect(body.message.length).toBeGreaterThan(0)
     }
