@@ -62,6 +62,14 @@ function postOrder(scenarioId?: string): Promise<Response> {
   })
 }
 
+function putRealName(payload: Record<string, unknown>): Promise<Response> {
+  return fetch(`${ORIGIN}/api/me/real-name`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
 function getDetail(scenarioId?: string): Promise<Response> {
   return fetch(`${ORIGIN}/api/campaigns/1`, { headers: scenarioHeaders(scenarioId) })
 }
@@ -248,5 +256,28 @@ describe('注册表冻结约定', () => {
     for (const id of FROZEN_SCENARIO_IDS) {
       expect(ids.has(id)).toBe(true)
     }
+  })
+})
+
+describe('实名提交 mock 边界', () => {
+  it('PUT /me/real-name 成功：200，回写档案 realNameVerified 为 true、realName 取提交值；GET /me 读到新态', async () => {
+    const res = await putRealName({ realName: '张三', idNumber: '11010119900101123X' })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.realNameVerified).toBe(true)
+    expect(body.realName).toBe('张三')
+
+    const meRes = await fetch(`${ORIGIN}/api/me`)
+    expect(meRes.status).toBe(200)
+    expect((await meRes.json()).realNameVerified).toBe(true)
+  })
+
+  it('缺字段：400 BAD_REQUEST，错误信封为 {code, message}', async () => {
+    const res = await putRealName({ realName: '张三' })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.code).toBe('BAD_REQUEST')
+    expect(typeof body.message).toBe('string')
+    expect(body.message.length).toBeGreaterThan(0)
   })
 })

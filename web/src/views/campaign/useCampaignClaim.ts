@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { postCampaignClaim, type ClaimResult } from '@/api/campaign'
+import { ApiError } from '@/api/client'
 import { computeOffsetMs } from './serverClock'
 
 /**
@@ -24,6 +25,8 @@ export interface UseCampaignClaimOptions {
   readonly now?: () => number
   /** 抢购成功后回调（页面据此重新拉详情，刷新份数 / 剩余本场额度）。 */
   readonly onClaimed?: () => void
+  /** 服务端回 403 `REAL_NAME_REQUIRED`（本地以为已实名但其实没有）：回到空闲态，由上层开实名表单。 */
+  readonly onRealNameRequired?: () => void
 }
 
 export interface UseCampaignClaimResult {
@@ -40,7 +43,7 @@ export function useCampaignClaim(
   campaignId: string,
   options: UseCampaignClaimOptions = {},
 ): UseCampaignClaimResult {
-  const { now = Date.now, onClaimed } = options
+  const { now = Date.now, onClaimed, onRealNameRequired } = options
   const [state, setState] = useState<ClaimState>({ phase: 'idle' })
   const inFlightRef = useRef(false)
 
@@ -61,14 +64,21 @@ export function useCampaignClaim(
         const offsetMs = computeOffsetMs(result.serverTime, now())
         setState({ phase: 'success', result, offsetMs })
         onClaimed?.()
-      } catch {
+      } catch (error) {
+        if (error instanceof ApiError && error.code === 'REAL_NAME_REQUIRED') {
+          // 本地会话态与服务端脱节：回到空闲态（不留在失败兜底文案上），上层开实名表单；
+          // 实名成功后的重放仍走本 hook 的 claim()，防重闸口与状态机同一条路径。
+          setState({ phase: 'idle' })
+          onRealNameRequired?.()
+          return
+        }
         // 不读错误码、不做文案分流：统一回到可点 + 兜底提示（#52 再按码映射）。
         setState({ phase: 'failed', message: CLAIM_FAILED_FALLBACK_MESSAGE })
       } finally {
         inFlightRef.current = false
       }
     })()
-  }, [campaignId, now, onClaimed])
+  }, [campaignId, now, onClaimed, onRealNameRequired])
 
   return { state, claim }
 }
