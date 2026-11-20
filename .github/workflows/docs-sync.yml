@@ -244,6 +244,13 @@ jobs:
 
           git diff --stat main..HEAD > .docs-sync-run/diff-stat.txt
 
+          # 提交只存在于本 runner 的工作区。gh pr create 比的是远端，不 push 就只会得到
+          # 「No commits between main and <branch>」——这条以前漏过，一次 full 跑白费。
+          git push origin "$BRANCH"
+          # 推完核一次远端真有这个分支：push 静默没成时，宁可在这里红，也不要拿一个
+          # 不存在的 head 去开 PR。--exit-code 让「没匹配到」变成非零退出。
+          git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null
+
           # issue 编号此时还没拿到，先留空；双向链接在滚动 issue 步骤补回来
           : > .docs-sync-run/issue-number
           node .docs-sync-run/render-pr-body.mjs
