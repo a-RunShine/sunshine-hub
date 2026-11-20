@@ -33,6 +33,9 @@ CI 的 redocly lint 是绿的（run `43850258902`），**结构合法与数字�
 
 > **2026-11-20 复核（main `c55ccb6`）**：api/openapi.yaml 实测 44 个 path、48 个 operation。原「38 个 path；40 个 operation」按历史断言保留。
 
+
+> **2026-11-20 复核（main `abf8a35`）**：api/openapi.yaml 实测 44 个 path、48 个 operation。原「38 个 path；40 个 operation」按历史断言保留。
+
 ## 阶段清单（issue #7 原文为准）
 
 **2026-11-16 复核**，四个阶段，依赖图 `0 ──┬──> 1 ──┐ / └──> 2 ──┴──> 3`：
@@ -109,6 +112,9 @@ issue #7 的页面清单是 **7 个区域**：身份、商城、交易、资产�
 
 
 > **2026-11-20 复核（main `c55ccb6`）**：open issue 5 个。原「**2026-11-17 复核（基线 `b987a6f`，GitHub Issues 页面核实）**：共 **6** 个 open issue；**#31 已关闭**。」按历史断言保留。
+
+
+> **2026-11-20 复核（main `abf8a35`）**：open issue 5 个。原「**2026-11-17 复核（基线 `b987a6f`，GitHub Issues 页面核实）**：共 **6** 个 open issue；**#31 已关闭**。；> **2026-11-20 复核（main `c55ccb6`）**：open issue 5 个。原「**2026-11-17 复核（基线 `b987a6f`，GitHub Issues 页面核实）**：共 **6** 个 open issue；**#31 已关闭**。」按历史断言保留。」按历史断言保留。
 
 ### 旧快照（2026-11-16，superseded）
 
