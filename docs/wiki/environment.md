@@ -23,6 +23,21 @@ agents 在这个仓库里踩过的坑，以及绕开它们的正确姿势。每�
 
 **GitHub 写操作走 `gh` CLI。** GitHub MCP 的写工具在当前客户端不可用；issue / PR 的创建、评论、打标签、合并一律用 `/home/user/.local/bin/gh`。读也建议用它，省一次能力探测。
 
+## docs-sync workflow 的 PAT：`DOCS_SYNC_TOKEN`
+
+**2026-11-20 记**：`.github/workflows/docs-sync.yml` 用 fine-grained PAT `DOCS_SYNC_TOKEN` 检出 main、开/更新 docs PR 与滚动 issue。token 值存在仓库 Secrets，**本页不记 token 值**，也不写进任何提交文件。
+
+权限仅本仓库：
+
+| 权限 | 级别 |
+| --- | --- |
+| Contents | Read and write |
+| Pull requests | Read and write |
+| Issues | Read and write |
+| Metadata | Read |
+
+读操作走 workflow 顶层最小权限（contents / pull-requests / issues 均 read）；写动作一律经这个 PAT。
+
 ## 委派 subagent 的可用路径
 
 > **2026-11-20 更正（superseded）**：下面整段是 macOS 那台机器的 runtime 限制，**不适用于当前云主机**。当前 `create_agent`（`OrganizerAgent`）可用，本轮的 #48–#54、#29、#45/#46 三条实现线都是这样派出去的；`mcp__builtin__create_chat_session` 与 `read_chat_session` 在当前客户端不存在，照着调用会失败。原记录按历史保留。
