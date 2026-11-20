@@ -13,6 +13,16 @@ function scenarioTargets(scenario: MockScenario): string[] {
   if (scenario.campaignDetail) targets.push('详情')
   if (scenario.claimFailure) targets.push('抢购')
   if (scenario.orderFailure) targets.push('下单')
+  if (scenario.categoryFailure) targets.push('分类管理')
+  if (
+    scenario.addressCreateFailure ||
+    scenario.addressUpdateFailure ||
+    scenario.addressDeleteFailure ||
+    scenario.addressDefaultFailure
+  ) {
+    targets.push('地址')
+  }
+  if (scenario.signFailure) targets.push('签收')
   return targets
 }
 

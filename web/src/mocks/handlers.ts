@@ -21,11 +21,34 @@ import type { MockScenario } from './scenarios'
 
 type ProductSummary = components['schemas']['ProductSummary']
 type ProductDetail = components['schemas']['ProductDetail']
+type Category = components['schemas']['Category']
+type CategoryInput = components['schemas']['CategoryInput']
 type Me = components['schemas']['Me']
 type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
 type SimpleCampaignDetail = components['schemas']['SimpleCampaignDetail']
 type Order = components['schemas']['Order']
+type OrderStatus = components['schemas']['OrderStatus']
 type ClaimResult = components['schemas']['ClaimResult']
+type Address = components['schemas']['Address']
+type AddressInput = components['schemas']['AddressInput']
+type Fulfillment = components['schemas']['Fulfillment']
+
+/** 地址种子：闭包内额外记 createdAt（创建先后），不进响应体；默认提升按它取最早一条。 */
+interface SeedAddress extends Address {
+  createdAt: number
+}
+
+/** 闭包内的最小订单记录：只记挡删/支付演示所需的状态与引用地址，不进响应体。 */
+interface SeedOrder {
+  orderNo: string
+  status: OrderStatus
+  addressId: number
+}
+
+/** 测试可注入地址种子（例如空地址表验证首条自动默认）；缺省用模块内初始数据。 */
+export interface HandlerSeed {
+  addresses?: Address[]
+}
 
 const now = () => new Date().toISOString()
 
@@ -101,6 +124,7 @@ const products: ProductSummary[] = [
     id: 1,
     name: '暗夜猎手 限定皮肤',
     kind: 'VIRTUAL',
+    categoryId: 1,
     coverUrl: '',
     minPrice: 12800,
     limited: true,
@@ -109,6 +133,7 @@ const products: ProductSummary[] = [
     id: 2,
     name: '破晓之环 典藏手办',
     kind: 'PHYSICAL',
+    categoryId: 4,
     coverUrl: '',
     minPrice: 59900,
     limited: true,
@@ -117,9 +142,145 @@ const products: ProductSummary[] = [
     id: 3,
     name: '赛季队服',
     kind: 'PHYSICAL',
+    categoryId: 5,
     coverUrl: '',
     minPrice: 19900,
     limited: false,
+  },
+]
+
+// 初始五个分类（ADR-0014）：分类取值不进契约枚举，这里只是开发期种子数据。
+const initialCategories: Category[] = [
+  { id: 1, name: '武器皮肤', sortOrder: 1 },
+  { id: 2, name: '角色皮肤', sortOrder: 2 },
+  { id: 3, name: '徽章', sortOrder: 3 },
+  { id: 4, name: '手办', sortOrder: 4 },
+  { id: 5, name: '服饰', sortOrder: 5 },
+]
+
+// 初始三条收货地址：第一条默认；id 3 被一张未支付订单引用（删除回 409）。
+const initialAddresses: SeedAddress[] = [
+  { id: 1, receiver: '林晚', phone: '13800000001', province: '四川省', city: '成都市', district: '武侯区', detail: '天府三街 1 号', isDefault: true, createdAt: 1 },
+  { id: 2, receiver: '林晚', phone: '13800000002', province: '四川省', city: '成都市', district: '锦江区', detail: '春熙路 2 号', isDefault: false, createdAt: 2 },
+  { id: 3, receiver: '周野', phone: '13800000003', province: '广东省', city: '深圳市', district: '南山区', detail: '科技园 3 号', isDefault: false, createdAt: 3 },
+]
+
+// 初始四张履约单：实体已发货、虚拟已完成、实体待发货、实体已完成。
+// address 是下单时冻结的完整快照，与地址行互不引用；地址行删除后快照仍完整返回。
+const initialFulfillments: Fulfillment[] = [
+  {
+    id: 1,
+    orderNo: 'SO-SEED-1',
+    kind: 'PHYSICAL',
+    status: 'SHIPPED',
+    trackingNo: 'SF1000000001',
+    shippedAt: new Date(Date.now() - 86_400_000).toISOString(),
+    signedAt: null,
+    address: {
+      id: 1,
+      receiver: '林晚',
+      phone: '13800000001',
+      province: '四川省',
+      city: '成都市',
+      district: '武侯区',
+      detail: '天府三街 1 号',
+      isDefault: true,
+    },
+    items: [
+      {
+        productId: 2,
+        productName: '破晓之环 典藏手办',
+        skuId: 20,
+        skuName: '黑色 L 码',
+        kind: 'PHYSICAL',
+        quantity: 1,
+        unitPrice: 59900,
+        collectibleNumber: '0427',
+      },
+    ],
+  },
+  {
+    id: 2,
+    orderNo: 'SO-SEED-2',
+    kind: 'VIRTUAL',
+    status: 'COMPLETED',
+    trackingNo: null,
+    shippedAt: null,
+    signedAt: null,
+    items: [
+      {
+        productId: 1,
+        productName: '暗夜猎手 限定皮肤',
+        skuId: 10,
+        skuName: '默认',
+        kind: 'VIRTUAL',
+        quantity: 1,
+        unitPrice: 12800,
+        collectibleNumber: null,
+      },
+    ],
+  },
+  {
+    id: 3,
+    orderNo: 'SO-SEED-3',
+    kind: 'PHYSICAL',
+    status: 'PENDING',
+    trackingNo: null,
+    shippedAt: null,
+    signedAt: null,
+    address: {
+      id: 3,
+      receiver: '周野',
+      phone: '13800000003',
+      province: '广东省',
+      city: '深圳市',
+      district: '南山区',
+      detail: '科技园 3 号',
+      isDefault: false,
+    },
+    items: [
+      {
+        productId: 3,
+        productName: '赛季队服',
+        skuId: 30,
+        skuName: '黑色 M 码',
+        kind: 'PHYSICAL',
+        quantity: 1,
+        unitPrice: 19900,
+        collectibleNumber: null,
+      },
+    ],
+  },
+  {
+    id: 4,
+    orderNo: 'SO-SEED-4',
+    kind: 'PHYSICAL',
+    status: 'COMPLETED',
+    trackingNo: null,
+    shippedAt: null,
+    signedAt: null,
+    address: {
+      id: 2,
+      receiver: '林晚',
+      phone: '13800000002',
+      province: '四川省',
+      city: '成都市',
+      district: '锦江区',
+      detail: '春熙路 2 号',
+      isDefault: false,
+    },
+    items: [
+      {
+        productId: 3,
+        productName: '赛季队服',
+        skuId: 30,
+        skuName: '黑色 M 码',
+        kind: 'PHYSICAL',
+        quantity: 1,
+        unitPrice: 19900,
+        collectibleNumber: null,
+      },
+    ],
   },
 ]
 
@@ -172,7 +333,10 @@ function jsonError(status: number, code: string, message: string): Response {
   return HttpResponse.json({ code, message }, { status })
 }
 
-export function createHandlers(registry: readonly MockScenario[] = scenarios): HttpHandler[] {
+export function createHandlers(
+  registry: readonly MockScenario[] = scenarios,
+  seed?: HandlerSeed,
+): HttpHandler[] {
   // 预约态只记在本次 handler 实例的闭包里：POST 置 true、DELETE 置 false，
   // GET 详情时叠加回 `reserved`；不写进共享场景常量，也不跨场次串味。
   // 开发期用模块级单例；测试里 createHandlers() 独立实例化，互不复用。
@@ -180,6 +344,37 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
   // 实名档案只记在本次 handler 实例的闭包里：PUT 成功后回写，GET /me 读到新值；
   // 不写进共享场景常量，测试实例之间互不复用。
   let realNameProfile: Me | null = null
+  // 分类表同样只记在闭包里：新增/改名/调序/删除都在本次 handler 实例上回写，
+  // 不写进共享场景常量；商品对分类的引用由上面的 products 数据决定。
+  const categories = new Map<number, Category>(initialCategories.map((c) => [c.id, c]))
+  let nextCategoryId = initialCategories.length + 1
+  // 地址表与履约单同样只记在闭包里：增删改、设默认、签收都在本次实例上回写；
+  // 种子可由测试注入（例如空地址表验证首条自动默认）。
+  const seedAddresses: SeedAddress[] = (seed?.addresses ?? initialAddresses).map((address, index) => ({
+    ...address,
+    createdAt: index + 1,
+  }))
+  const addresses = new Map<number, SeedAddress>(seedAddresses.map((a) => [a.id, a]))
+  let nextAddressId = addresses.size === 0 ? 1 : Math.max(...addresses.keys()) + 1
+  const fulfillments = new Map<number, Fulfillment>(
+    initialFulfillments.map((f) => [f.id, f]),
+  )
+  // 订单表同样只记在闭包里：挡删判断读订单状态，已支付订单有履约快照、不挡地址删除；
+  // 种子可由测试隔离，不写进共享场景常量。
+  const orders = new Map<string, SeedOrder>([
+    ['SO-UNPAID-1', { orderNo: 'SO-UNPAID-1', status: 'PENDING_PAYMENT', addressId: 3 }],
+  ])
+
+  const toAddress = (address: SeedAddress): Address => ({
+    id: address.id,
+    receiver: address.receiver,
+    phone: address.phone,
+    province: address.province,
+    city: address.city,
+    district: address.district,
+    detail: address.detail,
+    isDefault: address.isDefault,
+  })
 
   const detailWithReserved = (
     base: FlashCampaignDetail | SimpleCampaignDetail,
@@ -191,9 +386,22 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
   }
 
   return [
-    http.get('/api/products', () =>
-      HttpResponse.json({ items: products, page: 1, size: 20, total: products.length }),
-    ),
+    http.get('/api/products', ({ request }) => {
+      const url = new URL(request.url, 'http://localhost:3000')
+      const kind = url.searchParams.get('kind')
+      const categoryId = url.searchParams.get('categoryId')
+      let items = products
+      if (kind !== null) items = items.filter((p) => p.kind === kind)
+      if (categoryId !== null) {
+        items = items.filter((p) => p.categoryId === Number(categoryId))
+      }
+      return HttpResponse.json({ items, page: 1, size: 20, total: items.length })
+    }),
+
+    http.get('/api/categories', () => {
+      const sorted = [...categories.values()].sort((a, b) => a.sortOrder - b.sortOrder)
+      return HttpResponse.json(sorted)
+    }),
 
     http.get('/api/products/:productId', ({ params }) => {
       const id = Number(params.productId)
@@ -220,6 +428,215 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
         ],
       }
       return HttpResponse.json(detail)
+    }),
+
+    http.post('/api/admin/categories', async ({ request }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.categoryFailure) {
+        return jsonError(
+          resolved.categoryFailure.status,
+          resolved.categoryFailure.code,
+          resolved.categoryFailure.message,
+        )
+      }
+      const body = (await request.json()) as CategoryInput
+      const created: Category = { id: nextCategoryId++, name: body.name, sortOrder: body.sortOrder }
+      categories.set(created.id, created)
+      return HttpResponse.json(created, { status: 201 })
+    }),
+
+    http.put('/api/admin/categories/:categoryId', async ({ request, params }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.categoryFailure) {
+        return jsonError(
+          resolved.categoryFailure.status,
+          resolved.categoryFailure.code,
+          resolved.categoryFailure.message,
+        )
+      }
+      const id = Number(params.categoryId)
+      const existing = categories.get(id)
+      if (!existing) {
+        return jsonError(404, 'CATEGORY_NOT_FOUND', '分类不存在')
+      }
+      const body = (await request.json()) as CategoryInput
+      const updated: Category = { ...existing, name: body.name, sortOrder: body.sortOrder }
+      categories.set(id, updated)
+      return HttpResponse.json(updated, { status: 200 })
+    }),
+
+    http.delete('/api/admin/categories/:categoryId', ({ request, params }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.categoryFailure) {
+        return jsonError(
+          resolved.categoryFailure.status,
+          resolved.categoryFailure.code,
+          resolved.categoryFailure.message,
+        )
+      }
+      const id = Number(params.categoryId)
+      if (!categories.has(id)) {
+        return jsonError(404, 'CATEGORY_NOT_FOUND', '分类不存在')
+      }
+      const referenced = products.some((p) => p.categoryId === id)
+      if (referenced) {
+        return jsonError(409, 'CATEGORY_IN_USE', '分类下还有商品，先迁移商品再删除')
+      }
+      categories.delete(id)
+      return new HttpResponse(null, { status: 204 })
+    }),
+
+    http.get('/api/addresses', () => {
+      const items = [...addresses.values()].sort((a, b) => a.createdAt - b.createdAt)
+      return HttpResponse.json({ items: items.map(toAddress) })
+    }),
+
+    http.post('/api/addresses', async ({ request }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.addressCreateFailure) {
+        return jsonError(
+          resolved.addressCreateFailure.status,
+          resolved.addressCreateFailure.code,
+          resolved.addressCreateFailure.message,
+        )
+      }
+      const body = (await request.json()) as AddressInput
+      if (addresses.size >= 10) {
+        return jsonError(400, 'ADDRESS_LIMIT_EXCEEDED', '最多保存 10 条收货地址')
+      }
+      const id = nextAddressId++
+      // 默认归属不接受入参：列表为空时首条自动默认，其余由独立的设默认动作维护。
+      const created: SeedAddress = {
+        ...body,
+        id,
+        isDefault: addresses.size === 0,
+        createdAt: Date.now(),
+      }
+      addresses.set(id, created)
+      return HttpResponse.json(toAddress(created), { status: 201 })
+    }),
+
+    http.put('/api/addresses/:addressId', async ({ request, params }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.addressUpdateFailure) {
+        return jsonError(
+          resolved.addressUpdateFailure.status,
+          resolved.addressUpdateFailure.code,
+          resolved.addressUpdateFailure.message,
+        )
+      }
+      const id = Number(params.addressId)
+      const existing = addresses.get(id)
+      if (!existing) {
+        return jsonError(404, 'ADDRESS_NOT_FOUND', '地址不存在，或不属于当前账号')
+      }
+      const body = (await request.json()) as AddressInput
+      // AddressInput 不接受 isDefault：只落库六个输入字段，默认标记保持原值不变。
+      const updated: SeedAddress = {
+        ...existing,
+        receiver: body.receiver,
+        phone: body.phone,
+        province: body.province,
+        city: body.city,
+        district: body.district,
+        detail: body.detail,
+      }
+      addresses.set(id, updated)
+      return HttpResponse.json(toAddress(updated), { status: 200 })
+    }),
+
+    http.delete('/api/addresses/:addressId', ({ request, params }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.addressDeleteFailure) {
+        return jsonError(
+          resolved.addressDeleteFailure.status,
+          resolved.addressDeleteFailure.code,
+          resolved.addressDeleteFailure.message,
+        )
+      }
+      const id = Number(params.addressId)
+      const existing = addresses.get(id)
+      if (!existing) {
+        return jsonError(404, 'ADDRESS_NOT_FOUND', '地址不存在，或不属于当前账号')
+      }
+      const referencedByPendingOrder = [...orders.values()].some(
+        (order) => order.addressId === id && order.status === 'PENDING_PAYMENT',
+      )
+      if (referencedByPendingOrder) {
+        return jsonError(409, 'ADDRESS_IN_USE', '这个地址还被未支付订单使用，先取消订单或换地址')
+      }
+      const wasDefault = existing.isDefault
+      addresses.delete(id)
+      // 删掉默认地址后，把剩余最早创建的一条提升为默认，维持「有地址就有默认」。
+      if (wasDefault && addresses.size > 0) {
+        const earliest = [...addresses.values()].sort((a, b) => a.createdAt - b.createdAt)[0]
+        earliest.isDefault = true
+      }
+      return new HttpResponse(null, { status: 204 })
+    }),
+
+    http.put('/api/addresses/:addressId/default', ({ request, params }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.addressDefaultFailure) {
+        return jsonError(
+          resolved.addressDefaultFailure.status,
+          resolved.addressDefaultFailure.code,
+          resolved.addressDefaultFailure.message,
+        )
+      }
+      const id = Number(params.addressId)
+      const existing = addresses.get(id)
+      if (!existing) {
+        return jsonError(404, 'ADDRESS_NOT_FOUND', '地址不存在，或不属于当前账号')
+      }
+      for (const item of addresses.values()) {
+        item.isDefault = item.id === id
+      }
+      return HttpResponse.json(toAddress(existing), { status: 200 })
+    }),
+
+    http.get('/api/fulfillments', ({ request }) => {
+      const url = new URL(request.url, 'http://localhost:3000')
+      const status = url.searchParams.get('status')
+      let items = [...fulfillments.values()]
+      if (status !== null) items = items.filter((f) => f.status === status)
+      return HttpResponse.json({ items })
+    }),
+
+    http.post('/api/fulfillments/:fulfillmentId/sign', ({ request, params }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.signFailure) {
+        return jsonError(
+          resolved.signFailure.status,
+          resolved.signFailure.code,
+          resolved.signFailure.message,
+        )
+      }
+      const id = Number(params.fulfillmentId)
+      const fulfillment = fulfillments.get(id)
+      if (!fulfillment) {
+        return jsonError(404, 'FULFILLMENT_NOT_FOUND', '履约单不存在，或不属于当前账号')
+      }
+      const signable = fulfillment.kind === 'PHYSICAL' &&
+        (fulfillment.status === 'SHIPPED' || fulfillment.status === 'SIGNED')
+      if (!signable) {
+        return jsonError(409, 'FULFILLMENT_NOT_SIGNABLE', '这个履约单现在不能签收')
+      }
+      // 已签收：幂等返回当前履约单，不覆盖首次 signedAt。
+      if (fulfillment.status !== 'SIGNED') {
+        fulfillment.status = 'SIGNED'
+        fulfillment.signedAt = now()
+        fulfillments.set(id, fulfillment)
+      }
+      return HttpResponse.json(fulfillment, { status: 200 })
     }),
 
     http.get('/api/campaigns/upcoming', () =>
@@ -291,6 +708,23 @@ export function createHandlers(registry: readonly MockScenario[] = scenarios): H
       }
 
       return HttpResponse.json(happyOrder, { status: 201 })
+    }),
+
+    // 发起支付：成功后把订单标记为已支付，释放对收货地址的未支付引用；订单不存在回 404。
+    http.post('/api/orders/:orderNo/pay', ({ params }) => {
+      const order = orders.get(String(params.orderNo))
+      if (!order) {
+        return jsonError(404, 'ORDER_NOT_FOUND', '订单不存在')
+      }
+      order.status = 'PAID'
+      return HttpResponse.json(
+        {
+          tradeNo: `T${order.orderNo}`,
+          amount: 19900,
+          payUrl: `/payment/pay?tradeNo=T${order.orderNo}`,
+        },
+        { status: 200 },
+      )
     }),
 
     http.post('/api/auth/login', () => HttpResponse.json(me)),

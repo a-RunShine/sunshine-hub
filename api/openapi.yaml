@@ -159,6 +159,12 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/ProductKind'
+        - name: categoryId
+          in: query
+          description: 按所属分类筛选；与 kind 同时出现时为 AND 组合。参数名与分类资源标识一致。
+          schema:
+            type: integer
+            format: int64
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
       responses:
@@ -191,6 +197,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /categories:
+    get:
+      tags: [catalog]
+      summary: 分类列表
+      description: 分类由运营维护，加分类不需要改契约。不分页，直接返回数组，按 sortOrder 升序。
+      security: []
+      responses:
+        '200':
+          description: 按 sortOrder 升序
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /campaigns/upcoming:
     get:
       tags: [catalog]
@@ -476,6 +499,34 @@ paths:
                       $ref: '#/components/schemas/Fulfillment'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /fulfillments/{fulfillmentId}/sign:
+    post:
+      tags: [trade]
+      summary: 确认签收
+      description: 仅 PHYSICAL 且 SHIPPED 可签收；虚拟、未发货、已完成拒绝；重复签收幂等成功且不覆盖首次 signedAt。
+      parameters:
+        - $ref: '#/components/parameters/FulfillmentId'
+      responses:
+        '200':
+          description: 已签收
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fulfillment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 履约单不存在，或不属于当前账号。code：FULFILLMENT_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 这个履约单现在不能签收：仅实体且已发货可签收，虚拟、未发货、已完成拒绝。code：FULFILLMENT_NOT_SIGNABLE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /me/items:
     get:
       tags: [trade]
@@ -518,6 +569,7 @@ paths:
     post:
       tags: [trade]
       summary: 新增地址
+      description: 第一条地址自动成为默认；默认归属不接受入参，由独立的设默认动作维护。
       requestBody:
         required: true
         content:
@@ -532,7 +584,88 @@ paths:
               schema:
                 $ref: '#/components/schemas/Address'
         '400':
+          description: 参数不合法，或地址数量超过上限（最多 10 条）。code：BAD_REQUEST、ADDRESS_LIMIT_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /addresses/{addressId}:
+    put:
+      tags: [trade]
+      summary: 编辑收货地址
+      description: 编辑后未支付订单的收货信息随之变化（存的是 addressId）；已支付订单有履约单快照，不受影响。
+      parameters:
+        - $ref: '#/components/parameters/AddressId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressInput'
+      responses:
+        '200':
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 地址不存在，或不属于当前账号。code：ADDRESS_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [trade]
+      summary: 删除收货地址
+      description: 仍被未支付订单引用，先取消订单或换地址；已支付订单不受影响。
+      parameters:
+        - $ref: '#/components/parameters/AddressId'
+      responses:
+        '204':
+          description: 已删除
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 地址不存在，或不属于当前账号。code：ADDRESS_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 这个地址还被未支付订单使用，先取消订单或换地址。code：ADDRESS_IN_USE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /addresses/{addressId}/default:
+    put:
+      tags: [trade]
+      summary: 设为默认地址
+      description: 独立动作，不塞进编辑；任一时刻至多一条默认，设为默认会取消原默认。
+      parameters:
+        - $ref: '#/components/parameters/AddressId'
+      responses:
+        '200':
+          description: 已设为默认
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 地址不存在，或不属于当前账号。code：ADDRESS_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /refunds:
     post:
       tags: [trade]
@@ -759,6 +892,76 @@ paths:
                   $ref: '#/components/schemas/Sku'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /admin/categories:
+    post:
+      tags: [admin]
+      summary: 新增分类
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryInput'
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/categories/{categoryId}:
+    put:
+      tags: [admin]
+      summary: 更新分类
+      description: 名称与排序可改，id 不变；商品引用的是 id，改名不影响既有商品归属。
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryInput'
+      responses:
+        '200':
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 分类不存在。code：CATEGORY_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [admin]
+      summary: 删除分类
+      description: 分类下仍有商品时拒绝删除，先迁移商品再删除；不做逻辑删除，不做级联改归属。
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
+      responses:
+        '204':
+          description: 已删除
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 分类不存在。code：CATEGORY_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 分类下还有商品，先迁移商品再删除。code：CATEGORY_IN_USE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /admin/campaigns:
     post:
       tags: [admin]
@@ -1019,6 +1222,13 @@ components:
       schema:
         type: integer
         format: int64
+    CategoryId:
+      name: categoryId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
     CampaignId:
       name: campaignId
       in: path
@@ -1034,6 +1244,20 @@ components:
         type: string
     RefundId:
       name: refundId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    AddressId:
+      name: addressId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    FulfillmentId:
+      name: fulfillmentId
       in: path
       required: true
       schema:
@@ -1096,6 +1320,8 @@ components:
         - USERNAME_TAKEN
         - BAD_CREDENTIALS
         - PRODUCT_NOT_FOUND
+        - CATEGORY_NOT_FOUND
+        - CATEGORY_IN_USE
         - CAMPAIGN_NOT_FOUND
         - CAMPAIGN_NOT_STARTED
         - CAMPAIGN_ENDED
@@ -1110,6 +1336,11 @@ components:
         - ORDER_NOT_CANCELLABLE
         - STOCK_INSUFFICIENT
         - ADDRESS_REQUIRED
+        - ADDRESS_NOT_FOUND
+        - ADDRESS_LIMIT_EXCEEDED
+        - ADDRESS_IN_USE
+        - FULFILLMENT_NOT_FOUND
+        - FULFILLMENT_NOT_SIGNABLE
         - REFUND_NOT_FOUND
         - REFUND_NOT_ALLOWED
         - REFUND_ALREADY_OPEN
@@ -1132,9 +1363,29 @@ components:
     ProductKind:
       type: string
       enum: [VIRTUAL, PHYSICAL]
+    Category:
+      type: object
+      required: [id, name, sortOrder]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        sortOrder:
+          type: integer
+          description: 列表按该值升序
+    CategoryInput:
+      type: object
+      required: [name, sortOrder]
+      properties:
+        name:
+          type: string
+        sortOrder:
+          type: integer
     ProductSummary:
       type: object
-      required: [id, name, kind, coverUrl, minPrice, limited]
+      required: [id, name, kind, categoryId, coverUrl, minPrice, limited]
       properties:
         id:
           type: integer
@@ -1143,6 +1394,10 @@ components:
           type: string
         kind:
           $ref: '#/components/schemas/ProductKind'
+        categoryId:
+          type: integer
+          format: int64
+          description: 所属分类的 id
         coverUrl:
           type: string
         minPrice:
@@ -1168,7 +1423,7 @@ components:
           type: integer
     ProductDetail:
       type: object
-      required: [id, name, kind, description, coverUrl, skus, limited]
+      required: [id, name, kind, categoryId, description, coverUrl, skus, limited]
       properties:
         id:
           type: integer
@@ -1177,6 +1432,10 @@ components:
           type: string
         kind:
           $ref: '#/components/schemas/ProductKind'
+        categoryId:
+          type: integer
+          format: int64
+          description: 所属分类的 id
         description:
           type: string
         coverUrl:
@@ -1195,13 +1454,17 @@ components:
             $ref: '#/components/schemas/Sku'
     ProductInput:
       type: object
-      required: [name, kind, description, coverUrl]
+      required: [name, kind, categoryId, description, coverUrl]
       properties:
         name:
           type: string
           maxLength: 100
         kind:
           $ref: '#/components/schemas/ProductKind'
+        categoryId:
+          type: integer
+          format: int64
+          description: 所属分类的 id
         description:
           type: string
         coverUrl:
@@ -1519,8 +1782,10 @@ components:
         signedAt:
           type: [string, 'null']
           format: date-time
+          description: 首次签收时刻，重复签收不覆盖
         address:
           $ref: '#/components/schemas/Address'
+          description: 下单时冻结的收货信息快照，不依赖地址行是否还存在
         items:
           type: array
           items:
@@ -1546,7 +1811,7 @@ components:
           format: date-time
     Address:
       type: object
-      required: [id, receiver, phone, province, city, district, detail]
+      required: [id, receiver, phone, province, city, district, detail, isDefault]
       properties:
         id:
           type: integer
@@ -1565,9 +1830,11 @@ components:
           type: string
         isDefault:
           type: boolean
+          description: 任一时刻至多一条默认；新增首条自动默认；删默认后自动提升剩余最早创建的一条
     AddressInput:
       type: object
       required: [receiver, phone, province, city, district, detail]
+      description: 默认归属是独立动作（首条自动、或调 /addresses/{id}/default），新增与编辑都不接受 isDefault 字段。
       properties:
         receiver:
           type: string
@@ -1581,8 +1848,6 @@ components:
           type: string
         detail:
           type: string
-        isDefault:
-          type: boolean
     RefundStatus:
       type: string
       enum: [REQUESTED, APPROVED, REFUNDED, REJECTED]

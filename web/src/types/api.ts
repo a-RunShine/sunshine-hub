@@ -250,6 +250,8 @@ export interface paths {
             parameters: {
                 query?: {
                     kind?: components["schemas"]["ProductKind"];
+                    /** @description 按所属分类筛选；与 kind 同时出现时为 AND 组合。参数名与分类资源标识一致。 */
+                    categoryId?: number;
                     page?: components["parameters"]["Page"];
                     size?: components["parameters"]["Size"];
                 };
@@ -319,6 +321,46 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 分类列表
+         * @description 分类由运营维护，加分类不需要改契约。不分页，直接返回数组，按 sortOrder 升序。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 按 sortOrder 升序 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Category"][];
+                    };
+                };
+                429: components["responses"]["TooManyRequests"];
             };
         };
         put?: never;
@@ -884,6 +926,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/fulfillments/{fulfillmentId}/sign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 确认签收
+         * @description 仅 PHYSICAL 且 SHIPPED 可签收；虚拟、未发货、已完成拒绝；重复签收幂等成功且不覆盖首次 signedAt。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    fulfillmentId: components["parameters"]["FulfillmentId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 已签收 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Fulfillment"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                /** @description 履约单不存在，或不属于当前账号。code：FULFILLMENT_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 这个履约单现在不能签收：仅实体且已发货可签收，虚拟、未发货、已完成拒绝。code：FULFILLMENT_NOT_SIGNABLE */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/items": {
         parameters: {
             query?: never;
@@ -958,7 +1060,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** 新增地址 */
+        /**
+         * 新增地址
+         * @description 第一条地址自动成为默认；默认归属不接受入参，由独立的设默认动作维护。
+         */
         post: {
             parameters: {
                 query?: never;
@@ -981,9 +1086,167 @@ export interface paths {
                         "application/json": components["schemas"]["Address"];
                     };
                 };
-                400: components["responses"]["BadRequest"];
+                /** @description 参数不合法，或地址数量超过上限（最多 10 条）。code：BAD_REQUEST、ADDRESS_LIMIT_EXCEEDED */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/addresses/{addressId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 编辑收货地址
+         * @description 编辑后未支付订单的收货信息随之变化（存的是 addressId）；已支付订单有履约单快照，不受影响。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    addressId: components["parameters"]["AddressId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AddressInput"];
+                };
+            };
+            responses: {
+                /** @description 已更新 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Address"];
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                /** @description 地址不存在，或不属于当前账号。code：ADDRESS_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * 删除收货地址
+         * @description 仍被未支付订单引用，先取消订单或换地址；已支付订单不受影响。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    addressId: components["parameters"]["AddressId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 已删除 */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                /** @description 地址不存在，或不属于当前账号。code：ADDRESS_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 这个地址还被未支付订单使用，先取消订单或换地址。code：ADDRESS_IN_USE */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/addresses/{addressId}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 设为默认地址
+         * @description 独立动作，不塞进编辑；任一时刻至多一条默认，设为默认会取消原默认。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    addressId: components["parameters"]["AddressId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 已设为默认 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Address"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                /** @description 地址不存在，或不属于当前账号。code：ADDRESS_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1404,6 +1667,144 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 新增分类 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CategoryInput"];
+                };
+            };
+            responses: {
+                /** @description 已创建 */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Category"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/categories/{categoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 更新分类
+         * @description 名称与排序可改，id 不变；商品引用的是 id，改名不影响既有商品归属。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    categoryId: components["parameters"]["CategoryId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CategoryInput"];
+                };
+            };
+            responses: {
+                /** @description 已更新 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Category"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description 分类不存在。code：CATEGORY_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * 删除分类
+         * @description 分类下仍有商品时拒绝删除，先迁移商品再删除；不做逻辑删除，不做级联改归属。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    categoryId: components["parameters"]["CategoryId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 已删除 */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description 分类不存在。code：CATEGORY_NOT_FOUND */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 分类下还有商品，先迁移商品再删除。code：CATEGORY_IN_USE */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -1867,7 +2268,7 @@ export interface components {
          * @description 业务错误码，与 src/main/java/com/sunshinefps/shared/ErrorCode.java 一一对应。新增错误码必须两边同步
          * @enum {string}
          */
-        ErrorCode: "UNAUTHORIZED" | "FORBIDDEN" | "REAL_NAME_REQUIRED" | "REAL_NAME_ALREADY_SET" | "USERNAME_TAKEN" | "BAD_CREDENTIALS" | "PRODUCT_NOT_FOUND" | "CAMPAIGN_NOT_FOUND" | "CAMPAIGN_NOT_STARTED" | "CAMPAIGN_ENDED" | "QUOTA_EXCEEDED" | "ALREADY_PURCHASED" | "PURCHASE_COOLDOWN" | "SOLD_OUT" | "UNIT_POOL_INCONSISTENT" | "RATE_LIMITED" | "ORDER_NOT_FOUND" | "ORDER_NOT_PAYABLE" | "ORDER_NOT_CANCELLABLE" | "STOCK_INSUFFICIENT" | "ADDRESS_REQUIRED" | "REFUND_NOT_FOUND" | "REFUND_NOT_ALLOWED" | "REFUND_ALREADY_OPEN" | "ANNOUNCEMENT_NOT_FOUND" | "EVENT_NOT_FOUND" | "BAD_REQUEST" | "INTERNAL_ERROR";
+        ErrorCode: "UNAUTHORIZED" | "FORBIDDEN" | "REAL_NAME_REQUIRED" | "REAL_NAME_ALREADY_SET" | "USERNAME_TAKEN" | "BAD_CREDENTIALS" | "PRODUCT_NOT_FOUND" | "CATEGORY_NOT_FOUND" | "CATEGORY_IN_USE" | "CAMPAIGN_NOT_FOUND" | "CAMPAIGN_NOT_STARTED" | "CAMPAIGN_ENDED" | "QUOTA_EXCEEDED" | "ALREADY_PURCHASED" | "PURCHASE_COOLDOWN" | "SOLD_OUT" | "UNIT_POOL_INCONSISTENT" | "RATE_LIMITED" | "ORDER_NOT_FOUND" | "ORDER_NOT_PAYABLE" | "ORDER_NOT_CANCELLABLE" | "STOCK_INSUFFICIENT" | "ADDRESS_REQUIRED" | "ADDRESS_NOT_FOUND" | "ADDRESS_LIMIT_EXCEEDED" | "ADDRESS_IN_USE" | "FULFILLMENT_NOT_FOUND" | "FULFILLMENT_NOT_SIGNABLE" | "REFUND_NOT_FOUND" | "REFUND_NOT_ALLOWED" | "REFUND_ALREADY_OPEN" | "ANNOUNCEMENT_NOT_FOUND" | "EVENT_NOT_FOUND" | "BAD_REQUEST" | "INTERNAL_ERROR";
         Error: {
             code: components["schemas"]["ErrorCode"];
             /** @description 可直接展示给用户的中文文案 */
@@ -1877,11 +2278,27 @@ export interface components {
         };
         /** @enum {string} */
         ProductKind: "VIRTUAL" | "PHYSICAL";
+        Category: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** @description 列表按该值升序 */
+            sortOrder: number;
+        };
+        CategoryInput: {
+            name: string;
+            sortOrder: number;
+        };
         ProductSummary: {
             /** Format: int64 */
             id: number;
             name: string;
             kind: components["schemas"]["ProductKind"];
+            /**
+             * Format: int64
+             * @description 所属分类的 id
+             */
+            categoryId: number;
             coverUrl: string;
             /**
              * Format: int64
@@ -1902,6 +2319,11 @@ export interface components {
             id: number;
             name: string;
             kind: components["schemas"]["ProductKind"];
+            /**
+             * Format: int64
+             * @description 所属分类的 id
+             */
+            categoryId: number;
             description: string;
             coverUrl: string;
             limited: boolean;
@@ -1914,6 +2336,11 @@ export interface components {
         ProductInput: {
             name: string;
             kind: components["schemas"]["ProductKind"];
+            /**
+             * Format: int64
+             * @description 所属分类的 id
+             */
+            categoryId: number;
             description: string;
             coverUrl: string;
             totalLimit?: number | null;
@@ -2126,8 +2553,12 @@ export interface components {
             trackingNo?: string | null;
             /** Format: date-time */
             shippedAt?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description 首次签收时刻，重复签收不覆盖
+             */
             signedAt?: string | null;
+            /** @description 下单时冻结的收货信息快照，不依赖地址行是否还存在 */
             address?: components["schemas"]["Address"];
             items?: components["schemas"]["OrderItem"][];
         };
@@ -2151,8 +2582,10 @@ export interface components {
             city: string;
             district: string;
             detail: string;
-            isDefault?: boolean;
+            /** @description 任一时刻至多一条默认；新增首条自动默认；删默认后自动提升剩余最早创建的一条 */
+            isDefault: boolean;
         };
+        /** @description 默认归属是独立动作（首条自动、或调 /addresses/{id}/default），新增与编辑都不接受 isDefault 字段。 */
         AddressInput: {
             receiver: string;
             phone: string;
@@ -2160,7 +2593,6 @@ export interface components {
             city: string;
             district: string;
             detail: string;
-            isDefault?: boolean;
         };
         /** @enum {string} */
         RefundStatus: "REQUESTED" | "APPROVED" | "REFUNDED" | "REJECTED";
@@ -2299,9 +2731,12 @@ export interface components {
     };
     parameters: {
         ProductId: number;
+        CategoryId: number;
         CampaignId: number;
         OrderNo: string;
         RefundId: number;
+        AddressId: number;
+        FulfillmentId: number;
         Page: number;
         Size: number;
     };

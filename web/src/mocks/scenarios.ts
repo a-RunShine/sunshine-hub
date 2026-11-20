@@ -25,6 +25,12 @@ export interface MockScenario {
   readonly campaignDetail?: CampaignDetailOverride
   readonly claimFailure?: MockFailure
   readonly orderFailure?: MockFailure
+  readonly categoryFailure?: MockFailure
+  readonly addressCreateFailure?: MockFailure
+  readonly addressUpdateFailure?: MockFailure
+  readonly addressDeleteFailure?: MockFailure
+  readonly addressDefaultFailure?: MockFailure
+  readonly signFailure?: MockFailure
 }
 
 export const DEFAULT_SCENARIO_ID = 'happy'
@@ -48,6 +54,69 @@ const unauthorizedFailure: MockFailure = {
   status: 401,
   code: 'UNAUTHORIZED',
   message: '请先登录',
+}
+
+/** 管理端未授权：分类新增、更新、删除共用同一段失败响应，码与文案不改动。 */
+const forbiddenFailure: MockFailure = {
+  status: 403,
+  code: 'FORBIDDEN',
+  message: '没有权限',
+}
+
+/** 分类不存在：更新、删除回 404。 */
+const categoryNotFoundFailure: MockFailure = {
+  status: 404,
+  code: 'CATEGORY_NOT_FOUND',
+  message: '分类不存在',
+}
+
+/** 分类下仍有商品，删除被拒绝：先迁移商品再删除。 */
+const categoryInUseFailure: MockFailure = {
+  status: 409,
+  code: 'CATEGORY_IN_USE',
+  message: '分类下还有商品，先迁移商品再删除',
+}
+
+/** 地址不存在：编辑、删除、设默认回 404。 */
+const addressNotFoundFailure: MockFailure = {
+  status: 404,
+  code: 'ADDRESS_NOT_FOUND',
+  message: '地址不存在，或不属于当前账号',
+}
+
+/** 地址数量超过上限（10 条），新增被拒。 */
+const addressLimitExceededFailure: MockFailure = {
+  status: 400,
+  code: 'ADDRESS_LIMIT_EXCEEDED',
+  message: '最多保存 10 条收货地址',
+}
+
+/** 地址还被未支付订单引用，删除被拒绝：先取消订单或换地址。 */
+const addressInUseFailure: MockFailure = {
+  status: 409,
+  code: 'ADDRESS_IN_USE',
+  message: '这个地址还被未支付订单使用，先取消订单或换地址',
+}
+
+/** 履约单不存在：签收回 404。 */
+const fulfillmentNotFoundFailure: MockFailure = {
+  status: 404,
+  code: 'FULFILLMENT_NOT_FOUND',
+  message: '履约单不存在，或不属于当前账号',
+}
+
+/** 虚拟、未发货或已完成的履约单不能签收。 */
+const fulfillmentNotSignableFailure: MockFailure = {
+  status: 409,
+  code: 'FULFILLMENT_NOT_SIGNABLE',
+  message: '这个履约单现在不能签收',
+}
+
+/** 参数不合法：地址新增、编辑共用同一段失败响应。 */
+const badRequestFailure: MockFailure = {
+  status: 400,
+  code: 'BAD_REQUEST',
+  message: '参数不合法',
 }
 
 /** 配额计数自洽：total = available + occupied + sold（pendingRepool 恒为 0）。 */
@@ -282,5 +351,72 @@ export const scenarios: readonly MockScenario[] = [
     id: 'order-cooldown',
     description: '本商品处于购买冷却期（商品级、跨场）',
     orderFailure: purchaseCooldownFailure,
+  },
+
+  // 分类管理端失败覆盖（POST/PUT/DELETE /admin/categories…）
+  {
+    id: 'category-forbidden',
+    description: '管理端未授权：分类新增、更新、删除均回 403',
+    categoryFailure: forbiddenFailure,
+  },
+  {
+    id: 'category-in-use',
+    description: '分类下还有商品，删除被拒绝；先迁移商品再删除',
+    categoryFailure: categoryInUseFailure,
+  },
+  {
+    id: 'category-not-found',
+    description: '分类不存在：更新、删除回 404',
+    categoryFailure: categoryNotFoundFailure,
+  },
+
+  // 地址管理失败覆盖（POST/PUT/DELETE /addresses… 与 PUT /addresses/:id/default）
+  {
+    id: 'address-not-found',
+    description: '地址不存在：编辑、删除、设默认均回 404 ADDRESS_NOT_FOUND',
+    addressUpdateFailure: addressNotFoundFailure,
+    addressDeleteFailure: addressNotFoundFailure,
+    addressDefaultFailure: addressNotFoundFailure,
+  },
+  {
+    id: 'address-limit-exceeded',
+    description: '地址已满 10 条，新增被拒：400 ADDRESS_LIMIT_EXCEEDED',
+    addressCreateFailure: addressLimitExceededFailure,
+  },
+  {
+    id: 'address-in-use',
+    description: '地址还被未支付订单使用，删除被拒绝：409 ADDRESS_IN_USE',
+    addressDeleteFailure: addressInUseFailure,
+  },
+  {
+    id: 'address-bad-request',
+    description: '地址参数不合法：新增、编辑均回 400 BAD_REQUEST',
+    addressCreateFailure: badRequestFailure,
+    addressUpdateFailure: badRequestFailure,
+  },
+  {
+    id: 'address-unauthorized',
+    description: '未登录或会话已过期：地址新增、编辑、删除、设默认均回 401',
+    addressCreateFailure: unauthorizedFailure,
+    addressUpdateFailure: unauthorizedFailure,
+    addressDeleteFailure: unauthorizedFailure,
+    addressDefaultFailure: unauthorizedFailure,
+  },
+
+  // 签收失败覆盖（POST /fulfillments/:id/sign）
+  {
+    id: 'fulfillment-not-found',
+    description: '履约单不存在：签收回 404 FULFILLMENT_NOT_FOUND',
+    signFailure: fulfillmentNotFoundFailure,
+  },
+  {
+    id: 'fulfillment-not-signable',
+    description: '虚拟、未发货或已完成的履约单不能签收：409 FULFILLMENT_NOT_SIGNABLE',
+    signFailure: fulfillmentNotSignableFailure,
+  },
+  {
+    id: 'fulfillment-unauthorized',
+    description: '未登录或会话已过期：签收回 401',
+    signFailure: unauthorizedFailure,
   },
 ]
