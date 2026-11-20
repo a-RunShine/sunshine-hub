@@ -154,13 +154,14 @@ else
 fi
 
 # --- 默认展示模式仍截断：每个词最多 3 行命中，超出时有「……还有 N 处」 ---
-if awk '
+# 先用 grep 把多字节提示行滤掉，再交给 awk 计数。CI 的 mawk 对含多字节
+# 字符的行首正则与本地 gawk 行为不一致；grep 按字面字节匹配，跨实现稳定。
+if grep -av '……还有' "$tmp/utf8.out" | awk '
   /^── / { cur = 0; next }
-  /^   ……还有/ { next }
   /^$/ { next }
   { cur++; if (cur > 3) bad = 1 }
   END { exit bad + 0 }
-' "$tmp/utf8.out"; then
+'; then
   pass "默认模式每词最多展示 3 行命中"
 else
   fail "默认模式出现超过 3 行命中（截断行为被改动）"

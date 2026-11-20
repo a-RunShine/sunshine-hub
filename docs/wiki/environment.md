@@ -129,7 +129,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 > **2026-11-20 更正（superseded，`d654255` / PR #56）**：本节三处结论在当前云主机上都不成立，脚本缺陷也已修掉。
 >
 > - **「本机默认 C」不成立**：当前 `LANG=en_US.UTF-8` **已设置**，`tr` 是 **GNU coreutils 8.32**，不是 BSD。
-> - **「固定 locale 就能绕开」不成立**：GNU `tr` 按字节工作、与 locale 无关，**UTF-8 下拆分就已经坏**（`证件号` → `件号`，产出 `单`/`号`/`费`/`余量` 等碎词，上游 grep 报 `binary file matches`）。C locale 只是额外多 mojibake。所以「export UTF-8 就够」这条绕法在 GNU 机器上无效。
+> - **「固定 locale 就能绕开」不成立**：GNU `tr` 按字节工作、与 locale 无关，**UTF-8 下拆分就已经坏**（`证件号` → `件号`，产出 `单`/`号`/`费`/`余量` 等碎词，上游 grep 把文件误判成二进制）。C locale 只是额外多 mojibake。所以「export UTF-8 就够」这条绕法在 GNU 机器上无效。
 > - **「CI 上未实测」已实测**：#56 的修复把两处 `tr` 换成 python3 显式按 UTF-8 解码后拆词，与运行环境 locale 无关。修后 `LC_ALL=C` 与 `en_US.UTF-8` 输出**逐字节一致**，碎词与 mojibake 归零，`大区` 从未收词表变成候选 33 处。
 >
 > **仍然有效的部分**：「按字符处理中文的 shell 工具会按字节处理」这个一般性陷阱本身没错，换工具时仍要警惕。原记录按历史保留。
