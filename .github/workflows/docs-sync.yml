@@ -53,6 +53,14 @@ jobs:
           gh pr list --state open --json number,title,body,headRefName,reviewDecision,createdAt > .docs-sync-run/prs.json
           gh issue list --state all --json number,state > .docs-sync-run/issue-states.json
           git log --all --format=%H > .docs-sync-run/git-shas.txt
+          echo "${{ github.event_name }}" > .docs-sync-run/event-name
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "${{ github.event.pull_request.number }}" > .docs-sync-run/trigger-pr
+            gh pr view "${{ github.event.pull_request.number }}" --json body --jq .body > .docs-sync-run/trigger-pr-body.txt
+          else
+            : > .docs-sync-run/trigger-pr
+            rm -f .docs-sync-run/trigger-pr-body.txt
+          fi
           if [ "$FULL" = "true" ]; then
             gh pr list --state merged --search "merged:>=$(date -u -d '90 days ago' +%F)" \
               --json number,title,body,headRefName,mergedAt > .docs-sync-run/merged-prs.json
@@ -69,12 +77,6 @@ jobs:
             MAIN_SHA="$(git rev-parse HEAD)"
           fi
           echo "$MAIN_SHA" > .docs-sync-run/main-sha
-          if [ -n "${{ github.event.pull_request.number }}" ]; then
-            echo "${{ github.event.pull_request.number }}" > .docs-sync-run/trigger-pr
-          else
-            : > .docs-sync-run/trigger-pr
-          fi
-          echo "${{ github.event_name }}" > .docs-sync-run/event-name
           if [ "$(cat .docs-sync-run/event-name)" = "pull_request" ]; then
             echo "PR #$(cat .docs-sync-run/trigger-pr) 合并 ${MAIN_SHA}" > .docs-sync-run/trigger-desc
           elif [ "$FULL" = "true" ]; then
@@ -83,17 +85,20 @@ jobs:
             echo "workflow_dispatch 增量复核" > .docs-sync-run/trigger-desc
           fi
 
+          # dry-run 不等待、不重读 issue 状态：只用首帧快照，poll 退化为一次比较
           args=(--main-sha "$MAIN_SHA"
             --issues .docs-sync-run/issues.json
             --prs .docs-sync-run/prs.json
             --issue-states .docs-sync-run/issue-states.json
-            --git-shas .docs-sync-run/git-shas.txt
-            --poll-closes 120000)
+            --git-shas .docs-sync-run/git-shas.txt)
           if [ "$FULL" = "true" ]; then
             args+=(--full --merged-prs .docs-sync-run/merged-prs.json)
           fi
           if [ -s .docs-sync-run/trigger-pr ]; then
             args+=(--trigger-pr "$(cat .docs-sync-run/trigger-pr)")
+          fi
+          if [ -s .docs-sync-run/trigger-pr-body.txt ]; then
+            args+=(--trigger-pr-body .docs-sync-run/trigger-pr-body.txt)
           fi
           node scripts/docs-sync.mjs --dry-run "${args[@]}" --plan-out .docs-sync-run/dry-run.json
 
@@ -106,12 +111,16 @@ jobs:
             --prs .docs-sync-run/prs.json
             --issue-states .docs-sync-run/issue-states.json
             --git-shas .docs-sync-run/git-shas.txt
+            --issue-states-cmd 'gh issue list --state all --json number,state'
             --poll-closes 120000)
           if [ "$FULL" = "true" ]; then
             args+=(--full --merged-prs .docs-sync-run/merged-prs.json)
           fi
           if [ -s .docs-sync-run/trigger-pr ]; then
             args+=(--trigger-pr "$(cat .docs-sync-run/trigger-pr)")
+          fi
+          if [ -s .docs-sync-run/trigger-pr-body.txt ]; then
+            args+=(--trigger-pr-body .docs-sync-run/trigger-pr-body.txt)
           fi
           node scripts/docs-sync.mjs --apply "${args[@]}" --plan-out .docs-sync-run/plan.json 2> .docs-sync-run/err.log
 
