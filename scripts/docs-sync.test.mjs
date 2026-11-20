@@ -295,6 +295,56 @@ test('open issue 计数：不同小节各一条更正块，历史旧句逐字保
   }
 });
 
+test('历史标题与日期/SHA/版本号不被当成计数，更正块不进历史小节', async () => {
+  const root = sandbox('issue-hist-heading');
+  try {
+    const issues = [3, 7, 27, 59, 31].map((number) => ({ number, title: 'x', state: 'OPEN' }));
+    const result = await runAnalyze(root, { issues: { provided: true, items: issues } });
+    const c3 = checkById(result, 3);
+    // (a) 不出现把年份 2026 当成「2026 个 open issue」
+    assert.ok(!c3.findings.some((f) => f.detail.includes('2026 个')));
+    // (b) 标题行不被当作断言来源、不进「原「…」」引用
+    assert.ok(!c3.findings.some((f) => /旧快照/.test(f.current)));
+    const blocks = result.fixes.filter((f) => f.kind === 'correction-block');
+    assert.equal(blocks.length, 1, '只有现行小节那条真断言产块');
+    assert.ok(!blocks[0].oldFragments.some((o) => o.includes('旧快照')));
+    assert.ok(!blocks[0].after.includes('2026 个'));
+
+    applyFixes(root, result.fixes, { today: '2026-11-20', shortSha: '9ff45bd' });
+    const lines = readFileSync(join(root, 'docs/wiki/stages.md'), 'utf8').split('\n');
+    const headingIdx = lines.findIndex((l) => /^### 旧快照/.test(l));
+    const blockIdx = lines.findIndex((l) => l.includes('2026-11-20 复核'));
+    assert.ok(blockIdx >= 0 && headingIdx >= 0 && blockIdx < headingIdx, '更正块在历史小节之前');
+    assert.match(lines[headingIdx], /### 旧快照（2026-11-16，superseded）/, '历史标题逐字节保留');
+  } finally {
+    cleanup(root);
+  }
+});
+
+test('日期与 commit SHA 里的数字都不被当成 open issue 计数', async () => {
+  const root = sandbox('issue-hist-heading', { shared: true });
+  const issues = [3, 7, 27, 59, 31].map((number) => ({ number, title: 'x', state: 'OPEN' }));
+  const result = await runAnalyze(root, { issues: { provided: true, items: issues } });
+  const c3 = checkById(result, 3);
+  const noisy = c3.findings.filter((f) => /3701bd4|v2\.10\.3|2026-11-16/.test(f.current));
+  assert.equal(noisy.length, 0, 'SHA / 版本号 / 日期行不产生计数断言');
+});
+
+test('集合差异：编号指向首次出现行，未列出的回退快照小节标题', async () => {
+  const root = sandbox('issue-drift', { shared: true });
+  try {
+    const result = await runAnalyze(root, {
+      issues: { provided: true, items: [{ number: 3, title: 'a', state: 'OPEN' }, { number: 7, title: 'b', state: 'OPEN' }] },
+    });
+    const f2 = result.reports.find((r) => r.current === '#2');
+    assert.equal(f2.line, 9, '#2 指向快照行');
+    const f7 = result.reports.find((r) => r.current === '#7');
+    assert.equal(f7.line, 7, '#7 未列出，回退首个快照小节标题行');
+  } finally {
+    cleanup(root);
+  }
+});
+
 // --- 索引集合比对（补丁 3 第 4 项） ---
 
 test('索引集合：多余行与重复编号进 report，不自动补幽灵编号', async () => {
