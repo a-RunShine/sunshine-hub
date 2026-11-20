@@ -185,6 +185,120 @@ test('链接歧义与零命中：只报告，不改文件', async () => {
   }
 });
 
+// --- fixes 镜像真实写入（补丁 3.1） ---
+
+test('fixes 描述真实写入：after/insertAtLine 非空，apply 后逐字落位且条数等于新增块数', async () => {
+  const root = sandbox('openapi-drift');
+  try {
+    const result = await runAnalyze(root);
+    const blocks = result.fixes.filter((f) => f.kind === 'correction-block');
+    assert.equal(blocks.length, 1, '本夹具应只有一条更正块');
+    for (const b of blocks) {
+      assert.ok(b.after, 'after 必须非空');
+      assert.ok(b.insertAtLine > 0, 'insertAtLine 必须非空且为 1-based');
+    }
+
+    applyFixes(root, result.fixes, { today: '2026-11-20', shortSha: '9ff45bd' });
+    const lines = readFileSync(join(root, 'docs/wiki/stages.md'), 'utf8').split('\n');
+    for (const b of blocks) {
+      assert.equal(lines[b.insertAtLine - 1], b.after, '新增行逐字落在 insertAtLine 位置');
+    }
+    const inserted = lines.filter((l) => l.includes('2026-11-20 复核'));
+    assert.equal(inserted.length, blocks.length, '实际新增块数与 fixes 条数一致');
+  } finally {
+    cleanup(root);
+  }
+});
+
+test('索引补行 fix：after 为逐字新行，insertAtLine 指向该行', async () => {
+  const root = sandbox('adr-drift');
+  try {
+    const result = await runAnalyze(root);
+    const row = result.fixes.find((f) => f.kind === 'index-row');
+    assert.ok(row);
+    assert.ok(row.after, 'after 非空');
+    assert.ok(row.insertAtLine > 0);
+
+    applyFixes(root, result.fixes, { today: '2026-11-20', shortSha: '9ff45bd' });
+    const lines = readFileSync(join(root, 'docs/wiki/decisions.md'), 'utf8').split('\n');
+    assert.equal(lines[row.insertAtLine - 1], row.after);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// --- 原子落盘（补丁 3.4） ---
+
+test('原子落盘：第二个文件校验失败，两个文件都保持原样', async () => {
+  const root = sandbox('links');
+  try {
+    const alphaPath = join(root, 'docs/wiki/alpha.md');
+    const claimPath = join(root, 'docs/adr/0001-claim.md');
+    const beforeAlpha = readFileSync(alphaPath, 'utf8');
+    const beforeClaim = readFileSync(claimPath, 'utf8');
+
+    const fixes = [
+      {
+        file: 'docs/wiki/alpha.md', line: 2, kind: 'link-replace',
+        before: '[唯一命中](../adr/old-claim.md)',
+        after: '- [唯一命中](../shared/old-claim.md)', insertAtLine: 2,
+      },
+      {
+        file: 'docs/adr/0001-claim.md', line: 1, kind: 'link-replace',
+        before: '[不存在](../x.md)', after: '[不存在](../x.md)', insertAtLine: 1,
+      },
+    ];
+    assert.throws(() => applyFixes(root, fixes, { today: '2026-11-20', shortSha: '9ff45bd' }));
+    assert.equal(readFileSync(alphaPath, 'utf8'), beforeAlpha, '第一个文件未被改写');
+    assert.equal(readFileSync(claimPath, 'utf8'), beforeClaim, '第二个文件未被改写');
+  } finally {
+    cleanup(root);
+  }
+});
+
+// --- open issue 计数：扫全部断言，按小节合并（补丁 3.2） ---
+
+test('open issue 计数：不同小节各一条更正块，历史旧句逐字保留', async () => {
+  const root = sandbox('issue-drift');
+  try {
+    const result = await runAnalyze(root, {
+      issues: {
+        provided: true,
+        items: [
+          { number: 3, title: '文档审查', state: 'OPEN' },
+          { number: 7, title: '实施路径', state: 'OPEN' },
+        ],
+      },
+    });
+    const blocks = result.fixes.filter((f) => f.kind === 'correction-block' && f.file === 'docs/wiki/stages.md');
+    assert.equal(blocks.length, 2, '两个小节各一条汇总更正');
+
+    applyFixes(root, result.fixes, { today: '2026-11-20', shortSha: '9ff45bd' });
+    const lines = readFileSync(join(root, 'docs/wiki/stages.md'), 'utf8').split('\n');
+    assert.ok(lines.some((l) => l.includes('快照（六个）')), '历史快照旧句保留');
+    const inserted = lines.filter((l) => l.includes('2026-11-20 复核'));
+    assert.equal(inserted.length, 2);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// --- 索引集合比对（补丁 3 第 4 项） ---
+
+test('索引集合：多余行与重复编号进 report，不自动补幽灵编号', async () => {
+  const root = sandbox('index-set');
+  try {
+    const result = await runAnalyze(root);
+    const reasons = result.reports.map((r) => r.reason);
+    assert.ok(reasons.some((r) => r.includes('无对应 ADR')), '多余索引行进 report');
+    assert.ok(reasons.some((r) => r.includes('重复')), '重复编号进 report');
+    const rowFixes = result.fixes.filter((f) => f.kind === 'index-row');
+    assert.equal(rowFixes.length, 0, '0001/0002 已在表内；幽灵编号 0009 不自动补');
+  } finally {
+    cleanup(root);
+  }
+});
+
 // --- 夹具 5：Closes 延迟检查 ---
 
 test('Closes 两帧状态：第一次 OPEN，重读一次后 CLOSED 即收敛，不真等', async () => {
@@ -362,21 +476,58 @@ test('未提供 git 历史输入：第 4 项 report 注明来源缺失', async (
 
 // --- plan 去重决策 ---
 
-test('已有未审批 docs/sync PR：复用该分支，不开新分支', async () => {
+const planPr = (number, headRefName, reviewDecision, createdAt) => ({
+  number, title: 'docs', body: '', headRefName, reviewDecision, createdAt,
+});
+
+async function planWith(prs) {
   const root = sandbox('clean');
   try {
-    const result = await runAnalyze(root, {
-      prs: {
-        provided: true,
-        items: [{ number: 41, title: 'docs', body: '', headRefName: 'docs/sync-9ff45bd', reviewDecision: '', createdAt: '2026-11-20T00:00:00Z' }],
-      },
-    });
-    assert.equal(result.plan.reuseExistingPr.number, 41);
-    assert.equal(result.plan.branch, 'docs/sync-9ff45bd');
-    assert.equal(result.plan.commitMessage, 'docs: 同步 9ff45bd 的文档事实');
+    const result = await runAnalyze(root, { prs: { provided: true, items: prs } });
+    return result.plan;
   } finally {
     cleanup(root);
   }
+}
+
+test('plan：0 个开放 sync PR → 新开 docs/sync-<short>', async () => {
+  const plan = await planWith([]);
+  assert.equal(plan.branch, 'docs/sync-9ff45bd');
+  assert.equal(plan.reuseExistingPr, null);
+});
+
+test('plan：1 个未审批 → 复用该分支', async () => {
+  const plan = await planWith([planPr(41, 'docs/sync-9ff45bd', '', '2026-11-20T00:00:00Z')]);
+  assert.equal(plan.reuseExistingPr.number, 41);
+  assert.equal(plan.branch, 'docs/sync-9ff45bd');
+  assert.equal(plan.commitMessage, 'docs: 同步 9ff45bd 的文档事实');
+});
+
+test('plan：1 个 APPROVED → 新开 -2，不复用', async () => {
+  const plan = await planWith([planPr(42, 'docs/sync-9ff45bd', 'APPROVED', '2026-11-20T00:00:00Z')]);
+  assert.equal(plan.reuseExistingPr, null);
+  assert.equal(plan.branch, 'docs/sync-9ff45bd-2');
+});
+
+test('plan：1 个 CHANGES_REQUESTED → 新开 -2，不复用', async () => {
+  const plan = await planWith([planPr(43, 'docs/sync-9ff45bd', 'CHANGES_REQUESTED', '2026-11-20T00:00:00Z')]);
+  assert.equal(plan.reuseExistingPr, null);
+  assert.equal(plan.branch, 'docs/sync-9ff45bd-2');
+});
+
+test('plan：多个开放 → 取最早复用，其余进 warnings', async () => {
+  const plan = await planWith([
+    planPr(44, 'docs/sync-old', '', '2026-11-19T00:00:00Z'),
+    planPr(45, 'docs/sync-new', '', '2026-11-20T00:00:00Z'),
+  ]);
+  assert.equal(plan.reuseExistingPr.number, 44);
+  assert.equal(plan.branch, 'docs/sync-old');
+  assert.equal(plan.warnings.length, 1);
+});
+
+test('plan：-2 已被占用 → 回退 -3', async () => {
+  const plan = await planWith([planPr(46, 'docs/sync-9ff45bd-2', 'APPROVED', '2026-11-20T00:00:00Z')]);
+  assert.equal(plan.branch, 'docs/sync-9ff45bd-3');
 });
 
 // --- CLI 参数校验 ---
@@ -395,9 +546,24 @@ test('CLI：同时给 --dry-run 与 --apply 退出码 1', async () => {
 });
 
 test('参数解析：布尔与取值选项归位', () => {
-  const opts = parseArgs(['--full', '--repo-root', './x', '--main-sha=9ff45bd', '--poll-closes', '120000']);
+  const opts = parseArgs(['--full', '--repo-root', './x', '--main-sha=9ff45bd', '--poll-closes', '120000', '--trigger-merged-sha', 'abc1234']);
   assert.equal(opts.full, true);
   assert.equal(opts.repo_root, './x');
   assert.equal(opts.main_sha, '9ff45bd');
   assert.equal(opts.poll_closes, '120000');
+  assert.equal(opts.trigger_merged_sha, 'abc1234');
+});
+
+test('meta.trigger.mergedSha：给了进 meta，未给为 null，不参与标注', async () => {
+  const root = sandbox('clean');
+  try {
+    const none = await runAnalyze(root, {}, {});
+    assert.equal(none.meta.trigger.mergedSha, null);
+    const given = await runAnalyze(root, {}, { triggerMergedSha: 'abc1234def5678' });
+    assert.equal(given.meta.trigger.mergedSha, 'abc1234def5678');
+    // 标注 main 仍用 --main-sha，不被 mergedSha 顶替。
+    assert.equal(given.meta.mainSha, '9ff45bd');
+  } finally {
+    cleanup(root);
+  }
 });

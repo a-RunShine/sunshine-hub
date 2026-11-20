@@ -12,7 +12,7 @@
 //
 // 用法：node scripts/docs-sync.mjs [--dry-run|--apply] [options]
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, renameSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -34,7 +34,7 @@ export function parseArgs(argv) {
   };
   const valued = new Set([
     'repo-root', 'main-sha', 'today', 'issues', 'prs', 'merged-prs',
-    'issue-states', 'issue-states-cmd', 'trigger-pr', 'trigger-pr-body',
+    'issue-states', 'issue-states-cmd', 'trigger-pr', 'trigger-pr-body', 'trigger-merged-sha',
     'plan-out', 'poll-closes', 'git-shas',
   ]);
   for (let i = 0; i < argv.length; i++) {
@@ -66,6 +66,7 @@ function usage() {
     '  --issue-states <file.json>  全量 issue 状态快照',
     '  --issue-states-cmd <cmd>  重读 issue 状态时执行的命令（不传则不发子进程）',
     '  --trigger-pr-body <file>  触发本轮的已合并 PR 正文',
+    '  --trigger-merged-sha <sha>  触发 PR 的 merge_commit_sha（仅作 meta 元数据，不参与标注）',
     '  --trigger-pr <n>       触发本轮的 PR 号',
     '  --git-shas <file>      git 历史 SHA 列表（json 数组或每行一 SHA）',
     '  --full                 首次全量模式',
@@ -206,10 +207,11 @@ function extractLinks(file, lines) {
 // --- OpenAPI / GLOSSARY 解析 ---
 
 function countOpenapi(text) {
-  let paths = 0;
+  const paths = [];
   let operations = 0;
   for (const line of text.split('\n')) {
-    if (/^  \//.test(line)) paths += 1;
+    const pm = line.match(/^  (\/.*):/);
+    if (pm) paths.push(pm[1]);
     if (new RegExp(`^    (${HTTP_METHODS.join('|')}):`, 'i').test(line)) operations += 1;
   }
   return { paths, operations };
@@ -278,9 +280,12 @@ function collectCloses(prs) {
 
 // --- 分析主体 ---
 
-const STATUS_RANK = { pass: 0, report: 1, drift: 2 };
-function blockAlreadyPresent(text, today, shortSha) {
-  return Boolean(text) && text.includes(`${today} 复核`) && (!shortSha || text.includes(`main \`${shortSha}\``));
+// 向上回溯到最近的小节标题（##/###），返回其 0-based 行号；无标题返回 -1。
+function sectionIndexOf(lines, lineIdx) {
+  for (let i = lineIdx; i >= 0; i--) {
+    if (/^#{1,6}\s/.test(lines[i])) return i;
+  }
+  return -1;
 }
 
 function heaviest(findings) {
@@ -338,7 +343,6 @@ export async function analyze({ root, inputs, options }) {
     check1.findings.push({ file: null, line: 1, current: '', action: '补 decisions.md 索引页', status: 'report', detail: 'docs/wiki/decisions.md 不存在，无法核对 ADR 份数与索引。' });
   } else {
     const dLines = decisionsText.split('\n');
-    const dAnn = annotateLines(dLines);
 
     // 现行份数断言：优先取含「现行」的行，否则取最后一处数字断言；历史行同样参与比对，但只读不改。
     const countHits = [];
@@ -350,18 +354,17 @@ export async function analyze({ root, inputs, options }) {
 
     if (currentHit && Number(currentHit.matched.match(/\d+/)[0]) !== adrs.length) {
       const asserted = Number(currentHit.matched.match(/\d+/)[0]);
-      if (!blockAlreadyPresent(decisionsText, today, shortSha)) {
+      if (!correctionBlockExists(decisionsText, today, shortSha)) {
         check1.findings.push({
           file: rel(decisionsPath), line: currentHit.line, current: currentHit.current.trim(),
           action: '追加 ADR 份数更正块', status: 'drift',
           detail: `断言 ${asserted} 份，docs/adr/ 实测 ${adrs.length} 份。`,
         });
-        pushFix({
-          file: rel(decisionsPath), line: currentHit.line, kind: 'correction-block',
-          before: currentHit.matched, after: null, insertAtLine: null,
+        pushFix(makeCorrectionFix({
+          lines: dLines, anchorLine: currentHit.line,
           facts: [`ADR 共 ${adrs.length} 份`], oldFragments: [currentHit.matched],
-          anchorLine: currentHit.line,
-        });
+          today, shortSha, file: rel(decisionsPath),
+        }));
       }
     }
 
@@ -376,18 +379,51 @@ export async function analyze({ root, inputs, options }) {
         if (m) rows.push({ line: i + 1, num: m[1], title: m[2], raw: l });
       }
     }
-    const rowByNum = new Map(rows.map((r) => [r.num, r]));
+    const adrNums = new Set(adrs.map((a) => a.num).filter(Boolean));
+    const rowByNum = new Map();
+    const seenNums = new Set();
+    for (const row of rows) {
+      if (seenNums.has(row.num)) {
+        check1.findings.push({
+          file: rel(decisionsPath), line: row.line, current: row.raw,
+          action: '人工核对重复索引编号', status: 'report',
+          detail: `索引表编号 ${row.num} 重复出现。`,
+        });
+        pushReport({ file: rel(decisionsPath), line: row.line, current: row.raw, reason: `索引表编号 ${row.num} 重复。`, suggestion: '删除重复行后保留一条。' });
+      }
+      seenNums.add(row.num);
+      if (!rowByNum.has(row.num)) rowByNum.set(row.num, row);
+    }
+    // 多余行：表里有、docs/adr/ 里没有的编号。
+    for (const row of rows) {
+      if (!adrNums.has(row.num)) {
+        check1.findings.push({
+          file: rel(decisionsPath), line: row.line, current: row.raw,
+          action: '人工核对多余索引行', status: 'report',
+          detail: `索引行 ${row.num} 在 docs/adr/ 无对应 ADR 文件。`,
+        });
+        pushReport({ file: rel(decisionsPath), line: row.line, current: row.raw, reason: `索引编号 ${row.num} 无对应 ADR 文件。`, suggestion: '核对是 ADR 文件缺失还是索引行误留。' });
+      }
+    }
     for (const adr of adrs) {
       const row = adr.num ? rowByNum.get(adr.num) : null;
       if (!row) {
+        // 按编号升序插入到正确位置。
+        const firstGreater = rows.find((r) => Number(r.num) > Number(adr.num));
+        let insertAt0;
+        if (firstGreater) insertAt0 = firstGreater.line - 1;
+        else {
+          insertAt0 = headerIdx + 2;
+          while (insertAt0 < dLines.length && /^\|/.test(dLines[insertAt0])) insertAt0 += 1;
+        }
+        const after = `| [${adr.num}](../adr/${adr.basename}) | ${adr.title} |`;
         check1.findings.push({
-          file: rel(decisionsPath), line: headerIdx + 3, current: '',
+          file: rel(decisionsPath), line: insertAt0 + 1, current: '',
           action: '按编号补索引行', status: 'drift', detail: `ADR ${adr.num} 未进 decisions.md 索引表。`,
         });
         pushFix({
-          file: rel(decisionsPath), line: headerIdx + 3, kind: 'index-row',
-          before: '', after: `| [${adr.num}](../adr/${adr.basename}) | ${adr.title} |`,
-          insertAtLine: null, adr, anchorLine: headerIdx + 3,
+          file: rel(decisionsPath), line: insertAt0 + 1, kind: 'index-row',
+          after, insertAtLine: insertAt0 + 1, adr, anchorLine: insertAt0 + 1,
         });
       } else if (adr.title && row.title !== adr.title) {
         check1.findings.push({
@@ -395,7 +431,7 @@ export async function analyze({ root, inputs, options }) {
           action: '人工核对索引标题', status: 'report',
           detail: `索引标题「${row.title}」与 ADR 文件首个标题「${adr.title}」不一致。`,
         });
-        pushReport({ file: rel(decisionsPath), line: row.line, current: row.title, reason: '索引行标题与 ADR 标题不一致，需人工判断以哪份为准。', suggestion: `核对 ${adr.rel} 后修订索引标题。` });
+        pushReport({ file: rel(decisionsPath), line: row.line, current: row.title, reason: '索引行标题与 ADR 文件首个标题不一致，需人工判断以哪份为准。', suggestion: `核对 ${adr.rel} 后修订索引标题。` });
       }
     }
   }
@@ -420,12 +456,12 @@ export async function analyze({ root, inputs, options }) {
     const opHit = sLines.map((l, i) => ({ line: i + 1, current: l, m: l.match(/(\d+)\s*个\s*operation/i) })).find((h) => h.m);
     const facts = [];
     const oldFragments = [];
-    if (pathHit && Number(pathHit.m[1]) !== counts.paths) {
+    if (pathHit && Number(pathHit.m[1]) !== counts.paths.length) {
       check2.findings.push({
         file: rel(stagesPath), line: pathHit.line, current: pathHit.current.trim(),
-        action: '追加 path 计数更正块', status: 'drift', detail: `断言 ${pathHit.m[1]} 个 path，实测 ${counts.paths} 个。`,
+        action: '追加 path 计数更正块', status: 'drift', detail: `断言 ${pathHit.m[1]} 个 path，实测 ${counts.paths.length} 个。`,
       });
-      facts.push(`${counts.paths} 个 path`);
+      facts.push(`${counts.paths.length} 个 path`);
       oldFragments.push(pathHit.m[0]);
     }
     if (opHit && Number(opHit.m[1]) !== counts.operations) {
@@ -436,13 +472,13 @@ export async function analyze({ root, inputs, options }) {
       facts.push(`${counts.operations} 个 operation`);
       oldFragments.push(opHit.m[0]);
     }
-    if (facts.length && !blockAlreadyPresent(stagesText, today, shortSha)) {
-      pushFix({
-        file: rel(stagesPath), line: (pathHit ?? opHit).line, kind: 'correction-block',
-        before: oldFragments.join('；'), after: null, insertAtLine: null,
-        facts: [`api/openapi.yaml 实测 ${counts.paths} 个 path、${counts.operations} 个 operation`],
-        oldFragments, anchorLine: (pathHit ?? opHit).line,
-      });
+    if (facts.length && !correctionBlockExists(stagesText, today, shortSha)) {
+      const anchor = (pathHit ?? opHit).line;
+      const factsMerged = [`api/openapi.yaml 实测 ${counts.paths.length} 个 path、${counts.operations} 个 operation`];
+      pushFix(makeCorrectionFix({
+        lines: sLines, anchorLine: anchor,
+        facts: factsMerged, oldFragments, today, shortSha, file: rel(stagesPath),
+      }));
     }
   }
   check2.status = heaviest(check2.findings);
@@ -456,7 +492,6 @@ export async function analyze({ root, inputs, options }) {
     check3.findings.push({ file: null, line: 1, current: '', action: '补 issue 快照输入', status: 'report', detail: '未提供 issue 列表输入，无法核对 open issue 数量与集合。' });
     pushReport({ file: null, line: 1, current: '', reason: '未提供 issue 快照（--issues）。', suggestion: '流程侧采集 gh issue list 后重跑。' });
   } else {
-    const cn = (s) => (CN_NUM[s] ?? null);
     const countFromLine = (line) => {
       let m = line.match(/共\s*\*\*(\d+)\*\*\s*个\s*open\s*issue/i);
       if (m) return Number(m[1]);
@@ -476,17 +511,30 @@ export async function analyze({ root, inputs, options }) {
     for (const page of pages) {
       if (page.text === null) continue;
       const lines = page.text.split('\n');
-      const countHit = lines.map((l, i) => ({ line: i + 1, current: l, n: countFromLine(l) })).find((h) => h.n !== null);
-      if (countHit && countHit.n !== openIssues.length && !blockAlreadyPresent(page.text, today, shortSha)) {
-        check3.findings.push({
-          file: rel(page.path), line: countHit.line, current: countHit.current.trim(),
-          action: '追加 open issue 数量更正块', status: 'drift', detail: `断言 ${countHit.n} 个 open issue，实测 ${openIssues.length} 个。`,
-        });
-        pushFix({
-          file: rel(page.path), line: countHit.line, kind: 'correction-block',
-          before: countHit.current.trim(), after: null, insertAtLine: null,
-          facts: [`open issue ${openIssues.length} 个`], oldFragments: [countHit.current.trim()], anchorLine: countHit.line,
-        });
+      const hits = lines.map((l, i) => ({ line: i + 1, current: l, n: countFromLine(l), section: sectionIndexOf(lines, i) })).filter((h) => h.n !== null);
+      // 同页同一小节合并成一条更正块；不同小节各自一条。
+      const groups = new Map();
+      for (const h of hits) {
+        if (!groups.has(h.section)) groups.set(h.section, []);
+        groups.get(h.section).push(h);
+      }
+      for (const [, group] of groups) {
+        const mismatched = group.filter((h) => h.n !== openIssues.length);
+        if (!mismatched.length) continue;
+        for (const h of mismatched) {
+          check3.findings.push({
+            file: rel(page.path), line: h.line, current: h.current.trim(),
+            action: '追加 open issue 数量更正块', status: 'drift', detail: `断言 ${h.n} 个 open issue，实测 ${openIssues.length} 个。`,
+          });
+        }
+        if (!correctionBlockExists(page.text, today, shortSha)) {
+          pushFix(makeCorrectionFix({
+            lines, anchorLine: mismatched[0].line,
+            facts: [`open issue ${openIssues.length} 个`],
+            oldFragments: mismatched.map((h) => h.current.trim()),
+            today, shortSha, file: rel(page.path),
+          }));
+        }
       }
       // 集合差异：表格里只取加粗的 issue 引用（**#N**），里程碑表里的 PR #N 不算；
       // 快照行里的编号才是 issue 集合声明。正文 PR 引用不进集合比对。
@@ -552,14 +600,18 @@ export async function analyze({ root, inputs, options }) {
       if (hits.length === 1) {
         const targetRel = relative(dirname(file), hits[0]).split(sep).join('/');
         const newTarget = targetRel + link.anchor;
+        const origLine = lines[link.line - 1] ?? '';
+        const linkText = origLine.match(/\[([^\]]*)\]/)?.[1] ?? '';
+        const newLink = `[${linkText}](${newTarget})`;
+        const replacedLine = origLine.replace(link.raw, newLink);
         check5.findings.push({
           file: rel(file), line: link.line, current: link.raw, action: '原地替换链接目标', status: 'drift',
           detail: `旧目标不存在，basename「${base}」全仓唯一命中。`,
         });
         pushFix({
           file: rel(file), line: link.line, kind: 'link-replace',
-          before: link.raw, after: `[${lines[link.line - 1].match(/\[([^\]]*)\]/)?.[1] ?? ''}](${newTarget})`,
-          insertAtLine: null, oldTarget: link.target, newTarget: hits[0], anchor: link.anchor,
+          before: link.raw, after: replacedLine, insertAtLine: link.line,
+          oldTarget: link.target, newTarget: hits[0], anchor: link.anchor,
         });
       } else {
         check5.findings.push({
@@ -646,7 +698,7 @@ export async function analyze({ root, inputs, options }) {
   } else if (openapiText === null) {
     check9.findings.push({ file: rel(openapiPath), line: 1, current: '', action: '补契约文件', status: 'report', detail: 'api/openapi.yaml 不存在。' });
   } else {
-    const openapiPaths = new Set(countOpenapiPaths(openapiText));
+    const openapiPaths = new Set(countOpenapi(openapiText).paths);
     const norm = (p) => p.replace(/\{[^}]+\}/g, '{}').replace(/\/+$/, '');
     const openapiNorm = new Set([...openapiPaths].map(norm));
     const endpoints = new Set();
@@ -675,7 +727,7 @@ export async function analyze({ root, inputs, options }) {
   const plan = buildPlan({ prs: inputs.prs.items, fixes, reports, shortSha });
 
   return {
-    meta: { mainSha, shortSha, today, full: !!options.full, dryRun: options.dryRun, pollSkipped: !!options.dryRun, trigger: { pr: options.triggerPr ? Number(options.triggerPr) : null, mergedSha: mainSha } },
+    meta: { mainSha, shortSha, today, full: !!options.full, dryRun: options.dryRun, pollSkipped: !!options.dryRun, trigger: { pr: options.triggerPr ? Number(options.triggerPr) : null, mergedSha: options.triggerMergedSha ?? null } },
     checks,
     summary,
     fixes,
@@ -686,28 +738,27 @@ export async function analyze({ root, inputs, options }) {
   };
 }
 
-function countOpenapiPaths(text) {
-  const paths = [];
-  for (const line of text.split('\n')) {
-    const m = line.match(/^  (\/.*):/);
-    if (m) paths.push(m[1]);
-  }
-  return paths;
-}
-
 function buildPlan({ prs, fixes, reports, shortSha }) {
   const syncPrs = (prs ?? []).filter((p) => String(p.headRefName ?? '').startsWith('docs/sync-'));
   let reuseExistingPr = null;
   let branch = null;
   const warnings = [];
+  const occupied = new Set(syncPrs.map((p) => p.headRefName));
+  const base = `docs/sync-${shortSha ?? 'unknown'}`;
 
   if (syncPrs.length === 0) {
-    branch = `docs/sync-${shortSha ?? 'unknown'}`;
+    branch = base;
   } else if (syncPrs.length === 1) {
     const pr = syncPrs[0];
     const reviewed = ['APPROVED', 'CHANGES_REQUESTED'].includes(pr.reviewDecision ?? '');
     if (reviewed) {
-      branch = `docs/sync-${shortSha ?? 'unknown'}-2`;
+      // 已被占用则 -3、-4… 依次回退。
+      let suffix = 2;
+      branch = `${base}-2`;
+      while (occupied.has(branch)) {
+        suffix += 1;
+        branch = `${base}-${suffix}`;
+      }
     } else {
       reuseExistingPr = { number: pr.number, headRefName: pr.headRefName };
       branch = pr.headRefName;
@@ -740,7 +791,18 @@ function renderCorrectionBlock({ today, shortSha, facts, oldFragments }) {
 
 // 同一 today + shortSha 的更正块已存在则跳过，保证 apply 幂等。
 function correctionBlockExists(text, today, shortSha) {
-  return text.includes(`${today} 复核`) && (!shortSha || text.includes(`main \`${shortSha}\``));
+  return Boolean(text) && text.includes(`${today} 复核`) && (!shortSha || text.includes(`main \`${shortSha}\``));
+}
+
+// 构造一条更正块 fix：after 为新增行逐字，insertAtLine 为其在结果文件中的 1-based 行号。
+function makeCorrectionFix({ lines, anchorLine, facts, oldFragments, today, shortSha, file }) {
+  const block = renderCorrectionBlock({ today, shortSha, facts, oldFragments });
+  const insertAt0 = locateBlockInsertion(lines, Math.max(0, anchorLine - 1));
+  return {
+    file, line: anchorLine, kind: 'correction-block',
+    after: block, insertAtLine: insertAt0 + 2, insertAt0,
+    facts, oldFragments, before: oldFragments.join('；'), anchorLine,
+  };
 }
 
 export function applyFixes(root, fixes, { today, shortSha }) {
@@ -749,59 +811,34 @@ export function applyFixes(root, fixes, { today, shortSha }) {
     if (!byFile.has(fix.file)) byFile.set(fix.file, []);
     byFile.get(fix.file).push(fix);
   }
-  const written = [];
 
+  // 阶段一：全部修正算完、校验完，先不落盘；任一文件校验失败都不写任何文件。
+  const planned = [];
   for (const [relFile, fileFixes] of byFile) {
     const abs = join(root, relFile);
     const original = readFileSync(abs, 'utf8');
     const lines = original.split('\n');
     const ann = annotateLines(lines);
-    const protectedBefore = new Set(ann.filter((a) => a.protected).map((a) => a.line));
+    const protectedBefore = ann.filter((a) => a.protected).map((a) => a.line);
 
     const blockFixes = fileFixes.filter((f) => f.kind === 'correction-block');
     const rowFixes = fileFixes.filter((f) => f.kind === 'index-row');
     const linkFixes = fileFixes.filter((f) => f.kind === 'link-replace');
 
-    // 更正块按页合并成一条；已存在同轮块则整组跳过。
-    let content = lines;
-    if (blockFixes.length) {
-      if (correctionBlockExists(original, today, shortSha)) {
-        // 幂等：本轮更正块已落盘，不再追加。
-      } else {
-        const facts = [...new Set(blockFixes.flatMap((f) => f.facts ?? []))];
-        const oldFragments = [...new Set(blockFixes.flatMap((f) => f.oldFragments ?? []))];
-        const block = renderCorrectionBlock({ today, shortSha, facts, oldFragments });
-        const anchor = blockFixes[0].anchorLine ?? lines.length;
-        const insertAt = locateBlockInsertion(lines, anchor - 1);
-        const next = [...lines];
-        // 前后各留一个空行，不与既有段粘连
-        next.splice(insertAt, 0, '', block, '');
-        content = next;
-      }
-    }
+    let content = [...lines];
 
-    // 索引行按编号升序插入正确位置。
-    if (rowFixes.length) {
-      const next = [...content];
-      const headerIdx = next.findIndex((l) => /^\|\s*ADR\s*\|/.test(l));
-      const existing = new Set();
-      for (let i = headerIdx + 2; i < next.length; i++) {
-        if (!/^\|/.test(next[i])) break;
-        const m = next[i].match(/^\|\s*\[(\d{4})\]/);
-        if (m) existing.add(m[1]);
-      }
-      for (const fix of rowFixes) {
-        if (existing.has(fix.adr.num)) continue;
-        let rowLine = next.findIndex((l) => /^\|\s*\[(\d{4})\]/.test(l) && Number(l.match(/^\|\s*\[(\d{4})\]/)[1]) > Number(fix.adr.num));
-        if (rowLine === -1) {
-          // 表尾：插到表头之后最后一行表格之后
-          rowLine = headerIdx + 2;
-          while (rowLine < next.length && /^\|/.test(next[rowLine])) rowLine += 1;
-        }
-        next.splice(rowLine, 0, fix.after);
-        existing.add(fix.adr.num);
-      }
-      content = next;
+    // 幂等：同轮更正块已落盘则整组跳过。
+    const skipBlocks = blockFixes.length > 0 && correctionBlockExists(original, today, shortSha);
+    const blockApply = skipBlocks ? [] : blockFixes;
+
+    // 插入类动作按原始行号倒序应用，避免前面的插入顶掉后面的行号。
+    const inserts = [
+      ...blockApply.map((f) => ({ at: f.insertAt0 ?? locateBlockInsertion(lines, (f.anchorLine ?? lines.length) - 1), kind: 'block', fix: f })),
+      ...rowFixes.map((f) => ({ at: f.insertAtLine - 1, kind: 'row', fix: f })),
+    ].sort((a, b) => b.at - a.at);
+    for (const ins of inserts) {
+      if (ins.kind === 'block') content.splice(ins.at, 0, '', ins.fix.after, '');
+      else content.splice(ins.at, 0, ins.fix.after);
     }
 
     // 链接替换只动目标，不动链接文本与整行其他内容；历史行不参与改写。
@@ -811,7 +848,8 @@ export function applyFixes(root, fixes, { today, shortSha }) {
       const line = content[idx];
       const re = new RegExp(`\\]\\(${escapeRegex(fix.before.replace(/#.*$/, ''))}[^)]*\\)`);
       const replaced = line.replace(re, fix.after);
-      if (replaced !== line) content[idx] = replaced;
+      if (replaced === line) throw new Error(`链接目标未命中：${relFile} :: ${fix.before.slice(0, 40)}…`);
+      content[idx] = replaced;
     }
 
     // 校验：历史断言行逐字节未变。
@@ -819,8 +857,16 @@ export function applyFixes(root, fixes, { today, shortSha }) {
     for (const orig of protectedBefore) {
       if (!result.includes(orig)) throw new Error(`历史断言行被改写：${relFile} :: ${orig.slice(0, 40)}…`);
     }
-    writeFileSync(abs, result);
-    written.push(relFile);
+    planned.push({ abs, relFile, result });
+  }
+
+  // 阶段二：临时文件 + rename 一次落盘；同目录 rename 是原子替换。
+  const written = [];
+  for (const p of planned) {
+    const tmp = `${p.abs}.tmp-${process.pid}`;
+    writeFileSync(tmp, p.result);
+    renameSync(tmp, p.abs);
+    written.push(p.relFile);
   }
   return written;
 }
@@ -876,6 +922,7 @@ async function main(argv) {
     today,
     mainSha: opts.main_sha,
     triggerPr: opts.trigger_pr,
+    triggerMergedSha: opts.trigger_merged_sha,
     pollCloses: opts.poll_closes,
     issueStatesCmd: opts.issue_states_cmd,
   };
