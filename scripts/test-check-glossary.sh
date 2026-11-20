@@ -154,13 +154,26 @@ else
 fi
 
 # --- 默认展示模式仍截断：每个词最多 3 行命中，超出时有「……还有 N 处」 ---
-if awk '
-  /^── / { cur = 0; next }
-  /^   ……还有/ { next }
-  /^$/ { next }
-  { cur++; if (cur > 3) bad = 1 }
-  END { exit bad + 0 }
-' "$tmp/utf8.out"; then
+# 不用 awk 匹配多字节标题 `──`：CI 的 mawk 在 C locale 下认不出它，
+# 计数会跨小节累加，本地 gawk 却正常。改用 grep -n 找标题行号（字面字节匹配，
+# 跨实现稳定），再按行号切片，只统计非空、非提示行。
+starts=$(grep -n '^── ' "$tmp/utf8.out" | cut -d: -f1)
+bad=0
+prev=
+for start in $starts; do
+  if [ -n "$prev" ]; then
+    end=$((start - 1))
+    count=$(sed -n "$((prev + 1)),${end}p" "$tmp/utf8.out" | grep -av '……还有' | grep -cv '^$' || true)
+    [ "$count" -gt 3 ] && bad=1
+  fi
+  prev=$start
+done
+if [ -n "$prev" ]; then
+  total=$(wc -l < "$tmp/utf8.out")
+  count=$(sed -n "$((prev + 1)),${total}p" "$tmp/utf8.out" | grep -av '……还有' | grep -cv '^$' || true)
+  [ "$count" -gt 3 ] && bad=1
+fi
+if [ "$bad" -eq 0 ]; then
   pass "默认模式每词最多展示 3 行命中"
 else
   fail "默认模式出现超过 3 行命中（截断行为被改动）"

@@ -4,7 +4,28 @@ agents 在这个仓库里踩过的坑，以及绕开它们的正确姿势。每�
 
 相关页：[index](index.md) · [workflow](workflow.md) · [guardrails](guardrails.md) · [open-loops](open-loops.md)
 
+## 先认清是哪一台机器（2026-11-20）
+
+**本页 2026-11-16 的全部记录都来自一台 macOS 机器。当前 runtime 不是那台。** 不先分清这一点，下面的路径与工具名会把新 agent 直接带进墙里。
+
+**2026-11-20 实测**（`uname -srm` = `Linux 6.6.95.bck.4-rc5-amd64 x86_64`）：
+
+| 项 | macOS 那台（本页旧记录） | 当前云主机（2026-11-20 实测） |
+| --- | --- | --- |
+| JDK 25 | `/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home` | `/home/user/.local/jdk25/jdk-25.0.5+8`（`openjdk 25.0.5`） |
+| `/Library/Java/...` | 存在 | **不存在** |
+| `tr` | BSD，locale 敏感 | **GNU coreutils 8.32**，按字节工作、与 locale 无关 |
+| `LANG` | 未设置，默认 C | **`en_US.UTF-8` 已设置** |
+| `gh` | 2.95.0 | 2.104.0，已登录 `a-RunShine` |
+| node / pnpm | homebrew | node 22.23.4 / pnpm 11.7.0（CI 仍钉 pnpm 12，本地与 CI 不同版本） |
+
+**JDK 有现成的设法，不要手抄路径**：`source ~/.local/jdk25/env.sh` 会一并设好 `JAVA_HOME`、`PATH` 与 egress 代理所需的 `MAVEN_OPTS` 信任库。少设 `MAVEN_OPTS` 会在拉依赖时踩 TLS。
+
+**GitHub 写操作走 `gh` CLI。** GitHub MCP 的写工具在当前客户端不可用；issue / PR 的创建、评论、打标签、合并一律用 `/home/user/.local/bin/gh`。读也建议用它，省一次能力探测。
+
 ## 委派 subagent 的可用路径
+
+> **2026-11-20 更正（superseded）**：下面整段是 macOS 那台机器的 runtime 限制，**不适用于当前云主机**。当前 `create_agent`（`OrganizerAgent`）可用，本轮的 #48–#54、#29、#45/#46 三条实现线都是这样派出去的；`mcp__builtin__create_chat_session` 与 `read_chat_session` 在当前客户端不存在，照着调用会失败。原记录按历史保留。
 
 **2026-11-16**：本 runtime 里 `Agent` 工具的 subagent 类型全部不可用。`general-purpose` 与 `Explore` 报 "disabled via disallowedTools configuration"，`claude` 报 "Unknown agent type"，可用类型列表为空。`~/.qoder-cn/settings.json` 里没有 `disallowedTools` 配置，所以这是 host 侧限制，不是项目配置问题。
 
@@ -95,7 +116,23 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 
 **干净 clone 仍然能跑**：`web/pnpm-lock.yaml` 与生成物 `web/src/types/api.ts` **都已提交**（`git ls-files` 可查），所以 `pnpm test` / `build` / `lint` 不必先跑 `gen:types`。CI 里仍显式跑一遍 `gen:types`（`ci.yml:59-61`），等于每次校验提交进去的那份生成物有没有漂移。
 
+> **2026-11-20 更正（superseded）**：上面末句「等于每次校验提交进去的那份生成物有没有漂移」**是错的**，而且这句错断言正是那个洞长期没被发现的原因——文档声称检查存在，于是没人再去看 CI 到底做了什么。
+>
+> 实况：CI 的顺序是 `pnpm gen:types` → `tsc --noEmit`。**重新生成会覆盖工作区里那份**，后面的 tsc 用的是新产物，所以**提交里那份过期也照样全绿**。当时的 ci.yml 里没有任何 `git diff` / `--exit-code`。
+>
+> **本轮已补上真的检查**：`gen:types` 之后新增一步 `git diff --exit-code -- src/types/api.ts`，漂移即红。从这时起，末句描述的行为才真正成立。
+>
+> **教训**：判断某个检查是否存在，要读 CI 全文，不能凭一句文档转述；`git show <ref>:<path>` 取不到内容时，先分清「文件不存在」与「路径是目录」，别把取不到读成没有。本轮 retro 就据此误判过一次 `CODING_STANDARDS`——它其实是个目录，`README.md` + `java.md` + `typescript.md` 三份俱全。
+
 ## Shell 与 locale：本机默认是 C，多字节工具会踩坑
+
+> **2026-11-20 更正（superseded，`d654255` / PR #56）**：本节三处结论在当前云主机上都不成立，脚本缺陷也已修掉。
+>
+> - **「本机默认 C」不成立**：当前 `LANG=en_US.UTF-8` **已设置**，`tr` 是 **GNU coreutils 8.32**，不是 BSD。
+> - **「固定 locale 就能绕开」不成立**：GNU `tr` 按字节工作、与 locale 无关，**UTF-8 下拆分就已经坏**（`证件号` → `件号`，产出 `单`/`号`/`费`/`余量` 等碎词，上游 grep 把文件误判成二进制）。C locale 只是额外多 mojibake。所以「export UTF-8 就够」这条绕法在 GNU 机器上无效。
+> - **「CI 上未实测」已实测**：#56 的修复把两处 `tr` 换成 python3 显式按 UTF-8 解码后拆词，与运行环境 locale 无关。修后 `LC_ALL=C` 与 `en_US.UTF-8` 输出**逐字节一致**，碎词与 mojibake 归零，`大区` 从未收词表变成候选 33 处。
+>
+> **仍然有效的部分**：「按字符处理中文的 shell 工具会按字节处理」这个一般性陷阱本身没错，换工具时仍要警惕。原记录按历史保留。
 
 **2026-11-16**，来源是并行护栏 worker 在分支 `chore/guardrails` 上的运行，本会话同日在 `c5b5508` 上独立复现。
 
