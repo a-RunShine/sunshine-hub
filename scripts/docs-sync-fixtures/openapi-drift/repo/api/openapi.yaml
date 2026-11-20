@@ -1,0 +1,10 @@
+openapi: 3.1.0
+paths:
+  /products:
+    get:
+      summary: 商品列表
+    post:
+      summary: 新建商品
+  /orders:
+    get:
+      summary: 订单列表
