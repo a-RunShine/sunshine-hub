@@ -17,13 +17,25 @@ import { analyze, applyFixes, createIssueStateSource, parseArgs } from './docs-s
 
 const FIX = join(dirname(fileURLToPath(import.meta.url)), 'docs-sync-fixtures');
 
-function sandbox(fixture) {
+// 只读用例共享一份 pristine 副本，避免每个用例重复复制/删除夹具目录。
+const pristine = new Map();
+
+function sandbox(fixture, { shared = false } = {}) {
+  if (shared) {
+    if (!pristine.has(fixture)) {
+      const root = join(homedir(), `.docs-sync-pristine-${process.pid}-${fixture}`);
+      cpSync(join(FIX, fixture, 'repo'), root, { recursive: true });
+      pristine.set(fixture, root);
+    }
+    return pristine.get(fixture);
+  }
   const root = join(homedir(), `.docs-sync-test-${process.pid}-${Math.random().toString(36).slice(2)}`);
   cpSync(join(FIX, fixture, 'repo'), root, { recursive: true });
   return root;
 }
 
 function cleanup(root) {
+  if ([...pristine.values()].includes(root)) return;
   rmSync(root, { recursive: true, force: true });
 }
 
@@ -62,7 +74,7 @@ const checkById = (result, id) => result.checks.find((c) => c.id === id);
 // --- 夹具 1：ADR 计数与索引行 ---
 
 test('ADR 计数漂移：断言 2 份 vs 实测 3 份，产出份数更正块', async () => {
-  const root = sandbox('adr-drift');
+  const root = sandbox('adr-drift', { shared: true });
   try {
     const result = await runAnalyze(root);
     const c1 = checkById(result, 1);
@@ -94,7 +106,7 @@ test('索引缺行：0003 按编号补进表内正确位置', async () => {
 });
 
 test('索引标题与 ADR 标题不一致：只报告，不自动改', async () => {
-  const root = sandbox('adr-drift');
+  const root = sandbox('adr-drift', { shared: true });
   try {
     const result = await runAnalyze(root);
     const report = result.reports.find((r) => r.reason.includes('标题'));
@@ -172,7 +184,7 @@ test('链接旧目标不存在且 basename 唯一命中：原地替换目标', a
 });
 
 test('链接歧义与零命中：只报告，不改文件', async () => {
-  const root = sandbox('links');
+  const root = sandbox('links', { shared: true });
   try {
     const result = await runAnalyze(root);
     const reasons = result.reports.map((r) => r.reason);
@@ -286,7 +298,7 @@ test('open issue 计数：不同小节各一条更正块，历史旧句逐字保
 // --- 索引集合比对（补丁 3 第 4 项） ---
 
 test('索引集合：多余行与重复编号进 report，不自动补幽灵编号', async () => {
-  const root = sandbox('index-set');
+  const root = sandbox('index-set', { shared: true });
   try {
     const result = await runAnalyze(root);
     const reasons = result.reports.map((r) => r.reason);
@@ -310,7 +322,7 @@ test('Closes 两帧状态：第一次 OPEN，重读一次后 CLOSED 即收敛，
 });
 
 test('Closes 关联 issue 一直未关闭：进 report，不产 fix', async () => {
-  const root = sandbox('closes');
+  const root = sandbox('closes', { shared: true });
   try {
     const result = await runAnalyze(root, {
       triggerPrBody: { provided: true, text: 'Closes #33' },
@@ -326,7 +338,7 @@ test('Closes 关联 issue 一直未关闭：进 report，不产 fix', async () =
 });
 
 test('apply 模式重读状态源：第二帧转 CLOSED 即收敛，不真等', async () => {
-  const root = sandbox('closes');
+  const root = sandbox('closes', { shared: true });
   try {
     let calls = 0;
     const reload = async () => {
@@ -347,7 +359,7 @@ test('apply 模式重读状态源：第二帧转 CLOSED 即收敛，不真等', 
 });
 
 test('issue-states-cmd 假命令：走子进程重读，第二帧即收敛，总耗时 <2s', async () => {
-  const root = sandbox('closes');
+  const root = sandbox('closes', { shared: true });
   try {
     const counter = join(root, '.state-counter');
     const script = join(FIX, 'closes-cmd', 'fake-state.mjs');
@@ -369,7 +381,7 @@ test('issue-states-cmd 假命令：走子进程重读，第二帧即收敛，总
 });
 
 test('poll-closes 0：不进入等待循环，不执行重读命令', async () => {
-  const root = sandbox('closes');
+  const root = sandbox('closes', { shared: true });
   try {
     // 该命令若被执行会以非零退出；pollCloses=0 时循环不得进入。
     const result = await runAnalyze(root, {
@@ -385,7 +397,7 @@ test('poll-closes 0：不进入等待循环，不执行重读命令', async () =
 });
 
 test('增量模式缺触发 PR 正文：第 8 项 report 注明来源缺失', async () => {
-  const root = sandbox('closes');
+  const root = sandbox('closes', { shared: true });
   try {
     const result = await runAnalyze(root, {});
     const c8 = checkById(result, 8);
@@ -397,7 +409,7 @@ test('增量模式缺触发 PR 正文：第 8 项 report 注明来源缺失', as
 });
 
 test('dry-run 不等待不重读：meta 记 pollSkipped', async () => {
-  const root = sandbox('closes');
+  const root = sandbox('closes', { shared: true });
   try {
     let calls = 0;
     const reload = async () => { calls += 1; return [{ number: 33, state: 'CLOSED' }]; };
@@ -416,7 +428,7 @@ test('dry-run 不等待不重读：meta 记 pollSkipped', async () => {
 // --- 夹具 6：无漂移 ---
 
 test('无漂移 dry-run：不建分支，工作区内容哈希不变', async () => {
-  const root = sandbox('clean');
+  const root = sandbox('clean', { shared: true });
   const before = treeHash(root);
   const result = await runAnalyze(root, {
     issues: { provided: true, items: [{ number: 3, title: '文档审查', state: 'OPEN', labels: [] }] },
@@ -463,7 +475,7 @@ test('apply 幂等：第二轮 fixes 为空，更正块不重复追加', async (
 // --- 第 4 项缺输入 ---
 
 test('未提供 git 历史输入：第 4 项 report 注明来源缺失', async () => {
-  const root = sandbox('clean');
+  const root = sandbox('clean', { shared: true });
   try {
     const result = await runAnalyze(root);
     const c4 = checkById(result, 4);
@@ -481,7 +493,7 @@ const planPr = (number, headRefName, reviewDecision, createdAt) => ({
 });
 
 async function planWith(prs) {
-  const root = sandbox('clean');
+  const root = sandbox('clean', { shared: true });
   try {
     const result = await runAnalyze(root, { prs: { provided: true, items: prs } });
     return result.plan;
@@ -534,7 +546,7 @@ test('plan：-2 已被占用 → 回退 -3', async () => {
 
 test('CLI：同时给 --dry-run 与 --apply 退出码 1', async () => {
   const { spawnSync } = await import('node:child_process');
-  const root = sandbox('clean');
+  const root = sandbox('clean', { shared: true });
   try {
     const cli = join(dirname(fileURLToPath(import.meta.url)), 'docs-sync.mjs');
     const res = spawnSync(process.execPath, [cli, '--dry-run', '--apply', '--repo-root', root, '--today', '2026-11-20'], { encoding: 'utf8' });
@@ -555,7 +567,7 @@ test('参数解析：布尔与取值选项归位', () => {
 });
 
 test('meta.trigger.mergedSha：给了进 meta，未给为 null，不参与标注', async () => {
-  const root = sandbox('clean');
+  const root = sandbox('clean', { shared: true });
   try {
     const none = await runAnalyze(root, {}, {});
     assert.equal(none.meta.trigger.mergedSha, null);
