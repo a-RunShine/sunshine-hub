@@ -492,14 +492,18 @@ export async function analyze({ root, inputs, options }) {
     check3.findings.push({ file: null, line: 1, current: '', action: '补 issue 快照输入', status: 'report', detail: '未提供 issue 列表输入，无法核对 open issue 数量与集合。' });
     pushReport({ file: null, line: 1, current: '', reason: '未提供 issue 快照（--issues）。', suggestion: '流程侧采集 gh issue list 后重跑。' });
   } else {
+    // 日期、中文日期、commit SHA、版本号里的数字不算计数；标题行也不是断言来源。
+    const MASK_NOISE = /\d{4}-\d{1,2}-\d{1,2}|\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日|\b[0-9a-f]{7,40}\b|\bv?\d+\.\d+(?:\.\d+)?\b/gi;
     const countFromLine = (line) => {
-      let m = line.match(/共\s*\*\*(\d+)\*\*\s*个\s*open\s*issue/i);
+      if (/^\s*#{1,6}\s/.test(line)) return null;
+      const masked = line.replace(MASK_NOISE, ' ');
+      let m = masked.match(/共\s*\*\*(\d+)\*\*\s*个\s*open\s*issue/i);
       if (m) return Number(m[1]);
-      m = line.match(/(\d+)\s*个\s*open\s*issue/i);
+      m = masked.match(/(\d+)\s*个\s*open\s*issue/i);
       if (m) return Number(m[1]);
       // 快照（六个）这类中文数字写法：括号内容用 split 取，不依赖全角括号正则。
       if (line.includes('快照')) {
-        const token = (line.split('（')[1] ?? '').split('）')[0].match(/[一二三四五六七八九十\d]+/);
+        const token = (line.split('（')[1] ?? '').split('）')[0].replace(MASK_NOISE, ' ').match(/[一二三四五六七八九十\d]+/);
         if (token) return /\d/.test(token[0]) ? Number(token[0]) : CN_NUM[token[0]];
       }
       return null;
@@ -539,22 +543,35 @@ export async function analyze({ root, inputs, options }) {
       // 集合差异：表格里只取加粗的 issue 引用（**#N**），里程碑表里的 PR #N 不算；
       // 快照行里的编号才是 issue 集合声明。正文 PR 引用不进集合比对。
       const listed = new Set();
-      for (const l of lines) {
+      const numberLine = new Map();
+      lines.forEach((l, i) => {
+        let nums = [];
         if (/^\|/.test(l)) {
-          for (const m of l.matchAll(/\*\*#(\d+)\*\*/g)) listed.add(Number(m[1]));
+          for (const m of l.matchAll(/\*\*#(\d+)\*\*/g)) nums.push(Number(m[1]));
         } else if (l.includes('快照')) {
-          for (const m of l.matchAll(/#(\d+)/g)) listed.add(Number(m[1]));
+          for (const m of l.matchAll(/#(\d+)/g)) nums.push(Number(m[1]));
         }
-      }
+        for (const n of nums) {
+          listed.add(n);
+          if (!numberLine.has(n)) numberLine.set(n, i + 1);
+        }
+      });
+      // 找不到编号所在行时，回退到首个快照小节标题行；再没有就记第 1 行并在 detail 说明。
+      const snapshotHeadingIdx = lines.findIndex((l) => /快照/.test(l) && /^#{1,6}\s/.test(l));
+      const fallbackLine = snapshotHeadingIdx >= 0 ? snapshotHeadingIdx + 1 : 1;
+      const lineFor = (n) => numberLine.get(n) ?? fallbackLine;
+      const noteFallback = (n) => numberLine.has(n) ? '' : '（文档中未直接定位到该编号，指向首个快照小节）';
       const extra = [...listed].filter((n) => !openNumbers.has(n)).sort((a, b) => a - b);
       const missing = [...openNumbers].filter((n) => !listed.has(n)).sort((a, b) => a - b);
       for (const n of extra) {
-        check3.findings.push({ file: rel(page.path), line: 1, current: `#${n}`, action: '人工核对 issue 集合', status: 'report', detail: '文档列出的该 issue 当前不在 open 集合中。' });
-        pushReport({ file: rel(page.path), line: 1, current: `#${n}`, reason: '文档列出但已关闭或不存在，集合差异需人工判断。', suggestion: '确认该 issue 状态后从现行快照移除。' });
+        const line = lineFor(n);
+        check3.findings.push({ file: rel(page.path), line, current: `#${n}`, action: '人工核对 issue 集合', status: 'report', detail: `文档列出的该 issue 当前不在 open 集合中。${noteFallback(n)}` });
+        pushReport({ file: rel(page.path), line, current: `#${n}`, reason: '文档列出但已关闭或不存在，集合差异需人工判断。', suggestion: '确认该 issue 状态后从现行快照移除。' });
       }
       for (const n of missing) {
-        check3.findings.push({ file: rel(page.path), line: 1, current: `#${n}`, action: '人工核对 issue 集合', status: 'report', detail: 'open 集合中的该 issue 未在文档列出。' });
-        pushReport({ file: rel(page.path), line: 1, current: `#${n}`, reason: 'open issue 未被文档快照覆盖。', suggestion: '人工确认是否补进现行快照。' });
+        const line = lineFor(n);
+        check3.findings.push({ file: rel(page.path), line, current: `#${n}`, action: '人工核对 issue 集合', status: 'report', detail: `open 集合中的该 issue 未在文档列出。${noteFallback(n)}` });
+        pushReport({ file: rel(page.path), line, current: `#${n}`, reason: 'open issue 未被文档快照覆盖。', suggestion: '人工确认是否补进现行快照。' });
       }
     }
   }
