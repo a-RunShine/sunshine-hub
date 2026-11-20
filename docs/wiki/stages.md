@@ -30,6 +30,9 @@ PR #19 上有两次评审评论：[issuecomment-6908668558](https://github.com/a
 
 CI 的 redocly lint 是绿的（run `43850258902`），**结构合法与数字准确是两件事**。
 
+
+> **2026-11-20 复核（main `c55ccb6`）**：api/openapi.yaml 实测 44 个 path、48 个 operation。原「38 个 path；40 个 operation」按历史断言保留。
+
 ## 阶段清单（issue #7 原文为准）
 
 **2026-11-16 复核**，四个阶段，依赖图 `0 ──┬──> 1 ──┐ / └──> 2 ──┴──> 3`：
@@ -103,6 +106,9 @@ issue #7 的页面清单是 **7 个区域**：身份、商城、交易、资产�
 | **#32** | test: MSW 要能造出契约里的每种失败态，抢购页的前置 | `needs-triage` |
 
 #3 还等着 triage，见 [open-loops](open-loops.md)。**2026-11-16 补充**：九条 P0 已逐条读过并分类，其中 **P0-7 / P0-9 阻塞契约修复**，见 [issue-3-review](issue-3-review.md)。
+
+
+> **2026-11-20 复核（main `c55ccb6`）**：open issue 5 个。原「**2026-11-17 复核（基线 `b987a6f`，GitHub Issues 页面核实）**：共 **6** 个 open issue；**#31 已关闭**。」按历史断言保留。
 
 ### 旧快照（2026-11-16，superseded）
 
