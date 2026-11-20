@@ -522,6 +522,63 @@ test('apply 幂等：第二轮 fixes 为空，更正块不重复追加', async (
   }
 });
 
+// --- 幂等：已有更正块按事实覆盖，不重复追加（事实变了才再补） ---
+
+const fiveOpenIssues = [3, 7, 27, 29, 59].map((number) => ({ number, title: 'x', state: 'OPEN' }));
+
+test('已更正覆盖：同小节块事实一致 → fixes=0，两遍 apply 文件逐字节不变', async () => {
+  const root = sandbox('idem-covered');
+  const before = treeHash(root);
+  try {
+    const first = await runAnalyze(root, { issues: { provided: true, items: fiveOpenIssues } });
+    assert.equal(first.fixes.length, 0);
+    assert.equal(first.plan.shouldCreateBranch, false);
+    assert.deepEqual(first.changedFiles, []);
+
+    const c2 = checkById(first, 2);
+    const c3 = checkById(first, 3);
+    assert.ok(c2.findings.some((f) => f.status === 'pass' && f.detail.includes('c55ccb6') && f.detail.includes('2026-11-19')));
+    assert.ok(c3.findings.some((f) => f.status === 'pass' && f.detail.includes('c55ccb6') && f.detail.includes('2026-11-19')));
+
+    applyFixes(root, first.fixes, { today: '2026-11-20', shortSha: 'abf8a35' });
+    assert.equal(treeHash(root), before, '第一遍 apply 后文件不变');
+
+    const second = await runAnalyze(root, { issues: { provided: true, items: fiveOpenIssues } });
+    assert.equal(second.fixes.length, 0);
+    applyFixes(root, second.fixes, { today: '2026-11-20', shortSha: 'abf8a35' });
+    assert.equal(treeHash(root), before, '第二遍 apply 后文件仍不变');
+  } finally {
+    cleanup(root);
+  }
+});
+
+test('反例：已有块陈述旧事实（6），实际变为 5 → 仍产出新块', async () => {
+  const root = sandbox('idem-stale-block');
+  try {
+    const result = await runAnalyze(root, { issues: { provided: true, items: fiveOpenIssues } });
+    const blocks = result.fixes.filter((f) => f.kind === 'correction-block');
+    assert.ok(blocks.length >= 1, '事实已变，不能因为有块就闭嘴');
+    assert.ok(blocks.some((b) => b.facts.includes('open issue 5 个')));
+    assert.equal(result.plan.shouldCreateBranch, true);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test('更正块行自身的计数字样不被当成断言，不产生嵌套引用', async () => {
+  const root = sandbox('idem-covered', { shared: true });
+  const blockRef = new RegExp('复核（main');
+  try {
+    const result = await runAnalyze(root, { issues: { provided: true, items: fiveOpenIssues } });
+    const c3 = checkById(result, 3);
+    assert.ok(!c3.findings.some((f) => blockRef.test(f.current)), '块行不进断言来源');
+    const blocks = result.fixes.filter((f) => f.kind === 'correction-block');
+    assert.ok(blocks.every((b) => !b.oldFragments.some((o) => blockRef.test(o))), '块行不进「原「…」」引用');
+  } finally {
+    cleanup(root);
+  }
+});
+
 // --- 第 4 项缺输入 ---
 
 test('未提供 git 历史输入：第 4 项 report 注明来源缺失', async () => {

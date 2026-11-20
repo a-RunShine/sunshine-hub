@@ -137,6 +137,47 @@ export function annotateLines(lines) {
   return ann;
 }
 
+// --- 更正块识别（幂等基线） ---
+
+// 脚本自己落盘的更正块：`> **YYYY-MM-DD 复核（main \`<sha>\`）**：…`。
+// 这种行是结论，不是断言来源：计数 / 份数 / 链接 / 集合扫描一律跳过，
+// 也绝不进「原「…」」引用对象，避免把自己嵌套引用一层。
+const RE_CORRECTION_BLOCK = /^\s*>\s*\*\*\d{4}-\d{2}-\d{2}\s+复核（main\s+`[0-9a-f]{7,40}`）\*\*/;
+
+function isCorrectionBlockLine(line) {
+  return RE_CORRECTION_BLOCK.test(line);
+}
+
+function parseCorrectionBlock(line) {
+  if (!isCorrectionBlockLine(line)) return null;
+  const date = (line.match(/\d{4}-\d{2}-\d{2}/) || [])[0] ?? null;
+  const sha = (line.match(/`([0-9a-f]{7,40})`/) || [])[1] ?? null;
+  // 事实段在 `**：` 之后、`。原「` 之前；括号数字按 split 取，不依赖全角括号正则。
+  const factsText = (line.split('**：')[1] ?? '').split('。原「')[0] ?? '';
+  return { date, sha, factsText };
+}
+
+const squash = (s) => s.replace(/\s+/g, '');
+
+// 在同一小节内找一条事实已覆盖所需事实的更正块；sectionIdx 为 -1 时覆盖整份文件。
+// 判定按「小节内事实」而不是「紧邻行」，兼容块紧跟断言与块在小节末尾两种布局。
+function blockCovering(lines, sectionIdx, requiredFactRegexes) {
+  const start = sectionIdx >= 0 ? sectionIdx : 0;
+  let end = lines.length;
+  if (sectionIdx >= 0) {
+    for (let i = sectionIdx + 1; i < lines.length; i++) {
+      if (/^#{1,6}\s/.test(lines[i])) { end = i; break; }
+    }
+  }
+  for (let i = start; i < end; i++) {
+    const block = parseCorrectionBlock(lines[i]);
+    if (!block) continue;
+    const facts = squash(block.factsText);
+    if (requiredFactRegexes.every((re) => re.test(facts))) return block;
+  }
+  return null;
+}
+
 // --- 仓库遍历与链接提取 ---
 
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'target']);
@@ -189,6 +230,7 @@ function extractLinks(file, lines) {
       continue;
     }
     if (fence) continue;
+    if (isCorrectionBlockLine(line)) continue;
     for (const m of maskCodeSpans(line).matchAll(LINK)) {
       let raw = m[1].trim();
       if (raw.startsWith('<') && raw.endsWith('>')) raw = raw.slice(1, -1);
@@ -345,8 +387,10 @@ export async function analyze({ root, inputs, options }) {
     const dLines = decisionsText.split('\n');
 
     // 现行份数断言：优先取含「现行」的行，否则取最后一处数字断言；历史行同样参与比对，但只读不改。
+    // 更正块行是结论不是断言来源，跳过。
     const countHits = [];
     dLines.forEach((line, i) => {
+      if (isCorrectionBlockLine(line)) return;
       for (const m of line.matchAll(/(\d+)\s*份\s*ADR/g)) countHits.push({ line: i + 1, current: line, matched: m[0] });
       for (const m of line.matchAll(/ADR\s*(?:共|是|现有)?\s*(\d+)\s*份/g)) countHits.push({ line: i + 1, current: line, matched: m[0] });
     });
@@ -354,7 +398,15 @@ export async function analyze({ root, inputs, options }) {
 
     if (currentHit && Number(currentHit.matched.match(/\d+/)[0]) !== adrs.length) {
       const asserted = Number(currentHit.matched.match(/\d+/)[0]);
-      if (!correctionBlockExists(decisionsText, today, shortSha)) {
+      const section = sectionIndexOf(dLines, currentHit.line - 1);
+      const covered = blockCovering(dLines, section, [new RegExp(`ADR共${adrs.length}份`)]);
+      if (covered) {
+        check1.findings.push({
+          file: rel(decisionsPath), line: currentHit.line, current: currentHit.current.trim(),
+          action: '追加 ADR 份数更正块', status: 'pass',
+          detail: `已有更正块（main \`${covered.sha}\`，${covered.date}）：ADR 共 ${adrs.length} 份，事实已覆盖，不再追加。`,
+        });
+      } else {
         check1.findings.push({
           file: rel(decisionsPath), line: currentHit.line, current: currentHit.current.trim(),
           action: '追加 ADR 份数更正块', status: 'drift',
@@ -452,33 +504,44 @@ export async function analyze({ root, inputs, options }) {
   } else {
     const counts = countOpenapi(openapiText);
     const sLines = stagesText.split('\n');
-    const pathHit = sLines.map((l, i) => ({ line: i + 1, current: l, m: l.match(/(\d+)\s*个\s*path/i) })).find((h) => h.m);
-    const opHit = sLines.map((l, i) => ({ line: i + 1, current: l, m: l.match(/(\d+)\s*个\s*operation/i) })).find((h) => h.m);
-    const facts = [];
-    const oldFragments = [];
+    const scanable = sLines.map((l, i) => ({ line: i + 1, current: l })).filter((h) => !isCorrectionBlockLine(h.current));
+    const pathHit = scanable.map((h) => ({ ...h, m: h.current.match(/(\d+)\s*个\s*path/i) })).find((h) => h.m);
+    const opHit = scanable.map((h) => ({ ...h, m: h.current.match(/(\d+)\s*个\s*operation/i) })).find((h) => h.m);
+    const mismatches = [];
     if (pathHit && Number(pathHit.m[1]) !== counts.paths.length) {
-      check2.findings.push({
-        file: rel(stagesPath), line: pathHit.line, current: pathHit.current.trim(),
-        action: '追加 path 计数更正块', status: 'drift', detail: `断言 ${pathHit.m[1]} 个 path，实测 ${counts.paths.length} 个。`,
-      });
-      facts.push(`${counts.paths.length} 个 path`);
-      oldFragments.push(pathHit.m[0]);
+      mismatches.push({ hit: pathHit, kind: 'path', fact: `${counts.paths.length} 个 path`, re: new RegExp(`${counts.paths.length}个path`) });
     }
     if (opHit && Number(opHit.m[1]) !== counts.operations) {
-      check2.findings.push({
-        file: rel(stagesPath), line: opHit.line, current: opHit.current.trim(),
-        action: '追加 operation 计数更正块', status: 'drift', detail: `断言 ${opHit.m[1]} 个 operation，实测 ${counts.operations} 个。`,
-      });
-      facts.push(`${counts.operations} 个 operation`);
-      oldFragments.push(opHit.m[0]);
+      mismatches.push({ hit: opHit, kind: 'operation', fact: `${counts.operations} 个 operation`, re: new RegExp(`${counts.operations}个operation`) });
     }
-    if (facts.length && !correctionBlockExists(stagesText, today, shortSha)) {
-      const anchor = (pathHit ?? opHit).line;
-      const factsMerged = [`api/openapi.yaml 实测 ${counts.paths.length} 个 path、${counts.operations} 个 operation`];
-      pushFix(makeCorrectionFix({
-        lines: sLines, anchorLine: anchor,
-        facts: factsMerged, oldFragments, today, shortSha, file: rel(stagesPath),
-      }));
+    if (mismatches.length) {
+      const anchor = mismatches[0].hit;
+      const section = sectionIndexOf(sLines, anchor.line - 1);
+      const covered = blockCovering(sLines, section, mismatches.map((m) => m.re));
+      if (covered) {
+        for (const m of mismatches) {
+          check2.findings.push({
+            file: rel(stagesPath), line: m.hit.line, current: m.hit.current.trim(),
+            action: m.kind === 'path' ? '追加 path 计数更正块' : '追加 operation 计数更正块', status: 'pass',
+            detail: `已有更正块（main \`${covered.sha}\`，${covered.date}）：${m.fact}，事实已覆盖，不再追加。`,
+          });
+        }
+      } else {
+        for (const m of mismatches) {
+          check2.findings.push({
+            file: rel(stagesPath), line: m.hit.line, current: m.hit.current.trim(),
+            action: m.kind === 'path' ? '追加 path 计数更正块' : '追加 operation 计数更正块', status: 'drift',
+            detail: `断言 ${m.hit.m[1]} 个 ${m.kind === 'path' ? 'path' : 'operation'}，实测 ${m.fact}。`,
+          });
+        }
+        const factsMerged = [`api/openapi.yaml 实测 ${counts.paths.length} 个 path、${counts.operations} 个 operation`];
+        pushFix(makeCorrectionFix({
+          lines: sLines, anchorLine: anchor.line,
+          facts: factsMerged,
+          oldFragments: mismatches.map((m) => m.hit.m[0]),
+          today, shortSha, file: rel(stagesPath),
+        }));
+      }
     }
   }
   check2.status = heaviest(check2.findings);
@@ -496,6 +559,7 @@ export async function analyze({ root, inputs, options }) {
     const MASK_NOISE = /\d{4}-\d{1,2}-\d{1,2}|\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日|\b[0-9a-f]{7,40}\b|\bv?\d+\.\d+(?:\.\d+)?\b/gi;
     const countFromLine = (line) => {
       if (/^\s*#{1,6}\s/.test(line)) return null;
+      if (isCorrectionBlockLine(line)) return null;
       const masked = line.replace(MASK_NOISE, ' ');
       let m = masked.match(/共\s*\*\*(\d+)\*\*\s*个\s*open\s*issue/i);
       if (m) return Number(m[1]);
@@ -522,29 +586,39 @@ export async function analyze({ root, inputs, options }) {
         if (!groups.has(h.section)) groups.set(h.section, []);
         groups.get(h.section).push(h);
       }
-      for (const [, group] of groups) {
+      for (const [section, group] of groups) {
         const mismatched = group.filter((h) => h.n !== openIssues.length);
         if (!mismatched.length) continue;
+        const covered = blockCovering(lines, section, [new RegExp(`openissue${openIssues.length}个`)]);
+        if (covered) {
+          for (const h of mismatched) {
+            check3.findings.push({
+              file: rel(page.path), line: h.line, current: h.current.trim(),
+              action: '追加 open issue 数量更正块', status: 'pass',
+              detail: `已有更正块（main \`${covered.sha}\`，${covered.date}）：open issue ${openIssues.length} 个，事实已覆盖，不再追加。`,
+            });
+          }
+          continue;
+        }
         for (const h of mismatched) {
           check3.findings.push({
             file: rel(page.path), line: h.line, current: h.current.trim(),
             action: '追加 open issue 数量更正块', status: 'drift', detail: `断言 ${h.n} 个 open issue，实测 ${openIssues.length} 个。`,
           });
         }
-        if (!correctionBlockExists(page.text, today, shortSha)) {
-          pushFix(makeCorrectionFix({
-            lines, anchorLine: mismatched[0].line,
-            facts: [`open issue ${openIssues.length} 个`],
-            oldFragments: mismatched.map((h) => h.current.trim()),
-            today, shortSha, file: rel(page.path),
-          }));
-        }
+        pushFix(makeCorrectionFix({
+          lines, anchorLine: mismatched[0].line,
+          facts: [`open issue ${openIssues.length} 个`],
+          oldFragments: mismatched.map((h) => h.current.trim()),
+          today, shortSha, file: rel(page.path),
+        }));
       }
       // 集合差异：表格里只取加粗的 issue 引用（**#N**），里程碑表里的 PR #N 不算；
       // 快照行里的编号才是 issue 集合声明。正文 PR 引用不进集合比对。
       const listed = new Set();
       const numberLine = new Map();
       lines.forEach((l, i) => {
+        if (isCorrectionBlockLine(l)) return;
         let nums = [];
         if (/^\|/.test(l)) {
           for (const m of l.matchAll(/\*\*#(\d+)\*\*/g)) nums.push(Number(m[1]));
