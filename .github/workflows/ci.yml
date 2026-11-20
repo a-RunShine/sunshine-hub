@@ -60,6 +60,18 @@ jobs:
         working-directory: web
         run: pnpm gen:types
 
+      # 上一步只把类型重新生成到工作区，后面的 tsc 用的是这份新产物，
+      # 所以提交里那份过期也照样绿。这一步把它和提交里的那份对起来：
+      # 契约是唯一硬依赖，生成物是它的下游，漂移必须在这里红。
+      - name: 核对生成类型与提交一致
+        working-directory: web
+        run: |
+          if ! git diff --exit-code -- src/types/api.ts; then
+            echo "src/types/api.ts 与 api/openapi.yaml 不一致。"
+            echo "跑 pnpm gen:types 并把生成物一起提交。"
+            exit 1
+          fi
+
       - name: 类型检查
         working-directory: web
         run: pnpm exec tsc --noEmit
@@ -98,3 +110,10 @@ jobs:
       # 同时也是 Allocation 的排除词），机械检查判不了，留给人挑。
       - name: 扫术语排除词
         run: ./scripts/check-glossary.sh
+
+      # 上面那条是 advisory，永远不会红，所以脚本自己坏了也不会有人知道。
+      # 这条钉住它的行为：命中即 fail。它已经抓出过两个真实缺陷
+      # （断言读被 head -3 截断的展示输出、pipefail 下 grep -q 触发 SIGPIPE），
+      # 两次都是手工跑才发现的，因为这条测试当时没接进 CI。
+      - name: 术语检查脚本的回归测试
+        run: ./scripts/test-check-glossary.sh

@@ -10,9 +10,12 @@ main 受分支保护，所有改动走 PR。直接 push main 会被规则拦下�
 2. 提交后 push 到同名远端分支
 3. 开 PR，正文按下面的模板写
 4. **停下，等仓库所有者对这张 PR 明确同意**
-5. 同意之后才合并：squash，合并后删分支
+5. 同意之后才合并：squash
+6. **删远端分支要另外再问一次**，合并授权不含删除授权
 
 第 4 步不能跳过。分支保护里的审批数是 0，技术上任何 agent 都能自己合，所以这条只靠纪律。合之前问一句，不丢人。
+
+**合并不等于可以删分支。** 这一条与 `AGENTS.md` 对齐：merge、关闭 PR、删除远端分支是三件事，各自都要 owner 针对具体 PR 的明确同意。所以第 5 步不带 `--delete-branch`，分支默认留着。留着的代价只是分支列表长一点；删错的代价是别人正在读的那条分支没了。
 
 **打标签不等于合并授权。** 代理可以自行给 issue 或 PR 打仓库已有标签（`needs-triage`、`ready-for-agent`、`docs` 等），但不要新增未约定的标签。标签、review 通过、CI 全绿都只是状态信息，不是同意。只有 owner 针对该 PR 的明确同意，才能执行第 5 步；不得把“可以打标签”读成“可以合并”。
 
@@ -24,7 +27,8 @@ git commit -m "docs: ..."
 git push -u origin docs/example
 gh pr create --title "docs: ..." --body-file /tmp/pr-body.md
 # 到这里停，等回复
-gh pr merge --squash --delete-branch   # 得到明确同意后才执行
+gh pr merge --squash   # 得到明确同意后才执行；不带 --delete-branch
+# 删分支是另一次授权，不要并进上面那条
 ```
 
 分支名用不用中文都行，但不要用空格和斜杠以外的符号。
