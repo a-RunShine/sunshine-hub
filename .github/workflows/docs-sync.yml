@@ -1,0 +1,373 @@
+name: 文档同步
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      full:
+        description: 首次全量复核（额外扫已合并 PR 正文与全仓文档）
+        type: boolean
+        default: false
+
+concurrency:
+  group: docs-sync-main
+  cancel-in-progress: false
+
+jobs:
+  docs-sync:
+    name: 文档同步
+    # 只复核合进 main 的 PR；docs/sync-* 是本流程自己开出的分支，回灌会形成自激循环
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && !startsWith(github.event.pull_request.head.ref, 'docs/sync-'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    env:
+      GH_TOKEN: ${{ secrets.DOCS_SYNC_TOKEN }}
+      FULL: ${{ inputs.full }}
+    steps:
+      - name: 检出 main 完整历史
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          # 默认 GITHUB_TOKEN 推的分支不会再触发 workflow；docs PR 要能跑 CI，检出与推送都走 PAT
+          token: ${{ secrets.DOCS_SYNC_TOKEN }}
+
+      - name: 安装 Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # git 本身不读 GH_TOKEN；把 gh 配成凭据助手，推送时才走 PAT，token 不进 remote URL
+      - name: 配置 git 走 gh 凭据助手
+        run: gh auth setup-git
+
+      - name: 采集 issue、PR 与 git 历史事实
+        run: |
+          set -euo pipefail
+          mkdir -p .docs-sync-run
+          gh issue list --state open --json number,title,state,labels,updatedAt > .docs-sync-run/issues.json
+          gh pr list --state open --json number,title,body,headRefName,reviewDecision,createdAt > .docs-sync-run/prs.json
+          gh issue list --state all --json number,state > .docs-sync-run/issue-states.json
+          git log --all --format=%H > .docs-sync-run/git-shas.txt
+          if [ "$FULL" = "true" ]; then
+            gh pr list --state merged --search "merged:>=$(date -u -d '90 days ago' +%F)" \
+              --json number,title,body,headRefName,mergedAt > .docs-sync-run/merged-prs.json
+          else
+            echo '[]' > .docs-sync-run/merged-prs.json
+          fi
+
+      - name: 干跑复核并留存九项结果
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.pull_request.merge_commit_sha }}" ]; then
+            MAIN_SHA="${{ github.event.pull_request.merge_commit_sha }}"
+          else
+            MAIN_SHA="$(git rev-parse HEAD)"
+          fi
+          echo "$MAIN_SHA" > .docs-sync-run/main-sha
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo "${{ github.event.pull_request.number }}" > .docs-sync-run/trigger-pr
+          else
+            : > .docs-sync-run/trigger-pr
+          fi
+          echo "${{ github.event_name }}" > .docs-sync-run/event-name
+          if [ "$(cat .docs-sync-run/event-name)" = "pull_request" ]; then
+            echo "PR #$(cat .docs-sync-run/trigger-pr) 合并 ${MAIN_SHA}" > .docs-sync-run/trigger-desc
+          elif [ "$FULL" = "true" ]; then
+            echo "workflow_dispatch 全量复核" > .docs-sync-run/trigger-desc
+          else
+            echo "workflow_dispatch 增量复核" > .docs-sync-run/trigger-desc
+          fi
+
+          args=(--main-sha "$MAIN_SHA"
+            --issues .docs-sync-run/issues.json
+            --prs .docs-sync-run/prs.json
+            --issue-states .docs-sync-run/issue-states.json
+            --git-shas .docs-sync-run/git-shas.txt
+            --poll-closes 120000)
+          if [ "$FULL" = "true" ]; then
+            args+=(--full --merged-prs .docs-sync-run/merged-prs.json)
+          fi
+          if [ -s .docs-sync-run/trigger-pr ]; then
+            args+=(--trigger-pr "$(cat .docs-sync-run/trigger-pr)")
+          fi
+          node scripts/docs-sync.mjs --dry-run "${args[@]}" --plan-out .docs-sync-run/dry-run.json
+
+      - name: 落盘修正并产出 plan
+        run: |
+          set -euo pipefail
+          MAIN_SHA="$(cat .docs-sync-run/main-sha)"
+          args=(--main-sha "$MAIN_SHA"
+            --issues .docs-sync-run/issues.json
+            --prs .docs-sync-run/prs.json
+            --issue-states .docs-sync-run/issue-states.json
+            --git-shas .docs-sync-run/git-shas.txt
+            --poll-closes 120000)
+          if [ "$FULL" = "true" ]; then
+            args+=(--full --merged-prs .docs-sync-run/merged-prs.json)
+          fi
+          if [ -s .docs-sync-run/trigger-pr ]; then
+            args+=(--trigger-pr "$(cat .docs-sync-run/trigger-pr)")
+          fi
+          node scripts/docs-sync.mjs --apply "${args[@]}" --plan-out .docs-sync-run/plan.json 2> .docs-sync-run/err.log
+
+      - name: 按 plan 建分支、提交并开或更新 docs PR
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'EOF'
+          import fs from 'node:fs';
+          const plan = JSON.parse(fs.readFileSync('.docs-sync-run/plan.json', 'utf8'));
+          const out = '.docs-sync-run/';
+          fs.writeFileSync(out + 'fixes-count', String(plan.fixes.length));
+          fs.writeFileSync(out + 'reports-count', String(plan.reports.length));
+          fs.writeFileSync(out + 'branch', plan.plan.branch ?? '');
+          fs.writeFileSync(out + 'commit-msg', plan.plan.commitMessage ?? '');
+          fs.writeFileSync(out + 'reuse-pr', plan.plan.reuseExistingPr ? String(plan.plan.reuseExistingPr.number) : '');
+          fs.writeFileSync(out + 'changed-files.json', JSON.stringify(plan.changedFiles ?? []));
+          EOF
+          if [ "$(cat .docs-sync-run/fixes-count)" = "0" ]; then
+            echo "无自动修正：不建分支、不开 PR。"
+            exit 0
+          fi
+
+          BRANCH="$(cat .docs-sync-run/branch)"
+          COMMIT_MSG="$(cat .docs-sync-run/commit-msg)"
+          REUSE_PR="$(cat .docs-sync-run/reuse-pr)"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if [ -n "$REUSE_PR" ]; then
+            # 复用前先确认 PR 仍 OPEN：已合并/关闭的 PR 再推提交不会进 main
+            ./scripts/pr-preflight.sh "$REUSE_PR"
+            git fetch origin "$BRANCH"
+            git switch -C "$BRANCH" "origin/$BRANCH"
+          else
+            git switch -c "$BRANCH"
+          fi
+
+          mapfile -t FILES < <(node --input-type=module -e '
+            import fs from "node:fs";
+            const p = JSON.parse(fs.readFileSync(".docs-sync-run/changed-files.json", "utf8"));
+            p.forEach(f => console.log(f));
+          ')
+          git add -- "${FILES[@]}"
+          git commit -m "$COMMIT_MSG"
+
+          git diff --stat main..HEAD > .docs-sync-run/diff-stat.txt
+
+          # issue 编号此时还没拿到，先留空；双向链接在滚动 issue 步骤补回来
+          : > .docs-sync-run/issue-number
+          node --input-type=module <<'EOF'
+          import fs from 'node:fs';
+          const dir = '.docs-sync-run/';
+          const plan = JSON.parse(fs.readFileSync(dir + 'plan.json', 'utf8'));
+          const dry = JSON.parse(fs.readFileSync(dir + 'dry-run.json', 'utf8'));
+          const read = n => fs.existsSync(dir + n) ? fs.readFileSync(dir + n, 'utf8').trim() : '';
+          const issueNumber = read('issue-number');
+          const diffStat = read('diff-stat.txt');
+          const triggerDesc = read('trigger-desc');
+          const s = plan.summary;
+          const lines = [];
+          lines.push('## Summary');
+          lines.push(`- 触发：${triggerDesc}`);
+          lines.push(`- 检查：${s.pass} pass / ${s.drift} drift / ${s.report} report`);
+          lines.push('- 改动：');
+          for (const f of plan.changedFiles) lines.push(`  - ${f}`);
+          lines.push('');
+          lines.push('## Evidence');
+          lines.push('### 九项检查结果');
+          lines.push('');
+          lines.push('| # | 检查 | 状态 | 发现数 |');
+          lines.push('| --- | --- | --- | --- |');
+          for (const c of plan.checks) {
+            lines.push(`| ${c.id} | ${c.title} | ${c.status} | ${c.findings.length} |`);
+          }
+          lines.push('');
+          lines.push('### `git diff --stat main..HEAD`');
+          lines.push('');
+          lines.push('```');
+          lines.push(diffStat || '（无 diff）');
+          lines.push('```');
+          lines.push('');
+          lines.push('### 逐条自动修正');
+          if (plan.fixes.length === 0) {
+            lines.push('- （无）');
+          }
+          for (const fx of plan.fixes) {
+            lines.push(`- \`${fx.file}:${fx.line}\`（${fx.kind}）`);
+            lines.push(`  - before: ${fx.before}`);
+            lines.push(`  - after: ${fx.after}`);
+          }
+          lines.push('');
+          lines.push('### dry-run 摘要');
+          lines.push('');
+          lines.push(`dry-run：${dry.summary.pass} pass / ${dry.summary.drift} drift / ${dry.summary.report} report`);
+          lines.push('');
+          lines.push('## Merge Danger');
+          lines.push('双向门：只改文档事实，历史断言未改写，只追加带日期的更正。回滚 = revert 本 PR。');
+          if (issueNumber) lines.push(`关联滚动 issue：#${issueNumber}`);
+          fs.writeFileSync(dir + 'pr-body.md', lines.join('\n') + '\n');
+          EOF
+
+          if [ -n "$REUSE_PR" ]; then
+            ./scripts/pr-preflight.sh "$REUSE_PR"
+            gh pr edit "$REUSE_PR" --body-file .docs-sync-run/pr-body.md
+            echo "$REUSE_PR" > .docs-sync-run/pr-number
+          else
+            gh pr create --base main --head "$BRANCH" --title "$COMMIT_MSG" \
+              --body-file .docs-sync-run/pr-body.md
+            gh pr list --head "$BRANCH" --json number --jq '.[0].number' > .docs-sync-run/pr-number
+          fi
+
+      - name: 按 plan 追加滚动 docs issue
+        run: |
+          set -euo pipefail
+          if [ "$(cat .docs-sync-run/reports-count)" = "0" ]; then
+            echo "无待人工判断项：不开 issue。"
+            exit 0
+          fi
+
+          # 同名 OPEN issue 已存在就只在末尾追加，不重复开
+          ISSUE_NUMBER="$(gh issue list --state open --json number,title \
+            --jq '.[] | select(.title == "docs: 文档同步待人工判断") | .number' | head -n1)"
+          PR_NUMBER="$(cat .docs-sync-run/pr-number 2>/dev/null || true)"
+
+          node --input-type=module <<'EOF'
+          import fs from 'node:fs';
+          const dir = '.docs-sync-run/';
+          const plan = JSON.parse(fs.readFileSync(dir + 'plan.json', 'utf8'));
+          const read = n => fs.existsSync(dir + n) ? fs.readFileSync(dir + n, 'utf8').trim() : '';
+          const prNumber = read('pr-number');
+          const today = plan.meta.today;
+          const short = plan.meta.shortSha;
+          const out = [];
+          out.push(`## ${today} 复核（\`${short}\`）`);
+          out.push('');
+          for (const r of plan.reports) {
+            out.push(`- [ ] \`${r.file}:${r.line}\` — ${r.current}；${r.reason}；建议：${r.suggestion}`);
+          }
+          for (const w of (plan.plan.warnings ?? [])) {
+            out.push(`- 注意：${w}`);
+          }
+          if (prNumber) out.push(`关联 PR：#${prNumber}`);
+          fs.writeFileSync(dir + 'issue-section.md', out.join('\n') + '\n');
+          EOF
+
+          if [ -n "$ISSUE_NUMBER" ]; then
+            OLD_BODY="$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body')"
+            printf '%s\n\n%s\n' "$OLD_BODY" "$(cat .docs-sync-run/issue-section.md)" > .docs-sync-run/issue-body.md
+            gh issue edit "$ISSUE_NUMBER" --body-file .docs-sync-run/issue-body.md
+          else
+            gh issue create --title "docs: 文档同步待人工判断" --label docs \
+              --body-file .docs-sync-run/issue-section.md
+            ISSUE_NUMBER="$(gh issue list --state open --json number,title \
+              --jq '.[] | select(.title == "docs: 文档同步待人工判断") | .number' | head -n1)"
+          fi
+          echo "$ISSUE_NUMBER" > .docs-sync-run/issue-number
+
+          # 双向链：issue 已链 PR，回头把 issue 编号补进 PR 正文
+          if [ -n "${PR_NUMBER:-}" ]; then
+            node --input-type=module <<'EOF'
+            import fs from 'node:fs';
+            const dir = '.docs-sync-run/';
+            const plan = JSON.parse(fs.readFileSync(dir + 'plan.json', 'utf8'));
+            const dry = JSON.parse(fs.readFileSync(dir + 'dry-run.json', 'utf8'));
+            const read = n => fs.existsSync(dir + n) ? fs.readFileSync(dir + n, 'utf8').trim() : '';
+            const issueNumber = read('issue-number');
+            const diffStat = read('diff-stat.txt');
+            const triggerDesc = read('trigger-desc');
+            const s = plan.summary;
+            const lines = [];
+            lines.push('## Summary');
+            lines.push(`- 触发：${triggerDesc}`);
+            lines.push(`- 检查：${s.pass} pass / ${s.drift} drift / ${s.report} report`);
+            lines.push('- 改动：');
+            for (const f of plan.changedFiles) lines.push(`  - ${f}`);
+            lines.push('');
+            lines.push('## Evidence');
+            lines.push('### 九项检查结果');
+            lines.push('');
+            lines.push('| # | 检查 | 状态 | 发现数 |');
+            lines.push('| --- | --- | --- | --- |');
+            for (const c of plan.checks) {
+              lines.push(`| ${c.id} | ${c.title} | ${c.status} | ${c.findings.length} |`);
+            }
+            lines.push('');
+            lines.push('### `git diff --stat main..HEAD`');
+            lines.push('');
+            lines.push('```');
+            lines.push(diffStat || '（无 diff）');
+            lines.push('```');
+            lines.push('');
+            lines.push('### 逐条自动修正');
+            if (plan.fixes.length === 0) lines.push('- （无）');
+            for (const fx of plan.fixes) {
+              lines.push(`- \`${fx.file}:${fx.line}\`（${fx.kind}）`);
+              lines.push(`  - before: ${fx.before}`);
+              lines.push(`  - after: ${fx.after}`);
+            }
+            lines.push('');
+            lines.push('### dry-run 摘要');
+            lines.push('');
+            lines.push(`dry-run：${dry.summary.pass} pass / ${dry.summary.drift} drift / ${dry.summary.report} report`);
+            lines.push('');
+            lines.push('## Merge Danger');
+            lines.push('双向门：只改文档事实，历史断言未改写，只追加带日期的更正。回滚 = revert 本 PR。');
+            if (issueNumber) lines.push(`关联滚动 issue：#${issueNumber}`);
+            fs.writeFileSync(dir + 'pr-body.md', lines.join('\n') + '\n');
+          EOF
+            ./scripts/pr-preflight.sh "$PR_NUMBER"
+            gh pr edit "$PR_NUMBER" --body-file .docs-sync-run/pr-body.md
+          fi
+
+      # 失败记录尽力而为：原始失败结论已经成立，这一步再坏也不覆盖它
+      - name: 追加失败记录到滚动 issue
+        if: failure()
+        continue-on-error: true
+        run: |
+          set -u
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          MAIN_SHA="$(cat .docs-sync-run/main-sha 2>/dev/null || echo unknown)"
+          TODAY="$(date -u +%F)"
+          if [ -f .docs-sync-run/err.log ] && [ -s .docs-sync-run/err.log ]; then
+            TAIL="$(tail -n 20 .docs-sync-run/err.log)"
+          else
+            TAIL="（本步骤之前没有捕获到 stderr）"
+          fi
+          export RUN_URL TODAY MAIN_SHA TAIL
+
+          node --input-type=module <<'EOF'
+          import fs from 'node:fs';
+          const dir = '.docs-sync-run/';
+          const runUrl = process.env.RUN_URL;
+          const today = process.env.TODAY;
+          const mainSha = process.env.MAIN_SHA;
+          const tail = process.env.TAIL;
+          const out = [];
+          out.push(`## ${today} 复核（\`${mainSha}\`）— 流程失败`);
+          out.push('');
+          out.push(`- Run：${runUrl}`);
+          out.push('- 失败环节：docs-sync workflow（采集 / 干跑 / 落盘 / 产出阶段，见 run 日志）');
+          out.push('- stderr 末 20 行：');
+          out.push('');
+          out.push('```');
+          out.push(tail);
+          out.push('```');
+          fs.writeFileSync(dir + 'failure-section.md', out.join('\n') + '\n');
+          EOF
+
+          ISSUE_NUMBER="$(gh issue list --state open --json number,title \
+            --jq '.[] | select(.title == "docs: 文档同步待人工判断") | .number' | head -n1 || true)"
+          if [ -n "$ISSUE_NUMBER" ]; then
+            OLD_BODY="$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body')"
+            printf '%s\n\n%s\n' "$OLD_BODY" "$(cat .docs-sync-run/failure-section.md)" > .docs-sync-run/failure-body.md
+            gh issue edit "$ISSUE_NUMBER" --body-file .docs-sync-run/failure-body.md
+          else
+            gh issue create --title "docs: 文档同步待人工判断" --label docs \
+              --body-file .docs-sync-run/failure-section.md
+          fi
