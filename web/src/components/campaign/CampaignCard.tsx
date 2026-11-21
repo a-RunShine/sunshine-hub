@@ -51,7 +51,7 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
             />
           ) : (
             <div className="flex h-full items-center justify-center">
-              <CoverSilhouette variant="box" className="h-10 w-10 text-line-2" />
+              <CoverSilhouette variant="box" className="h-10 w-10" />
             </div>
           )}
           <span className="absolute bottom-2 right-3 font-mono text-[11px] tracking-widest text-faint">

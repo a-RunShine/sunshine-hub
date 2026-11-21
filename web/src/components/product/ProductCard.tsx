@@ -45,8 +45,8 @@ export function ProductCard({ product, categoryName }: ProductCardProps) {
               className="h-full w-full object-contain p-3"
             />
           ) : (
-            <div className="flex h-full items-center justify-center">
-              <CoverSilhouette variant={silhouetteVariant(product, categoryName)} className="h-12 w-12 text-line-2" />
+            <div className="flex h-full items-center justify-center pt-5">
+              <CoverSilhouette variant={silhouetteVariant(product, categoryName)} />
             </div>
           )}
           <span className="absolute bottom-2 right-3 font-mono text-[11px] tracking-widest text-faint">
