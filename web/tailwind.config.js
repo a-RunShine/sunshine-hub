@@ -20,6 +20,7 @@ export default {
         faint: '#7e8798',
         line: '#242c40',
         'line-2': '#323c55',
+        danger: '#e05a4f',
       },
       fontFamily: {
         sans: ['Inter', 'PingFang SC', 'Microsoft YaHei', 'sans-serif'],
