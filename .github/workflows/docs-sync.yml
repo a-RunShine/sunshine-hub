@@ -81,6 +81,21 @@ jobs:
             gh issue list --state open --json number,title \
               --jq '.[] | select(.title == "docs: 文档同步待人工判断") | .number' | head -n1
           }
+
+          # 评论正文字节数兜底：渲染器已按预算收敛，这里再核一次；仍超就硬截断并补说明，
+          # 保证 comment 发得出去——老 issue 正文不许整段重写，评论也有上限
+          guard_section() {
+            local file="$1" max="$2"
+            [ -s "$file" ] || return 0
+            local size note noteBytes tmp
+            size=$(wc -c < "$file")
+            if [ "$size" -le "$max" ]; then return 0; fi
+            note='> 已截断：完整清单见 run artifact。'
+            noteBytes=$(printf '%s' "$note" | wc -c)
+            head -c "$((max - noteBytes))" "$file" > "$file.tmp"
+            printf '%s\n' "$note" >> "$file.tmp"
+            mv "$file.tmp" "$file"
+          }
           HELPERS
 
           cat > .docs-sync-run/render-pr-body.mjs <<'MJS'
@@ -271,42 +286,40 @@ jobs:
           source .docs-sync-run/step-helpers.sh
           echo "追加滚动 docs issue" > .docs-sync-run/stage
           if [ "$(cat .docs-sync-run/reports-count)" = "0" ]; then
-            echo "无待人工判断项：不开 issue。"
+            echo "无待人工判断项：不开 issue、不发评论。"
             exit 0
           fi
 
-          ISSUE_NUMBER="$(find_rolling_issue)"
           PR_NUMBER="$(cat .docs-sync-run/pr-number 2>/dev/null || true)"
+          ARTIFACT="docs-sync-${{ github.run_id }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          PR_ARG=()
+          if [ -n "$PR_NUMBER" ]; then PR_ARG=(--pr "$PR_NUMBER"); fi
 
-          node --input-type=module <<'EOF'
-          import fs from 'node:fs';
-          const dir = '.docs-sync-run/';
-          const plan = JSON.parse(fs.readFileSync(dir + 'plan.json', 'utf8'));
-          const read = n => fs.existsSync(dir + n) ? fs.readFileSync(dir + n, 'utf8').trim() : '';
-          const prNumber = read('pr-number');
-          const today = plan.meta.today;
-          const short = plan.meta.shortSha;
-          const out = [];
-          out.push(`## ${today} 复核（\`${short}\`）`);
-          out.push('');
-          for (const r of plan.reports) {
-            out.push(`- [ ] \`${r.file}:${r.line}\` — ${r.current}；${r.reason}；建议：${r.suggestion}`);
-          }
-          for (const w of (plan.plan.warnings ?? [])) {
-            out.push(`- 注意：${w}`);
-          }
-          if (prNumber) out.push(`关联 PR：#${prNumber}`);
-          fs.writeFileSync(dir + 'issue-section.md', out.join('\n') + '\n');
-          EOF
+          # 报告节由离屏纯函数渲染：同行合并、按文件分组、预算内收敛；渲染失败只丢本节内容，
+          # plan 仍随 artifact 留存，不让整个 job 红
+          if ! node scripts/docs-sync-report.mjs \
+            --plan .docs-sync-run/plan.json --out .docs-sync-run/issue-section.md \
+            --max-chars 60000 --per-file 10 \
+            --run-url "$RUN_URL" --artifact "$ARTIFACT" "${PR_ARG[@]}"; then
+            echo "报告节渲染失败：跳过评论。"
+            exit 0
+          fi
+          guard_section .docs-sync-run/issue-section.md 60000
 
+          cat > .docs-sync-run/issue-body-stub.md <<'STUB'
+          本 issue 收集 docs-sync 待人工判断项，逐次复核以评论追加；完整清单见对应 run 的 artifact。
+          STUB
+
+          ISSUE_NUMBER="$(find_rolling_issue)"
           if [ -n "$ISSUE_NUMBER" ]; then
-            OLD_BODY="$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body')"
-            printf '%s\n\n%s\n' "$OLD_BODY" "$(cat .docs-sync-run/issue-section.md)" > .docs-sync-run/issue-body.md
-            gh issue edit "$ISSUE_NUMBER" --body-file .docs-sync-run/issue-body.md
+            # 老 issue 只追加评论，绝不整段重写正文（#62 正文已被撑大过一次）
+            gh issue comment "$ISSUE_NUMBER" --body-file .docs-sync-run/issue-section.md
           else
             gh issue create --title "docs: 文档同步待人工判断" --label docs \
-              --body-file .docs-sync-run/issue-section.md
+              --body-file .docs-sync-run/issue-body-stub.md
             ISSUE_NUMBER="$(find_rolling_issue)"
+            gh issue comment "$ISSUE_NUMBER" --body-file .docs-sync-run/issue-section.md
           fi
           echo "$ISSUE_NUMBER" > .docs-sync-run/issue-number
 
@@ -358,12 +371,32 @@ jobs:
           fs.writeFileSync(dir + 'failure-section.md', out.join('\n') + '\n');
           EOF
 
+          guard_section .docs-sync-run/failure-section.md 60000
+
+          cat > .docs-sync-run/issue-body-stub.md <<'STUB'
+          本 issue 收集 docs-sync 待人工判断项，逐次复核以评论追加；完整清单见对应 run 的 artifact。
+          STUB
+
           ISSUE_NUMBER="$(find_rolling_issue || true)"
           if [ -n "$ISSUE_NUMBER" ]; then
-            OLD_BODY="$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body')"
-            printf '%s\n\n%s\n' "$OLD_BODY" "$(cat .docs-sync-run/failure-section.md)" > .docs-sync-run/failure-body.md
-            gh issue edit "$ISSUE_NUMBER" --body-file .docs-sync-run/failure-body.md
+            # 失败记录同样只追加评论，不重写老 issue 正文
+            gh issue comment "$ISSUE_NUMBER" --body-file .docs-sync-run/failure-section.md
           else
             gh issue create --title "docs: 文档同步待人工判断" --label docs \
-              --body-file .docs-sync-run/failure-section.md
+              --body-file .docs-sync-run/issue-body-stub.md
+            ISSUE_NUMBER="$(find_rolling_issue || true)"
+            [ -n "$ISSUE_NUMBER" ] && gh issue comment "$ISSUE_NUMBER" --body-file .docs-sync-run/failure-section.md
           fi
+
+      # 完整清单的落点：无论成功失败都留存 plan 与报告节；上传失败不覆盖原始结论
+      - name: 上传本轮 plan 与报告节作为 artifact
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-sync-${{ github.run_id }}
+          path: |
+            .docs-sync-run/plan.json
+            .docs-sync-run/issue-section.md
+            .docs-sync-run/failure-section.md
+          if-no-files-found: warn
