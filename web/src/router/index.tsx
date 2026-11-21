@@ -1,11 +1,13 @@
 import { createBrowserRouter } from 'react-router-dom'
 import Placeholder from '@/views/Placeholder'
 import CampaignPage from '@/views/campaign/CampaignPage'
+import HomePage from '@/views/home/HomePage'
+import { AppShell } from '@/components/layout/AppShell'
 import RequireAuth from './RequireAuth'
 
 /** 路由骨架。每个页面在实现时替换掉占位组件，路径不要改，契约和 MSW 都按这些路径来。 */
 export const router = createBrowserRouter([
-  { path: '/', element: <Placeholder title="首页" note="商品列表与即将开售" /> },
+  { path: '/', element: <AppShell><HomePage /></AppShell> },
   { path: '/products/:productId', element: <Placeholder title="商品详情" note="含规格选择" /> },
   { path: '/campaigns/:campaignId', element: <CampaignPage /> },
   {

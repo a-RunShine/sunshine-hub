@@ -729,6 +729,9 @@ export function createHandlers(
 
     http.post('/api/auth/login', () => HttpResponse.json(me)),
 
+    // 登出：契约 204 无响应体；清会话由前端外壳在成功后处理。
+    http.post('/api/auth/logout', () => new HttpResponse(null, { status: 204 })),
+
     // 提交实名：成功回写最新购买人档案（realNameVerified 翻 true）；缺姓名或证件号按契约回 400。
     http.put('/api/me/real-name', async ({ request }) => {
       const body = (await request.json()) as Partial<{ realName: string; idNumber: string }>

@@ -15,6 +15,11 @@ export default {
           DEFAULT: '#f0b429',
           muted: '#8a6a1f',
         },
+        // 弱文字与分组描边：弱文字统一提到 #7e8798，比原型的 #5d6678 对比度更够
+        muted: '#8c94a6',
+        faint: '#7e8798',
+        line: '#242c40',
+        'line-2': '#323c55',
       },
       fontFamily: {
         sans: ['Inter', 'PingFang SC', 'Microsoft YaHei', 'sans-serif'],

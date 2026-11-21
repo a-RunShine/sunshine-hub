@@ -1,9 +1,22 @@
 import { client } from './client'
-import type { components } from '@/types/api'
+import type { components, paths } from '@/types/api'
 
 export type CampaignDetail = components['schemas']['CampaignDetail']
 export type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
 export type ClaimResult = components['schemas']['ClaimResult']
+export type CampaignSummary = components['schemas']['CampaignSummary']
+
+/** 即将开售场次响应：类型从生成契约派生，不手抄 `{ serverTime, items }` 形状。 */
+export type UpcomingCampaigns = paths['/campaigns/upcoming']['get']['responses']['200']['content']['application/json']
+
+/**
+ * 即将开售场次。GET /campaigns/upcoming，按开售时间升序由服务端保证；
+ * 首页只展示场次名、关联商品与开售时刻，不拉详情配额字段。
+ */
+export async function getUpcomingCampaigns(): Promise<UpcomingCampaigns> {
+  const { data } = await client.get<UpcomingCampaigns>('/campaigns/upcoming')
+  return data
+}
 
 /**
  * 拉场次详情。GET /campaigns/:campaignId 不要求登录（契约 `security: []`）：
