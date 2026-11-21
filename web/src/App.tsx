@@ -14,8 +14,10 @@ export default function App() {
   }, [restoreSession])
 
   // 开发期场景切换面板：DEV 守卫下动态导入，生产构建连同模块一起摇掉。
+  // `?hideDevPanel` 仅供取证截图隐藏开发工具，不影响业务行为。
   useEffect(() => {
     if (!import.meta.env.DEV) return
+    if (new URLSearchParams(window.location.search).has('hideDevPanel')) return
     let cancelled = false
     void import('./mocks/devScenarioSwitcher').then((module) => {
       if (!cancelled) setDevScenarioPanel(() => module.DevScenarioPanel)
