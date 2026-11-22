@@ -77,14 +77,28 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <div className="ml-auto flex items-center gap-3 font-mono text-[11px] text-muted">
             {me === null ? (
-              <Link to={buildLoginUrl(location)} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+              <Link
+                to={buildLoginUrl(location)}
+                className={buttonVariants({
+                  variant: 'ghost',
+                  size: 'sm',
+                  className: 'hover:bg-ink-800 hover:text-foreground',
+                })}
+              >
                 登录
               </Link>
             ) : (
               <>
                 <span className="text-foreground">{me.username}</span>
                 <span className="text-faint">/</span>
-                <Button type="button" variant="ghost" size="sm" disabled={loggingOut} onClick={() => void onLogout()}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="hover:bg-ink-800 hover:text-foreground"
+                  disabled={loggingOut}
+                  onClick={() => void onLogout()}
+                >
                   退出
                 </Button>
               </>

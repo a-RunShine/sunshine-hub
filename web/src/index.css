@@ -2,12 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* shadcn 的 CSS 变量。只放主题色，具体组件的样式由各自组件带 */
+/* shadcn 的 CSS 变量。只放主题色，具体组件的样式由各自组件带；
+   三元组映射到本项目 ink / accent / danger 令牌（见 tailwind.config.js）。 */
 @layer base {
   :root {
-    --background: 222 47% 5%;
-    --foreground: 210 20% 96%;
-    --border: 220 20% 18%;
+    --background: 223 24% 6%;
+    --foreground: 223 19% 93%;
+
+    --card: 223 28% 10%;
+    --card-foreground: 223 19% 93%;
+
+    --primary: 42 87% 55%;
+    --primary-foreground: 40 43% 5%;
+
+    --secondary: 224 30% 15%;
+    --secondary-foreground: 223 19% 93%;
+
+    --muted: 224 30% 15%;
+    --muted-foreground: 222 13% 60%;
+
+    --accent: 42 87% 55%;
+    --accent-foreground: 40 43% 5%;
+
+    --destructive: 5 70% 59%;
+    --destructive-foreground: 223 19% 93%;
+
+    --input: 223 28% 20%;
+    --ring: 42 87% 55%;
+    --border: 223 28% 20%;
+
     --radius: 0.5rem;
   }
 
