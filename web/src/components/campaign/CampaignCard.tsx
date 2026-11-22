@@ -3,6 +3,7 @@ import type { components } from '@/types/api'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CoverSilhouette } from '@/components/common/CoverSilhouette'
+import { pad2 } from '@/lib/format'
 
 type CampaignSummary = components['schemas']['CampaignSummary']
 
@@ -11,14 +12,6 @@ const TYPE_LABEL: Record<CampaignSummary['type'], string> = {
   FLASH: '限时抢购',
   NORMAL: '普通售卖',
   DISCOUNT: '折扣返场',
-}
-
-export function campaignTypeLabel(type: CampaignSummary['type']): string {
-  return TYPE_LABEL[type]
-}
-
-function pad2(value: number): string {
-  return String(value).padStart(2, '0')
 }
 
 /** 开售时刻展示到分钟：M月d日 HH:mm；非法时刻返回空串。 */
@@ -30,37 +23,54 @@ export function formatStartAt(iso: string): string {
 
 interface CampaignCardProps {
   readonly campaign: CampaignSummary
+  /**
+   * `default`：列表全卡（封面 + 正文）；`compact`：右栏紧凑条目，只给场次元信息，
+   * 倒计时由外层主角位渲染。不设 show/hide 布尔开关。
+   */
+  readonly variant?: 'default' | 'compact'
 }
 
 /**
  * 场次卡：场次名、关联商品、开售时刻、类型；整卡跳抢购页。
  * 倒计时数字只在首页右栏主角位渲染，列表项只展示开售时刻；不拉详情配额字段。
+ * 卡片配色与描边是项目定制，写在外层；ui/ 基础件保持官方源码。
  */
-export function CampaignCard({ campaign }: CampaignCardProps) {
+export function CampaignCard({ campaign, variant = 'default' }: CampaignCardProps) {
+  const compact = variant === 'compact'
   const code = `C-${String(campaign.id).padStart(2, '0')}`
 
   return (
     <Link to={`/campaigns/${campaign.id}`} className="group block min-w-0">
-      <Card className="overflow-hidden border border-line transition-colors group-hover:border-line-2">
-        <div className="relative h-[96px] overflow-hidden bg-ink-800">
-          {campaign.coverUrl ? (
-            <img
-              src={campaign.coverUrl}
-              alt={campaign.name}
-              className="h-full w-full object-contain p-3"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <CoverSilhouette variant="box" className="h-10 w-10" />
-            </div>
-          )}
-          <span className="absolute bottom-2 right-3 font-mono text-[11px] tracking-widest text-faint">
-            {code}
-          </span>
-        </div>
-        <div className="p-3.5">
+      <Card
+        className={
+          compact
+            ? 'rounded-lg border-transparent bg-transparent p-0 shadow-none'
+            : 'overflow-hidden rounded-lg border border-line bg-ink-900 shadow-none transition-colors group-hover:border-line-2'
+        }
+      >
+        {!compact && (
+          <div className="relative h-[96px] overflow-hidden bg-ink-800">
+            {campaign.coverUrl ? (
+              <img
+                src={campaign.coverUrl}
+                alt={campaign.name}
+                className="h-full w-full object-contain p-3"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <CoverSilhouette variant="box" className="h-10 w-10" />
+              </div>
+            )}
+            <span className="absolute bottom-2 right-3 font-mono text-[11px] tracking-widest text-faint">
+              {code}
+            </span>
+          </div>
+        )}
+        <div className={compact ? 'min-w-0' : 'p-3.5'}>
           <div className="flex items-center justify-between gap-2">
-            <Badge variant="outline">{TYPE_LABEL[campaign.type]}</Badge>
+            <Badge variant="outline" className="border-line text-faint">
+              {TYPE_LABEL[campaign.type]}
+            </Badge>
             <span className="text-[11px] text-faint">{formatStartAt(campaign.startAt)}</span>
           </div>
           <h3 className="mt-2 truncate text-[14px] font-medium text-foreground">{campaign.name}</h3>

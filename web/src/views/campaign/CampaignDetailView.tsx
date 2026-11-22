@@ -41,9 +41,9 @@ export function CampaignDetailView({
 
   return (
     <section className="flex flex-col items-center gap-6 px-6 py-12">
-      <h1 className="text-center text-2xl font-medium tracking-tight">{detail.name}</h1>
-      <p className="text-sm text-neutral-400">
-        剩余份数：<span className="text-neutral-100">{detail.allocation.available}</span> 份
+      <h1 className="text-center text-2xl font-medium tracking-tight text-foreground">{detail.name}</h1>
+      <p className="text-sm text-muted">
+        剩余份数：<span className="text-foreground">{detail.allocation.available}</span> 份
       </p>
       <CampaignCountdown target={countdown.target} offsetMs={offsetMs} label={countdown.label} />
       <CampaignReserveButton

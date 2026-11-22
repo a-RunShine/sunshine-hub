@@ -5,11 +5,7 @@ import { getCategories, getProducts } from '@/api/catalog'
 import { getUpcomingCampaigns } from '@/api/campaign'
 import type { components } from '@/types/api'
 import { ProductCard } from '@/components/product/ProductCard'
-import {
-  CampaignCard,
-  campaignTypeLabel,
-  formatStartAt,
-} from '@/components/campaign/CampaignCard'
+import { CampaignCard } from '@/components/campaign/CampaignCard'
 import { PageState } from '@/components/common/PageState'
 import { BrandMark } from '@/components/BrandMark'
 import { buttonVariants } from '@/components/ui/button'
@@ -47,7 +43,7 @@ function FilterChip({
 
 /**
  * 商城首页：分类筛选 + 商品网格 + 即将开售区块。
- * 三个请求各自独立管理状态；选中分类是页面内状态，刷新即丢，不进全局 store。
+ * 三个请求各自独立管理状态；选中分类只是页面内状态，刷新即丢，不进全局 store。
  */
 export default function HomePage() {
   const categories = useResource<Category[]>(() => getCategories(), [])
@@ -113,7 +109,10 @@ export default function HomePage() {
                   本场关联商品：{featured.productName}。开售后按付款顺序锁定库存。
                 </p>
                 <div className="mt-6">
-                  <Link to={`/campaigns/${featured.id}`} className={buttonVariants({ variant: 'default' })}>
+                  <Link
+                    to={`/campaigns/${featured.id}`}
+                    className={buttonVariants({ variant: 'default', className: 'h-[38px] text-[12px]' })}
+                  >
                     查看场次 <span className="font-mono text-[11px]">→</span>
                   </Link>
                 </div>
@@ -133,13 +132,18 @@ export default function HomePage() {
                     NEXT DROP / T-MINUS
                   </span>
                 </div>
-                <h2 className="mt-3 text-[15px] font-medium text-foreground">{featured.name}</h2>
-                <p className="mt-1 font-mono text-[11px] text-faint">
-                  {campaignTypeLabel(featured.type)} · {formatStartAt(featured.startAt)} 开售
-                </p>
+                <div className="mt-3">
+                  <CampaignCard campaign={featured} variant="compact" />
+                </div>
                 <HomeCountdown target={featured.startAt} />
               </div>
-              <Link to={`/campaigns/${featured.id}`} className={buttonVariants({ variant: 'outline' })}>
+              <Link
+                to={`/campaigns/${featured.id}`}
+                className={buttonVariants({
+                  variant: 'outline',
+                  className: 'h-[38px] border-accent text-accent hover:bg-accent/10',
+                })}
+              >
                 预约提醒 / RESERVE
               </Link>
             </aside>
@@ -184,7 +188,7 @@ export default function HomePage() {
               </FilterChip>
             ))}
             <span className="ml-auto font-mono text-[11px] text-faint">
-              {products.state.status === 'ready' ? `${products.state.data.length} ITEMS` : ''}
+              {products.state.status === 'ready' ? `${products.state.data.items.length} ITEMS` : ''}
             </span>
           </div>
         )}
@@ -195,12 +199,12 @@ export default function HomePage() {
         {products.state.status === 'error' && (
           <PageState variant="error" message={products.state.message} onRetry={products.reload} />
         )}
-        {products.state.status === 'ready' && products.state.data.length === 0 && (
+        {products.state.status === 'ready' && products.state.data.items.length === 0 && (
           <PageState variant="empty" />
         )}
-        {products.state.status === 'ready' && products.state.data.length > 0 && (
+        {products.state.status === 'ready' && products.state.data.items.length > 0 && (
           <div className="grid grid-cols-3 gap-4">
-            {products.state.data.map((product) => (
+            {products.state.data.items.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}

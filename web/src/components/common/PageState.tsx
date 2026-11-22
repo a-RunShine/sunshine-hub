@@ -12,6 +12,7 @@ interface PageStateProps {
 /**
  * 区块三态外壳：加载 / 空 / 错误可重试。
  * 商品网格、分类筛选行、即将开售区块三处独立复用；不做 showXxx 布尔开关。
+ * 错误态文字与重试按钮走 danger 令牌。
  */
 export function PageState({ variant, message, onRetry }: PageStateProps) {
   if (variant === 'loading') {
@@ -33,8 +34,14 @@ export function PageState({ variant, message, onRetry }: PageStateProps) {
 
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center">
-      <p className="text-[12px] text-muted">{message ?? '加载失败，请稍后重试'}</p>
-      <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
+      <p className="text-[12px] text-danger">{message ?? '加载失败，请稍后重试'}</p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="border-danger text-danger hover:bg-danger/10 hover:text-danger"
+        onClick={onRetry}
+      >
         重试
       </Button>
     </div>

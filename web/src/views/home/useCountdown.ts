@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react'
-
-function pad2(value: number): string {
-  return String(value).padStart(2, '0')
-}
+import { pad2 } from '@/lib/format'
 
 /**
  * 首页展示级倒计时：基于 startAt 做本地相对时间，每秒跳动一次。
@@ -28,6 +25,5 @@ export function useCountdown(target: string) {
     hours: pad2(hours),
     minutes: pad2(minutes),
     seconds: pad2(seconds),
-    ended: leftMs <= 0,
   }
 }
