@@ -140,10 +140,10 @@ git merge origin/main
 **2026-11-22 补充（`main` = `1230dfb`，规格见 `#60` 及同日更新评论）**：
 
 - **触发节奏**：每 3 天一次（例如 `09:30 Asia/Shanghai`，cron `30 9 */3 * *`），或在开发开工前由任意支持 `git` 与 `gh` CLI 的工具手动执行一次。本机定时配置独立于仓库，换工具或换机器时按下方口令重建即可。
-- **看板定位**：原 `#62` 因早期正文过长已于 2026-11-22 关闭归档。每次运行按标题 `docs: 文档同步待人工判断` 动态查找当前 `OPEN` 状态的滚动 issue；若找不到或上次水线之后无新候选与提交，输出 `no-op` 退出。
-- **硬约束**：先 `git fetch origin main` 并基于 `origin/main` 核查，绝不在主工作区直接改文件；确有把握的 `docs/wiki/` 更正（每次 `<= 5` 文件、`<= 200` 行，遵循 [index](index.md) Rule 3）通过 `./scripts/new-worktree.sh docs/semantic-<YYYYMMDD> ../sunshine-hub-semantic origin/main --no-link` 另开工作树，跑通 `node scripts/check-doc-links.mjs` 与 `node --test scripts/*.test.mjs` 后提 `docs:` PR，并移除临时工作树。不直接改 `docs/adr/` 正文、`GLOSSARY.md` 定义或源码（仅在 PR 正文给建议），不自动合并、不直推 `main`、不删远端分支、不改既有 issue/PR 正文。
-- **可复制执行口令**（跨工具通用）：
+- **看板定位**：原 `#62` 因早期正文过长已于 2026-11-22 关闭归档；后续按标题 `docs: 文档同步待人工判断` 动态查找当前 `OPEN` 状态的滚动 issue。
+- **硬约束**：不直接改 `docs/adr/` 正文、`GLOSSARY.md` 定义或源码（仅在 PR 正文或评论给建议）；不自动合并、不直推 `main`、不删远端分支、不改既有 issue/PR 正文；触发 PR 优先复用既有 `OPEN` 的 `docs/sync-` 分支，详见 `#60`。
+- **可复制执行口令**（任意支持 `git`/`gh` CLI 的工具通用，先拉 `origin/main` 不碰主工作区）：
 
 ```text
-在 sunshine-hub 仓库按 issue #60（含 2026-11-22 更新评论）执行一次文档与术语语义巡检：先 git fetch origin main，再按标题查找当前 OPEN 的 `docs: 文档同步待人工判断` 滚动 issue（若无或上次 `<!-- docs-semantic-review: ... -->` 水线后无新候选与提交则输出 no-op 退出）。对照 origin/main 跑 `node scripts/check-doc-links.mjs`、`node --test scripts/*.test.mjs` 与 `./scripts/check-glossary.sh`，结合近期已合 PR 与 open issue 区分真实过时与有意保留的历史墓碑；有把握的 `docs/wiki/` 更正（遵循 docs/wiki/index.md Rule 3，<=5 文件 <=200 行）从 `origin/main` 另开 `--no-link` worktree 提待审 PR 并清理 worktree；拿不准或需改 ADR/GLOSSARY/源码的项只追加到滚动 issue 评论并在末尾写 `<!-- docs-semantic-review: <ISO-8601> main=<sha> -->` 水线。严禁自动合并或直推 main。
+在 sunshine-hub 仓库按 issue #60（含 2026-11-22 更新评论）执行一次文档与术语语义巡检：先 git fetch origin main，再按标题查找当前 OPEN 的 `docs: 文档同步待人工判断` 滚动 issue（若无或上次 `<!-- docs-semantic-review: ... -->` 水线后无新候选与提交则输出 no-op 退出）。对照 origin/main 跑 `node scripts/check-doc-links.mjs`、`node --test scripts/*.test.mjs` 与 `./scripts/check-glossary.sh`，结合近期已合 PR 与 open issue 区分真实过时与有意保留的历史墓碑。有把握的 `docs/wiki/` 更正（遵循 docs/wiki/index.md Rule 3，<=5 文件 <=200 行）优先复用现有 OPEN 的 `docs/sync-` PR，否则从 `origin/main` 另开 `--no-link` 临时 worktree（如 `../sunshine-hub-semantic`）提交并开 `docs:` PR，跑通链接与脚本单测后清理 worktree；拿不准或需改 ADR/GLOSSARY/源码的项追加到滚动 issue 评论。只要本次非 no-op，结束时均在滚动 issue 末尾追加 `<!-- docs-semantic-review: <ISO-8601> main=<sha> -->` 水线。严禁自动合并、直推 main、删远端分支或改既有 issue/PR 正文。
 ```
