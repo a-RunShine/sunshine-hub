@@ -133,7 +133,7 @@
 - **代价**：`client.ts:59-63` 对所有 5xx 覆盖文案，所以用户看到的仍是通用兜底。**这是可接受的**——`code` 保留可供前端分支，告警是服务端职责，spec 要的是「要告警」而不是「给用户看不同文案」。若 owner 要区分文案，得改 `client.ts`，那属于代码改动、不在契约范围。
 - **相邻但不同**：#3 的 P2-1 指出 Lua 把「键不存在」和「库存为 0」合并成 `-2 售罄`（#2:213 的 `or '-1'`），与 `-3` 要告警的原则自相矛盾。**那是脚本语义问题，本缺口是契约出口问题**，两件事，别合并成一个 ticket。见 [issue-3-review](issue-3-review.md)。
 
-> **2026-11-22 更正（`main` = `567fd6a`，针对 `:122` 与 `:131` 的 `superseded` 断言）**：上文 `:122`「`web/src/api/client.ts:59-63` 的 5xx 分支会把 message 统一兜底成『服务出了点问题，稍后再试』」与 `:131`「`client.ts:59-63` 对所有 5xx 覆盖文案」**均已过时（superseded）**。自 commit `92061f1`（PR #55）起，`web/src/api/client.ts:60-68` 的 5xx 分支改为保留响应体内的服务端 `message` 原文，仅在 `body?.message` 缺失时回落兜底文案；`web/src/views/campaign/claimFailure.ts:81-94,135` 对 `UNIT_POOL_INCONSISTENT` 与 `INTERNAL_ERROR` 亦配置 `preserveServerMessage: true` 透传服务端提示。双层错误模型与服务端脱敏边界见 [ADR-0015](../adr/0015-two-layer-error-model.md)。原文 `:122` 与 `:131` 按历史记录保留。
+> **2026-11-22 更正（`main` = `567fd6a`，针对 `:124` 与 `:133` 的 `superseded` 断言）**：上文 `:124`「`web/src/api/client.ts:59-63` 的 5xx 分支会把 message 统一兜底成『服务出了点问题，稍后再试』」与 `:133`「`client.ts:59-63` 对所有 5xx 覆盖文案」**均已过时（superseded）**。自 commit `92061f1`（PR #55）起，`web/src/api/client.ts:60-68` 的 5xx 分支改为保留响应体内的服务端 `message` 原文，仅在 `body?.message` 缺失时回落兜底文案；`web/src/views/campaign/claimFailure.ts:81-94,135` 对 `UNIT_POOL_INCONSISTENT` 与 `INTERNAL_ERROR` 亦配置 `preserveServerMessage: true` 透传服务端提示。双层错误模型与服务端脱敏边界见 [ADR-0015](../adr/0015-two-layer-error-model.md)。原文 `:124` 与 `:133` 按历史记录保留。
 >
 > **2026-11-22 行号更新（Issue #84）**：随 Issue #84 清理源码注释，本节引用的 `ErrorCode.java:31`（`c5b5508` 旧号）与上条 `567fd6a` 快照里的 `web/src/api/client.ts:60-68`、`web/src/views/campaign/claimFailure.ts:81-94,135` 均已 **superseded**；现行位置分别为 `src/main/java/com/sunshinefps/shared/ErrorCode.java:24`（`UNIT_POOL_INCONSISTENT`）、`web/src/api/client.ts:53-61` 与 `web/src/views/campaign/claimFailure.ts:58-71,105`。
 
@@ -272,6 +272,8 @@ spec 的缓存策略是逻辑过期 + 返回旧值：`campaign:detail:{campaignI
 **2026-11-16 复核**：`web/src/mocks/handlers.ts:109-119` 的 claim handler **无条件返回 201**。七个 handler 里没有任何一个返回 409 / 410 / 500。
 
 所以即使契约补齐了，**当前 mock 也演示不了三种失败因**。这与 [open-loops](open-loops.md) 里「MSW handler 只有骨架用的几条」是同一件事的两面。
+
+> **2026-11-22 行号与状态更新（Issue #84）**：上文引用的 `web/src/mocks/handlers.ts:109-119` 旧行号及「无条件返回 201、七个 handler 造不出失败态」断言均已 **superseded**。后续实现已引入场景注册表（`web/src/mocks/scenarios.ts`），经 Issue #84 清理源码注释后，`POST /api/campaigns/:campaignId/claim` handler 现位于 `web/src/mocks/handlers.ts:651-663`，按请求头 `X-Mock-Scenario` 返回对应失败态（含 `409` / `410` / `500` 等），缺省仍回 `201`。
 
 ## 结论
 

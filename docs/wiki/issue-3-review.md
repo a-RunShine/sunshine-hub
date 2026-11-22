@@ -120,6 +120,8 @@ P0-2 说的是「`total_limit` 只做单场校验，首发 5000 + 回流 5000 �
 - 契约侧的症状：`ErrorCode` 枚举（`api/openapi.yaml:1085-1112`）没有失格码，Lua（#2:209）只查 `EXISTS limitKey`，失格用户拿到 `-1 已购`、文案「这件商品你已经买过了」（`ErrorCode.java:29`）——他没付过钱。
 - 模型侧的病因：P0-7 说的键生存期矛盾。**键设计不定，错误码就定不下来**——分不清「已购」与「失格」是因为两者共用一个键。
 
+> **2026-11-22 行号更正（Issue #84）**：上文引用的 `ErrorCode.java:29`（`c5b5508` 旧号）已 **superseded**；清理源码注释后，`ALREADY_PURCHASED` 现位于 `src/main/java/com/sunshinefps/shared/ErrorCode.java:21`（现 `:29` 为 `ORDER_NOT_CANCELLABLE`）。
+
 **所以顺序是：先 triage P0-7 → 定键结构 → 再定错误码与契约字段。** 反过来做会先把一个表达错的字段写进契约，然后返工。
 
 P0-7 建议拆 `rate` / `miss`(ZSET) / `ban` 三个键。**wiki 不背书这个方案**，只记录它是 #3 的提案，待 owner 拍。相关: [ADR-0002](../adr/0002-purchase-limit-on-real-name.md):5 已否掉客服申诉通道，所以 `ban` 的人工解封入口是否进首版是个真问题（见 [contract-gaps](contract-gaps.md) 拍板问题 4）。
