@@ -5,17 +5,38 @@ interface LimitedBadgeProps {
   /** 是否为限量商品；为 false 时不渲染，避免给常规商品贴多余标签。 */
   readonly limited: boolean
   /**
-   * - `slash`：R4-B 斜杠文本标 `// 限量`（默认）
-   * - `pill`：手风琴等重展台内的低噪描边徽标
-   * - `compact`：收窄导轨内单字「限」标记
+   * - `slash`：定制战备菱形图标 + `限量`（默认，用于商品卡片与横幅）
+   * - `pill`：手风琴展开区的描边菱形徽标 + `限量`
+   * - `compact`：手风琴收起窄条内的紧凑菱形徽标
    */
   readonly variant?: 'slash' | 'pill' | 'compact'
   readonly className?: string
 }
 
+/** 战备切角菱形矢量图标：用于建立全站「限量」稀缺款视觉记忆点。 */
+function LimitedDiamondIcon({ className }: { readonly className?: string }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+      className={cn('shrink-0', className)}
+    >
+      <path
+        d="M8 1.25L14.75 8L8 14.75L1.25 8L8 1.25Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path d="M8 4.4L11.6 8L8 11.6L4.4 8L8 4.4Z" fill="currentColor" />
+    </svg>
+  )
+}
+
 /**
- * 统一定制限量标记：视觉细节与强调色约束只留在此包装内，
- * 确保全站常规商品零黄标、限量商品文字可检索匹配。
+ * 统一定制限量标记：采用定制战备菱形图标 + `限量` 语义文案；
+ * 常规商品不渲染任何标签。
  */
 export function LimitedBadge({ limited, variant = 'slash', className }: LimitedBadgeProps) {
   if (!limited) return null
@@ -23,12 +44,13 @@ export function LimitedBadge({ limited, variant = 'slash', className }: LimitedB
   if (variant === 'compact') {
     return (
       <span
+        title="限量"
         className={cn(
-          'rounded-[2px] border border-accent/40 px-1 text-[12px] font-semibold leading-[16px] text-accent/80',
+          'inline-flex h-[20px] w-[20px] items-center justify-center rounded-[2px] border border-accent/45 bg-accent/[0.08] text-accent',
           className,
         )}
       >
-        限
+        <LimitedDiamondIcon className="h-3 w-3" />
       </span>
     )
   }
@@ -38,11 +60,12 @@ export function LimitedBadge({ limited, variant = 'slash', className }: LimitedB
       <Badge
         variant="outline"
         className={cn(
-          'rounded-[2px] border-accent/45 bg-accent/[0.08] px-2 py-0.5 text-[12px] font-semibold tracking-[0.04em] text-accent',
+          'inline-flex items-center gap-1.5 rounded-[2px] border-accent/45 bg-accent/[0.1] px-2.5 py-0.5 text-[13px] font-semibold tracking-[0.04em] text-accent',
           className,
         )}
       >
-        限量
+        <LimitedDiamondIcon className="h-3.5 w-3.5" />
+        <span>限量</span>
       </Badge>
     )
   }
@@ -50,13 +73,11 @@ export function LimitedBadge({ limited, variant = 'slash', className }: LimitedB
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 text-[12px] font-semibold tracking-[0.04em] text-accent',
+        'inline-flex items-center gap-1.5 rounded-[2px] border border-accent/35 bg-accent/[0.08] px-2 py-0.5 text-[13px] font-semibold tracking-[0.04em] text-accent',
         className,
       )}
     >
-      <span aria-hidden="true" className="opacity-75">
-        //
-      </span>
+      <LimitedDiamondIcon className="h-3.5 w-3.5" />
       <span>限量</span>
     </span>
   )

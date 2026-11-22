@@ -149,7 +149,7 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
               <div className="absolute inset-x-0 bottom-0 z-[3] flex items-end justify-between gap-5 bg-gradient-to-t from-[#0c0e0d]/[0.92] via-[#131615]/[0.68] via-55% to-transparent px-[28px] pb-[26px] pt-[48px] max-[860px]:flex-col max-[860px]:items-start max-[860px]:gap-3.5 max-[860px]:px-[18px] max-[860px]:pb-[18px] max-[860px]:pt-8">
                 <div className="min-w-0 max-[860px]:w-full">
                   <div className="mb-2 flex items-center gap-2.5">
-                    <span className="text-[13px] tracking-[0.02em] text-faint">{metaText}</span>
+                    <span className="text-[14px] font-medium tracking-[0.02em] text-[#c4cac6]">{metaText}</span>
                     <LimitedBadge limited={product.limited} variant="pill" />
                   </div>
                   <h3 className="m-0 truncate text-[26px] font-bold leading-[1.2] tracking-[-0.01em] text-foreground max-[860px]:whitespace-normal max-[860px]:text-[22px]">
@@ -173,12 +173,12 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
 
             <div className="acc-rail" aria-hidden="true">
               <div className="flex shrink-0 items-center gap-1.5">
-                <span className="font-mono text-[13px] font-semibold leading-none tracking-[0.06em] text-muted">
+                <span className="font-mono text-[13px] font-semibold leading-none tracking-[0.06em] text-[#c4cac6]">
                   {indexLabel}
                 </span>
                 <LimitedBadge limited={product.limited} variant="compact" />
               </div>
-              <span className="acc-rail-title text-[15px] font-semibold leading-[1.4] tracking-[0.14em] text-faint transition-colors group-hover:text-foreground">
+              <span className="acc-rail-title text-[15px] font-semibold leading-[1.4] tracking-[0.14em] text-[#d4d9d5] transition-colors group-hover:text-foreground">
                 {product.name}
               </span>
               <Price cents={product.minPrice} variant="compact" />

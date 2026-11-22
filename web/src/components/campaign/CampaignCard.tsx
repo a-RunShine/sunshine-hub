@@ -65,17 +65,17 @@ export function CampaignCard({ campaign, variant = 'default' }: CampaignCardProp
         )}
         <div className={compact ? 'min-w-0' : 'p-4'}>
           <div className="flex items-center justify-between gap-2">
-            <Badge variant="outline" className="rounded-[2px] border-line text-[12px] text-muted">
+            <Badge variant="outline" className="rounded-[2px] border-line text-[13px] text-[#c4cac6]">
               {TYPE_LABEL[campaign.type]}
             </Badge>
-            <span className="text-[12px] tabular-nums text-muted">
+            <span className="text-[13px] tabular-nums text-[#c4cac6]">
               {formatStartAt(campaign.startAt)}
             </span>
           </div>
-          <h3 className="mt-2.5 truncate text-[15px] font-semibold text-foreground">
+          <h3 className="mt-2.5 truncate text-[16px] font-semibold text-foreground">
             {campaign.name}
           </h3>
-          <p className="mt-1 truncate text-[12px] text-muted">{campaign.productName}</p>
+          <p className="mt-1 truncate text-[13px] text-[#c4cac6]">{campaign.productName}</p>
         </div>
       </Card>
     </Link>

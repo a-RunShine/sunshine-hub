@@ -126,7 +126,6 @@ export default function ProductsPage() {
     <div>
       <SectionHeader
         as="h1"
-        eyebrow="SUNSHINE ARMORY · R4-B 混合陈列"
         title="全部商品"
         className="mb-4"
         right={
@@ -223,7 +222,7 @@ export default function ProductsPage() {
 
           <div className="flex shrink-0 items-center gap-4 pb-1">
             {pageData && (
-              <span className="text-[13px] tabular-nums text-muted" aria-live="polite">
+              <span className="text-[13px] font-medium tabular-nums text-[#c4cac6]" aria-live="polite">
                 {hasLocalNarrowing
                   ? `当前页命中 ${visibleItems.length} 件（共 ${pageData.total} 件）`
                   : `共 ${pageData.total} 件`}
@@ -266,7 +265,7 @@ export default function ProductsPage() {
             className="mt-3 grid grid-cols-1 gap-5 border-t border-line bg-[#111513] px-5 py-4 md:grid-cols-3"
           >
             <div>
-              <div className="mb-2 text-[12px] font-semibold tracking-[0.06em] text-muted">商品形态</div>
+              <div className="mb-2 text-[13px] font-semibold tracking-[0.04em] text-[#c4cac6]">商品形态</div>
               <div role="group" aria-label="商品形态" className="flex flex-wrap gap-2">
                 {KIND_OPTIONS.map((option) => {
                   const active = selectedKind === option.value
@@ -291,7 +290,7 @@ export default function ProductsPage() {
             </div>
 
             <div>
-              <div className="mb-2 text-[12px] font-semibold tracking-[0.06em] text-muted">售卖属性</div>
+              <div className="mb-2 text-[13px] font-semibold tracking-[0.04em] text-[#c4cac6]">售卖属性</div>
               <div role="group" aria-label="售卖属性" className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -324,7 +323,7 @@ export default function ProductsPage() {
 
             <div className="flex flex-col justify-between gap-3">
               <div>
-                <div className="mb-2 text-[12px] font-semibold tracking-[0.06em] text-muted">
+                <div className="mb-2 text-[13px] font-semibold tracking-[0.04em] text-[#c4cac6]">
                   快捷关键词定位
                 </div>
                 <div role="group" aria-label="快捷关键词" className="flex flex-wrap gap-2">
@@ -337,10 +336,10 @@ export default function ProductsPage() {
                         aria-pressed={active}
                         onClick={() => setQuickKeyword(active ? null : keyword)}
                         className={cn(
-                          'rounded-[2px] border px-2.5 py-1 text-[12px] transition-colors',
+                          'rounded-[2px] border px-3 py-1 text-[13px] transition-colors',
                           active
                             ? 'border-accent bg-accent/[0.1] font-semibold text-accent'
-                            : 'border-line bg-ink-950 text-muted hover:border-[#3c4640] hover:text-foreground',
+                            : 'border-line bg-ink-950 text-[#c4cac6] hover:border-[#3c4640] hover:text-foreground',
                         )}
                       >
                         {keyword}

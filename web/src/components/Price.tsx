@@ -17,7 +17,7 @@ interface PriceProps {
   /** 整数分。 */
   readonly cents: number
   /**
-   * `default`：卡片常规价；`hero`：手风琴展开底栏大号价；`compact`：收起导轨单价（无后缀）。
+   * `default`：商品展示卡片主价（22px 骨白）；`hero`：主打横幅 / 手风琴展开价（26px）；`compact`：收起导轨单价（无后缀）。
    */
   readonly variant?: 'default' | 'hero' | 'compact'
 }
@@ -28,7 +28,7 @@ export function Price({ cents, variant = 'default' }: PriceProps) {
 
   if (variant === 'compact') {
     return (
-      <span className="whitespace-nowrap text-[13px] font-semibold leading-none tabular-nums text-muted">
+      <span className="whitespace-nowrap text-[13px] font-semibold leading-none tabular-nums text-[#c4cac6]">
         {formatted}
       </span>
     )
@@ -37,18 +37,20 @@ export function Price({ cents, variant = 'default' }: PriceProps) {
   if (variant === 'hero') {
     return (
       <span className="inline-flex items-baseline gap-1 whitespace-nowrap tabular-nums">
-        <span className="text-[24px] font-bold leading-none text-foreground max-[860px]:text-[22px]">
+        <span className="text-[26px] font-bold leading-none text-foreground max-[860px]:text-[22px]">
           {formatted}
         </span>
-        <span className="text-[13px] font-medium text-muted">起</span>
+        <span className="text-[13px] font-medium text-[#c4cac6]">起</span>
       </span>
     )
   }
 
   return (
     <span className="inline-flex items-baseline gap-1 whitespace-nowrap tabular-nums">
-      <span className="font-mono text-[18px] leading-none text-foreground">{formatted}</span>
-      <span className="text-[12px] text-muted">起</span>
+      <span className="text-[22px] font-bold leading-none text-foreground max-[860px]:text-[20px]">
+        {formatted}
+      </span>
+      <span className="text-[13px] font-medium text-[#c4cac6]">起</span>
     </span>
   )
 }

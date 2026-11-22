@@ -131,7 +131,7 @@ export default function HomePage() {
                     <span>查看场次</span>
                     <span aria-hidden="true">→</span>
                   </ActionLink>
-                  <span className="text-[14px] tracking-[0.02em] tabular-nums text-faint">
+                  <span className="text-[15px] font-medium tracking-[0.02em] tabular-nums text-[#c4cac6]">
                     {formatStartAt(featured.startAt)} 开售
                   </span>
                 </div>
@@ -141,7 +141,7 @@ export default function HomePage() {
             <a
               href="#featured-armory"
               aria-label="下滑查看精选军需"
-              className="absolute bottom-[22px] left-1/2 z-[5] inline-flex -translate-x-1/2 flex-col items-center gap-[5px] px-3 py-1.5 text-faint transition-all hover:translate-y-[3px] hover:text-accent max-[860px]:bottom-[14px]"
+              className="absolute bottom-[22px] left-1/2 z-[5] inline-flex -translate-x-1/2 flex-col items-center gap-[5px] px-3 py-1.5 text-[#c4cac6] transition-all hover:translate-y-[3px] hover:text-accent max-[860px]:bottom-[14px]"
             >
               <span className="block h-5 w-px bg-current opacity-75" aria-hidden="true" />
               <svg width="14" height="8" viewBox="0 0 14 8" fill="none" aria-hidden="true">
