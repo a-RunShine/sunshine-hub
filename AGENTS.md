@@ -24,11 +24,11 @@
 
 `grep -rn` 能找到一半，判断哪个词算旧词靠人。命中之后逐条过，不是看一眼有没有命中就收工。
 
-### 源码与测试不写叙事注释，决策取舍进文档
+## 注释纪律
 
-改动 `src/main`、`src/test`、`web/src` 与 `web/*.{js,ts}` 时，不新增叙事说明、分段分隔符、复述字面逻辑或测试步骤的注释、`package-info`/`*Facade` 样板注释与 Props JSDoc；也不要模仿尚未清理的旧注释或 `scripts/`、CI 配置里的运维注释写法。
+源码与测试不写叙事、分段、复述代码或文档的注释（含包说明、Facade 样板与 Props JSDoc），也不要模仿尚未清理的旧注释或运维配置里的注释写法。架构与机制取舍写进 `docs/adr/`（并同步 [docs/wiki/decisions.md](docs/wiki/decisions.md)），环境与工具链暗坑写进 `docs/wiki/`。
 
-只保留编译器/检查器必需的语法指令（如 `/// <reference>`、`eslint-disable`、`@type`、`@SuppressWarnings`），或极少数单行注释用于交代无法从代码本身看出的非显而易见编译器、运行时、浏览器或时序约束。架构与机制取舍必须写进 `docs/adr/`（并同步更新 `docs/wiki/decisions.md`），环境与工具链暗坑写进 `docs/wiki/`。
+具体范围、允许保留的语法指令与例外边界，以 [CODING_STANDARDS/java.md](CODING_STANDARDS/java.md) 和 [CODING_STANDARDS/typescript.md](CODING_STANDARDS/typescript.md) 为准。
 
 ## 代码评审
 

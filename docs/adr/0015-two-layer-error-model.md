@@ -13,14 +13,14 @@
 
 ## 与既有 ADR 的关系
 
-- **[ADR-0001](0001-claim-binds-collectible-number.md)**：要求收藏编号池与配额不同步时「整个操作失败并抛出可识别的业务异常」。双层模型通过 `UNIT_POOL_INCONSISTENT`（HTTP `500`）落实该要求——网关与监控把它归入 5xx 异常告警，前端则通过 `code` 与通用 `INTERNAL_ERROR` 区分并透传服务端脱敏提示。
+- **[ADR-0001](0001-claim-binds-collectible-number.md)**：要求配额扣减成功但可用 `Unit` 耗尽（`Unit` 池与配额不同步）时「整个操作失败并抛出可识别的业务异常」。双层模型通过 `UNIT_POOL_INCONSISTENT`（HTTP `500`）落实该要求——网关与监控把它归入 5xx 异常告警，前端则通过 `code` 与通用 `INTERNAL_ERROR` 区分并透传服务端脱敏提示。
 - **[ADR-0013](0013-two-tier-cooldown.md)**：要求购买冷却与已达本场额度在 `409` 下明确区分（`PURCHASE_COOLDOWN` 与 `ALREADY_PURCHASED`），依赖语义 `ErrorCode` 才能在不新增 HTTP 状态码的前提下精确分流。
 - **[ADR-0014](0014-category-as-resource.md)**：与本 ADR 同理区分「跨端分支必需的契约闭集」与「允许各自演进的可变内容」——`ErrorCode` 枚举常量名是契约闭集，文案与状态细粒度演化不绑进枚举契约。
 
 ## Considered Options
 
 - **所有接口（含 2xx）统一包装 `{ code, message, data }`**：每个成功接口都要多解一层包装，生成类型与 API 封装增加样板，且把业务失败塞进 HTTP `200` 会让网关、浏览器缓存与拦截器失去状态码语义。
-- **只用 HTTP 状态码分流，不设语义 `ErrorCode`**：同一状态码下（如 `409` 的多种售卖拦截、`500` 的收藏编号池异常与未知异常）无法区分具体成因，前端无法给出准确处置。
+- **只用 HTTP 状态码分流，不设语义 `ErrorCode`**：同一状态码下（如 `409` 的多种售卖拦截、`500` 的 `Unit` 池与配额不同步及未知异常）无法区分具体成因，前端无法给出准确处置。
 - **把文案与 HTTP 状态码也耦合进 OpenAPI 枚举或契约校验**：每次调整错误提示文案都要同步改 `api/openapi.yaml` 并重跑 `gen:types` 触发前端构建，把展示文案耦合进跨端接口契约。
 - **前端拦截器一律覆盖 `5xx` 的服务端 `message`**：早期版本曾这样做，但会抹掉 `UNIT_POOL_INCONSISTENT` 等已脱敏的服务端可辨识信息。既然服务端已由 `GlobalExceptionHandler` 兜住未捕获异常堆栈，前端只需在缺 `message` 时兜底，不应主动丢弃服务端提示。
 
