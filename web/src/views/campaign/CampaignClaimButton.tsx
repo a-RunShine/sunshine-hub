@@ -1,3 +1,4 @@
+import { ActionButton } from '@/components/common/ActionButton'
 import { CLAIM_BLOCK_REASON_LABEL, type ClaimBlockReason } from './claimability'
 import type { ClaimState } from './useCampaignClaim'
 
@@ -24,21 +25,21 @@ export function CampaignClaimButton({ clickable, reason, claim, onClaim }: Campa
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <button
-        type="button"
+      <ActionButton
+        intent="primary"
         disabled={disabled}
         onClick={disabled ? undefined : onClaim}
-        className="rounded-md bg-accent px-10 py-3 text-base font-medium text-ink-950 hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+        className="px-10 py-3 text-base"
       >
         {pending ? '抢购中…' : '立即抢购'}
-      </button>
+      </ActionButton>
       {failure !== null ? (
         <div className="flex flex-col items-center gap-1">
-          <p className="text-sm text-neutral-400">{failure.summary}</p>
-          <p className="text-xs text-neutral-500">{failure.nextStep}</p>
+          <p className="text-sm text-muted">{failure.summary}</p>
+          <p className="text-xs text-faint">{failure.nextStep}</p>
         </div>
       ) : reason !== null ? (
-        <p className="text-sm text-neutral-400">{CLAIM_BLOCK_REASON_LABEL[reason]}</p>
+        <p className="text-sm text-muted">{CLAIM_BLOCK_REASON_LABEL[reason]}</p>
       ) : null}
     </div>
   )

@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { ProductSummary } from '@/api/catalog'
 import { Price, formatPrice } from '@/components/Price'
 import { CoverSilhouette } from '@/components/common/CoverSilhouette'
+import { DiagonalSurface } from '@/components/common/DiagonalSurface'
+import { LimitedBadge } from '@/components/common/LimitedBadge'
 import { PRODUCT_KIND_LABEL } from '@/components/product/ProductCard'
 import { silhouetteVariant } from '@/components/product/silhouette'
 import { pad2 } from '@/lib/format'
@@ -117,23 +119,7 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
             }}
           >
             <div className="acc-expanded">
-              <div className="acc-facet" aria-hidden="true" />
-              <svg
-                className="pointer-events-none absolute inset-0 z-[1] h-full w-full max-[860px]:hidden"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                aria-hidden="true"
-              >
-                <line
-                  x1="45"
-                  y1="0"
-                  x2="26"
-                  y2="100"
-                  stroke="#252b28"
-                  strokeWidth="1"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
+              <DiagonalSurface variant="accordion" className="z-0" />
               <span
                 className="pointer-events-none absolute left-[26px] top-[18px] z-[1] select-none font-mono text-[132px] font-extrabold leading-[0.88] tracking-[-0.04em] text-[#f3efe6]/[0.06] max-[860px]:left-[18px] max-[860px]:top-[14px] max-[860px]:text-[84px]"
                 aria-hidden="true"
@@ -164,11 +150,7 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
                 <div className="min-w-0 max-[860px]:w-full">
                   <div className="mb-2 flex items-center gap-2.5">
                     <span className="text-[13px] tracking-[0.02em] text-faint">{metaText}</span>
-                    {product.limited && (
-                      <span className="inline-flex items-center rounded-[2px] border border-accent/45 bg-accent/[0.08] px-2 py-0.5 text-[12px] font-semibold tracking-[0.04em] text-accent">
-                        限量
-                      </span>
-                    )}
+                    <LimitedBadge limited={product.limited} variant="pill" />
                   </div>
                   <h3 className="m-0 truncate text-[26px] font-bold leading-[1.2] tracking-[-0.01em] text-foreground max-[860px]:whitespace-normal max-[860px]:text-[22px]">
                     {product.name}
@@ -180,7 +162,7 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
                     to={detailPath}
                     tabIndex={isExpanded ? 0 : -1}
                     onClick={(event) => event.stopPropagation()}
-                    className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-[2px] bg-accent px-5 py-[11px] text-[14px] font-bold leading-[1.2] tracking-[0.03em] text-ink-950 transition-colors hover:bg-[#f6c84f]"
+                    className="chamfer-cta inline-flex shrink-0 items-center gap-2 whitespace-nowrap bg-accent px-5 py-[11px] text-[14px] font-bold leading-[1.2] tracking-[0.03em] text-ink-950 transition-colors hover:bg-[#f6c84f]"
                   >
                     <span>查看详情</span>
                     <span aria-hidden="true">→</span>
@@ -194,11 +176,7 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
                 <span className="font-mono text-[13px] font-semibold leading-none tracking-[0.06em] text-muted">
                   {indexLabel}
                 </span>
-                {product.limited && (
-                  <span className="rounded-[2px] border border-accent/40 px-1 text-[12px] font-semibold leading-[16px] text-accent/80">
-                    限
-                  </span>
-                )}
+                <LimitedBadge limited={product.limited} variant="compact" />
               </div>
               <span className="acc-rail-title text-[15px] font-semibold leading-[1.4] tracking-[0.14em] text-faint transition-colors group-hover:text-foreground">
                 {product.name}

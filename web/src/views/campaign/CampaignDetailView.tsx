@@ -40,10 +40,10 @@ export function CampaignDetailView({
   const countdown = countdownTargetFor(detail, claimability.reason)
 
   return (
-    <section className="flex flex-col items-center gap-6 px-6 py-12">
-      <h1 className="text-center text-2xl font-medium tracking-tight text-foreground">{detail.name}</h1>
+    <section className="mx-auto flex max-w-xl flex-col items-center gap-6 px-6 py-12">
+      <h1 className="text-center text-3xl font-bold tracking-tight text-foreground">{detail.name}</h1>
       <p className="text-sm text-muted">
-        剩余份数：<span className="text-foreground">{detail.allocation.available}</span> 份
+        剩余份数：<span className="font-mono text-foreground">{detail.allocation.available}</span> 份
       </p>
       <CampaignCountdown target={countdown.target} offsetMs={offsetMs} label={countdown.label} />
       <CampaignReserveButton

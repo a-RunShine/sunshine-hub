@@ -85,6 +85,32 @@
   );
 }
 
+.band-diagonal-plane {
+  background-color: #161c19;
+  clip-path: polygon(46% 0, 100% 0, 100% 100%, 36% 100%);
+}
+
+.band-diagonal-plane::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 70% 45%,
+    rgba(239, 184, 41, 0.09) 0%,
+    rgba(243, 239, 230, 0.03) 38%,
+    rgba(22, 28, 25, 0) 72%
+  );
+}
+
+/* R4-B 切角主 CTA 与搜索框切角外框 */
+.chamfer-cta {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%);
+}
+
+.search-chamfer {
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+}
+
 .studio-mask {
   -webkit-mask-image: radial-gradient(
     ellipse 42% 46% at 50% 50%,

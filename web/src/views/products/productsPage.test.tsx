@@ -65,13 +65,13 @@ function renderProductsPage() {
   )
 }
 
-describe('S1 全部军需页渲染与导航高亮', () => {
-  it('全部军需高亮、首页不误高亮；展示接口分类与 5 件商品', async () => {
+describe('S1 全部商品页渲染与导航高亮', () => {
+  it('全部商品高亮、首页不误高亮；展示接口分类与 5 件商品', async () => {
     renderProductsPage()
 
     await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
 
-    expect(screen.getByRole('link', { name: '全部军需' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: '全部商品' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: '首页' })).not.toHaveAttribute('aria-current', 'page')
 
     for (const name of ['武器皮肤', '角色皮肤', '徽章', '手办', '服饰']) {
@@ -95,8 +95,8 @@ describe('S1 全部军需页渲染与导航高亮', () => {
   })
 })
 
-describe('S2 分类与形态组合筛选', () => {
-  it('切换分类与形态向 /api/products 传递 categoryId 与 kind 参数', async () => {
+describe('S2 分类、漏斗筛选与搜索过滤', () => {
+  it('切换分类与点开漏斗筛选形态，向 /api/products 传递 categoryId 与 kind 参数，并支持仅看限量与关键词搜索', async () => {
     renderProductsPage()
     await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
 
@@ -106,10 +106,12 @@ describe('S2 分类与形态组合筛选', () => {
     await screen.findByRole('heading', { name: '破晓之环 典藏手办' })
     expect(screen.queryByRole('heading', { name: '幽影长弓 磁轨狙击' })).not.toBeInTheDocument()
 
-    // 复位「全部」分类，再按「实体周边」筛选
+    // 复位「全部」分类
     fireEvent.click(screen.getByRole('button', { name: '全部' }))
     await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
 
+    // 点开漏斗筛选面板，选择「实体周边」
+    fireEvent.click(screen.getByRole('button', { name: '筛选' }))
     fireEvent.click(screen.getByRole('button', { name: '实体周边' }))
     await waitFor(() => expect(productUrls.some((q) => q.includes('kind=PHYSICAL'))).toBe(true))
     expect(screen.getByText('共 2 件')).toBeInTheDocument()
@@ -117,8 +119,28 @@ describe('S2 分类与形态组合筛选', () => {
     expect(screen.getByRole('heading', { name: '赛季队服' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '幽影长弓 磁轨狙击' })).not.toBeInTheDocument()
 
-    // 叠加「武器皮肤」+「实体周边」命为空集，点回「全部形态」恢复
+    // 叠加「仅看限量」本地缩窄仅剩破晓之环
+    fireEvent.click(screen.getByRole('button', { name: '仅看限量' }))
+    expect(screen.getByText('当前页命中 1 件（共 2 件）')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '赛季队服' })).not.toBeInTheDocument()
+
+    // 切回「全部属性」+「全部形态」后输入搜索框过滤
+    fireEvent.click(screen.getByRole('button', { name: '全部属性' }))
+    fireEvent.click(screen.getByRole('button', { name: '全部形态' }))
+    await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
+
+    const searchInput = screen.getByRole('searchbox', { name: '搜索商品' })
+    fireEvent.change(searchInput, { target: { value: '磁轨' } })
+    expect(screen.getByRole('heading', { name: '幽影长弓 磁轨狙击' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '疾风原型 战术冲锋枪' })).not.toBeInTheDocument()
+
+    // 清空搜索恢复 5 件
+    fireEvent.click(screen.getByRole('button', { name: '清空' }))
+    expect(screen.getByRole('heading', { name: '疾风原型 战术冲锋枪' })).toBeInTheDocument()
+
+    // 叠加「武器皮肤」+「实体周边」命为空集，点「全部形态」恢复
     fireEvent.click(screen.getByRole('button', { name: '武器皮肤' }))
+    fireEvent.click(screen.getByRole('button', { name: '实体周边' }))
     await screen.findByText('暂时没有内容，稍后再来看看')
 
     fireEvent.click(screen.getByRole('button', { name: '全部形态' }))

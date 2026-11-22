@@ -3,6 +3,7 @@ import type { components } from '@/types/api'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CoverSilhouette } from '@/components/common/CoverSilhouette'
+import { DiagonalSurface } from '@/components/common/DiagonalSurface'
 import { pad2 } from '@/lib/format'
 
 type CampaignSummary = components['schemas']['CampaignSummary']
@@ -33,7 +34,6 @@ interface CampaignCardProps {
 /**
  * 场次卡：场次名、关联商品、开售时刻、类型；整卡跳抢购页。
  * 倒计时数字只在首页主角位渲染，列表项只展示开售时刻；不拉详情配额字段。
- * 卡片配色与描边是项目定制，写在外层；ui/ 基础件保持官方源码。
  */
 export function CampaignCard({ campaign, variant = 'default' }: CampaignCardProps) {
   const compact = variant === 'compact'
@@ -48,15 +48,16 @@ export function CampaignCard({ campaign, variant = 'default' }: CampaignCardProp
         }
       >
         {!compact && (
-          <div className="relative h-[112px] overflow-hidden bg-ink-800">
+          <div className="relative h-[112px] overflow-hidden bg-ink-900">
+            <DiagonalSurface variant="card" />
             {campaign.coverUrl ? (
               <img
                 src={campaign.coverUrl}
                 alt={campaign.name}
-                className="h-full w-full -rotate-2 object-contain p-3 drop-shadow-[0_14px_20px_rgba(0,0,0,0.72)] transition-transform duration-300 group-hover:scale-[1.03]"
+                className="relative z-[2] h-full w-full -rotate-2 object-contain p-3 drop-shadow-[0_14px_20px_rgba(0,0,0,0.72)] transition-transform duration-300 group-hover:scale-[1.03]"
               />
             ) : (
-              <div className="flex h-full items-center justify-center">
+              <div className="relative z-[2] flex h-full items-center justify-center">
                 <CoverSilhouette variant="box" className="h-10 w-10" />
               </div>
             )}

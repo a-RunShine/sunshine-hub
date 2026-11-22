@@ -1,4 +1,5 @@
 import type { FlashCampaignDetail } from '@/api/campaign'
+import { ActionButton } from '@/components/common/ActionButton'
 import { evaluateReserveState } from './reserve'
 
 interface CampaignReserveButtonProps {
@@ -43,23 +44,17 @@ export function CampaignReserveButton({
   return (
     <div className="flex flex-col items-center gap-2">
       {state === 'reserved' ? (
-        <button
-          type="button"
-          disabled={reserving}
-          onClick={onCancelReserve}
-          className="rounded-md border border-neutral-700 px-6 py-2 text-sm text-neutral-200 hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <ActionButton intent="secondary" disabled={reserving} onClick={onCancelReserve}>
           取消预约
-        </button>
+        </ActionButton>
       ) : (
-        <button
-          type="button"
+        <ActionButton
+          intent="secondary"
           disabled={reserving}
           onClick={state === 'anonymous' ? onRequireLogin : onReserve}
-          className="rounded-md border border-neutral-700 px-6 py-2 text-sm text-neutral-200 hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           预约
-        </button>
+        </ActionButton>
       )}
       {reserveError !== null && <p className="text-sm text-red-400">{reserveError}</p>}
     </div>

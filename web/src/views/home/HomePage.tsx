@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { getCategories, getProducts, type Category } from '@/api/catalog'
 import { getUpcomingCampaigns } from '@/api/campaign'
 import { CampaignCard, formatStartAt } from '@/components/campaign/CampaignCard'
+import { ActionLink } from '@/components/common/ActionButton'
+import { DiagonalSurface } from '@/components/common/DiagonalSurface'
 import { PageState } from '@/components/common/PageState'
+import { SectionHeader } from '@/components/common/SectionHeader'
 import { useResource } from '@/hooks/useResource'
 import { HomeAccordion } from './HomeAccordion'
 import { HomeCountdown } from './HomeCountdown'
@@ -85,39 +87,7 @@ export default function HomePage() {
 
         {featured && (
           <>
-            <div className="hero-diagonal-plane pointer-events-none absolute inset-0 z-[1]" aria-hidden="true" />
-            <svg
-              className="pointer-events-none absolute inset-0 z-[2] h-full w-full max-[860px]:hidden"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <line
-                x1="59"
-                y1="0"
-                x2="39"
-                y2="100"
-                stroke="#252b28"
-                strokeWidth="1"
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
-            <svg
-              className="pointer-events-none absolute inset-0 z-[2] hidden h-full w-full max-[860px]:block"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <line
-                x1="68"
-                y1="0"
-                x2="16"
-                y2="100"
-                stroke="#252b28"
-                strokeWidth="1"
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
+            <DiagonalSurface variant="hero" className="z-[1]" />
 
             <div
               ref={weaponStageRef}
@@ -153,13 +123,14 @@ export default function HomePage() {
                 <HomeCountdown target={featured.startAt} />
 
                 <div className="flex flex-wrap items-center gap-[18px]">
-                  <Link
+                  <ActionLink
                     to={`/campaigns/${featured.id}`}
-                    className="inline-flex items-center gap-2.5 rounded-[2px] bg-accent px-7 py-3.5 text-[15px] font-bold leading-[1.2] tracking-[0.04em] text-ink-950 transition-colors hover:bg-[#f6c84f]"
+                    intent="primary"
+                    className="px-7 py-3.5 text-[15px] tracking-[0.04em]"
                   >
                     <span>查看场次</span>
                     <span aria-hidden="true">→</span>
-                  </Link>
+                  </ActionLink>
                   <span className="text-[14px] tracking-[0.02em] tabular-nums text-faint">
                     {formatStartAt(featured.startAt)} 开售
                   </span>
@@ -193,21 +164,18 @@ export default function HomePage() {
         className="flex min-h-[calc(100vh-64px)] scroll-mt-[64px] flex-col justify-center border-t border-line bg-ink-950 pb-[clamp(56px,7vh,80px)] pt-[clamp(44px,5.8vh,64px)] max-[860px]:min-h-0 max-[860px]:scroll-mt-[108px] max-[860px]:py-10 max-[860px]:pb-16"
       >
         <div className="mx-auto w-full max-w-[1360px] px-[clamp(20px,4vw,48px)]">
-          <div className="mb-7 flex items-end justify-between gap-6 border-b border-line pb-3.5">
-            <h2
-              id="featured-armory-title"
-              className="m-0 text-[28px] font-bold leading-[1.15] tracking-[-0.01em] text-foreground max-[860px]:text-[24px]"
-            >
-              精选军需
-            </h2>
-            <Link
-              to="/products"
-              className="inline-flex items-center gap-1.5 whitespace-nowrap text-[14px] font-medium text-muted transition-colors hover:text-accent"
-            >
-              <span>查看全部</span>
-              <span aria-hidden="true">→</span>
-            </Link>
-          </div>
+          <SectionHeader
+            as="h2"
+            titleId="featured-armory-title"
+            title="精选军需"
+            className="mb-7"
+            right={
+              <ActionLink to="/products" intent="link" className="text-[14px]">
+                <span>查看全部</span>
+                <span aria-hidden="true">→</span>
+              </ActionLink>
+            }
+          />
 
           {products.state.status === 'loading' && <PageState variant="loading" />}
           {products.state.status === 'error' && (
@@ -225,14 +193,16 @@ export default function HomePage() {
       {rest.length > 0 && (
         <section className="border-t border-line bg-ink-950 py-14" aria-label="即将开售">
           <div className="mx-auto w-full max-w-[1360px] px-[clamp(20px,4vw,48px)]">
-            <div className="mb-6 flex items-baseline justify-between gap-4 border-b border-line pb-3.5">
-              <h2 className="m-0 text-[22px] font-bold tracking-[-0.01em] text-foreground">
-                即将开售
-              </h2>
-              <span className="font-mono text-[13px] tabular-nums text-muted">
-                {upcomingItems.length} 场
-              </span>
-            </div>
+            <SectionHeader
+              as="h2"
+              title="即将开售"
+              className="mb-6"
+              right={
+                <span className="font-mono text-[13px] tabular-nums text-muted">
+                  {upcomingItems.length} 场
+                </span>
+              }
+            />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {rest.map((campaign) => (
                 <CampaignCard key={campaign.id} campaign={campaign} />

@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom'
 import type { ProductKind, ProductSummary } from '@/api/catalog'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Price } from '@/components/Price'
 import { CoverSilhouette } from '@/components/common/CoverSilhouette'
+import { DiagonalSurface } from '@/components/common/DiagonalSurface'
+import { LimitedBadge } from '@/components/common/LimitedBadge'
+import { cn } from '@/lib/utils'
 import { silhouetteVariant } from './silhouette'
 
 /** 形态闭集映射；契约枚举外的值不在这里兜底文案。 */
@@ -16,73 +17,114 @@ interface ProductCardProps {
   readonly product: ProductSummary
   /** 页面用已加载分类表按 categoryId 解析；解析不到则不传，卡片不显示兜底分类名。 */
   readonly categoryName?: string
+  /**
+   * - `tile`（默认）：R4-B 开放式上下细线展位（无左右封闭方框）
+   * - `lead`：全宽 `16:7` 主打横幅展位，用于默认第 1 排首位推荐
+   */
+  readonly variant?: 'tile' | 'lead'
 }
 
 /**
- * 商品卡：名称、封面、最低价、限量标记；整卡跳商品详情。
+ * 商品展位卡：名称、封面、最低价、限量斜杠标记；整卡跳商品详情。
  * 金额只把 `minPrice` 交给 Price 组件，卡片内不做分→元换算。
- * 强调色只留给可操作控件与限量属性的低噪描边；常规商品不贴标。
- * 卡片配色与描边是项目定制，写在外层；ui/ 基础件保持官方源码。
  */
-export function ProductCard({ product, categoryName }: ProductCardProps) {
+export function ProductCard({ product, categoryName, variant = 'tile' }: ProductCardProps) {
   const kindLabel = PRODUCT_KIND_LABEL[product.kind]
+  const metaText = categoryName ? `${kindLabel} · ${categoryName}` : kindLabel
+
+  if (variant === 'lead') {
+    return (
+      <Link to={`/products/${product.id}`} className="group block min-w-0">
+        <article className="relative grid min-h-[340px] grid-cols-1 items-center gap-6 overflow-hidden border-y border-line bg-[#111513] px-7 py-8 transition-colors hover:border-t-accent/70 md:grid-cols-[minmax(0,440px)_1fr] md:px-10 md:py-9">
+          <DiagonalSurface variant="band" />
+
+          <div className="relative z-[2] flex flex-col items-start">
+            <div className="mb-3 flex flex-wrap items-center gap-2.5 text-[12px] text-muted">
+              {product.limited ? (
+                <LimitedBadge limited variant="slash" />
+              ) : (
+                <span className="font-semibold tracking-[0.04em] text-accent">主打</span>
+              )}
+              <span>· {metaText}</span>
+            </div>
+
+            <h2 className="m-0 text-[32px] font-bold leading-[1.12] tracking-[-0.02em] text-foreground max-[860px]:text-[26px]">
+              {product.name}
+            </h2>
+            <p className="mt-2.5 text-[14px] text-muted">{kindLabel}，点击查看完整规格与在售场次</p>
+
+            <div className="mt-6 flex flex-wrap items-center gap-5">
+              <Price cents={product.minPrice} variant="hero" />
+              <span className="chamfer-cta inline-flex items-center gap-2 bg-accent px-5 py-2.5 text-[14px] font-bold tracking-[0.03em] text-ink-950 transition-all group-hover:bg-[#f6c84f]">
+                <span>查看商品详情</span>
+                <span aria-hidden="true">→</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="relative z-[2] flex h-[240px] items-center justify-center md:h-[268px]">
+            {product.coverUrl ? (
+              <img
+                src={product.coverUrl}
+                alt={product.name}
+                className={
+                  product.kind === 'VIRTUAL'
+                    ? 'max-h-[250px] w-auto max-w-[94%] -rotate-3 object-contain drop-shadow-[0_24px_32px_rgba(0,0,0,0.72)] transition-transform duration-300 group-hover:scale-[1.03]'
+                    : 'studio-mask max-h-[245px] w-auto max-w-[92%] object-contain transition-transform duration-300 group-hover:scale-[1.03]'
+                }
+              />
+            ) : (
+              <CoverSilhouette variant={silhouetteVariant(product)} className="h-[112px] w-auto text-[#4f5954]" />
+            )}
+          </div>
+        </article>
+      </Link>
+    )
+  }
 
   return (
     <Link to={`/products/${product.id}`} className="group block min-w-0">
-      <Card className="overflow-hidden rounded-[2px] border border-line bg-ink-900 shadow-none transition-colors group-hover:border-line-2">
-        <div className="relative h-[196px] overflow-hidden bg-ink-900">
-          <div className="card-facet z-0" aria-hidden="true" />
-          <svg
-            className="pointer-events-none absolute inset-0 z-[1] h-full w-full"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <line
-              x1="48"
-              y1="0"
-              x2="24"
-              y2="100"
-              stroke="#252b28"
-              strokeWidth="1"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
+      <article className="relative flex min-h-[296px] flex-col justify-between overflow-hidden border-y border-line bg-[#131715] px-6 py-5 transition-colors group-hover:border-t-accent">
+        <DiagonalSurface variant="card" />
+
+        <div className="relative z-[2] flex min-h-[20px] items-center justify-between gap-2 text-[12px] text-muted">
+          <span className="truncate">{metaText}</span>
+          <LimitedBadge limited={product.limited} variant="slash" className="shrink-0" />
+        </div>
+
+        <div className="relative z-[2] my-3 flex h-[168px] items-center justify-center">
           {product.coverUrl ? (
             <img
               src={product.coverUrl}
               alt={product.name}
               className={
                 product.kind === 'VIRTUAL'
-                  ? 'relative z-[2] h-full w-full -rotate-2 object-contain p-5 drop-shadow-[0_18px_24px_rgba(0,0,0,0.78)] transition-transform duration-300 group-hover:scale-[1.03]'
-                  : 'studio-mask relative z-[2] h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]'
+                  ? 'max-h-[156px] w-auto max-w-[88%] -rotate-2 object-contain drop-shadow-[0_18px_24px_rgba(0,0,0,0.76)] transition-transform duration-300 group-hover:scale-[1.035]'
+                  : 'studio-mask max-h-[156px] w-auto max-w-[88%] object-contain transition-transform duration-300 group-hover:scale-[1.035]'
               }
             />
           ) : (
-            <div className="relative z-[2] flex h-full items-center justify-center pt-5">
-              <CoverSilhouette variant={silhouetteVariant(product)} />
-            </div>
+            <CoverSilhouette variant={silhouetteVariant(product)} />
           )}
         </div>
-        <div className="p-4">
-          <div className="flex min-h-[22px] items-center justify-between gap-2">
-            <span className="truncate text-[12px] text-muted">{categoryName ?? kindLabel}</span>
-            {product.limited && (
-              <Badge
-                variant="outline"
-                className="rounded-[2px] border-accent/45 bg-accent/[0.08] text-[12px] font-semibold text-accent"
-              >
-                限量
-              </Badge>
-            )}
+
+        <div className="relative z-[2] flex items-end justify-between gap-3 pt-1">
+          <div className="min-w-0">
+            <h3 className="truncate text-[18px] font-semibold tracking-[-0.01em] text-foreground">
+              {product.name}
+            </h3>
+            <p className="mt-0.5 truncate text-[12px] text-muted">{kindLabel}</p>
           </div>
-          <h3 className="mt-2.5 truncate text-[15px] font-semibold text-foreground">{product.name}</h3>
-          <div className="mt-3 flex items-baseline justify-between gap-2">
-            <Price cents={product.minPrice} />
-            <span className="text-[12px] text-muted">{kindLabel}</span>
+          <div className="shrink-0 text-right">
+            <div className={cn('text-[18px] font-bold leading-none tabular-nums')}>
+              <Price cents={product.minPrice} variant="compact" />
+            </div>
+            <span className="mt-1.5 inline-flex items-center gap-1 border-b border-line pb-0.5 text-[12px] text-muted transition-colors group-hover:border-accent group-hover:text-accent">
+              查看详情 →
+            </span>
           </div>
         </div>
-      </Card>
+      </article>
     </Link>
   )
 }

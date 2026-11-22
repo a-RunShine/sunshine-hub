@@ -97,16 +97,19 @@ const TWO_UPCOMING = {
 }
 
 describe('S1 首页渲染与数据映射', () => {
-  it('顶栏五项可见，首屏海报、中文倒计时与第二屏 5 件手风琴展柜来自接口响应', async () => {
+  it('左靠主导航与右上角头像下拉可见，首屏海报、中文倒计时与第二屏 5 件手风琴展柜来自接口响应', async () => {
     renderHome()
 
     await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
 
     expect(screen.getByRole('link', { name: '首页' })).toHaveAttribute('href', '/')
-    expect(screen.getByRole('link', { name: '全部军需' })).toHaveAttribute('href', '/products')
-    expect(screen.getByRole('link', { name: '我的订单' })).toHaveAttribute('href', '/orders')
-    expect(screen.getByRole('link', { name: '道具库' })).toHaveAttribute('href', '/items')
-    expect(screen.getByRole('link', { name: '履约单' })).toHaveAttribute('href', '/fulfillments')
+    expect(screen.getByRole('link', { name: '全部商品' })).toHaveAttribute('href', '/products')
+
+    // 点开右上角头像显示个人账户菜单：我的订单 / 我的库存 / 我的履约单
+    fireEvent.click(screen.getByRole('button', { name: '个人账户菜单' }))
+    expect(screen.getByRole('menuitem', { name: /我的订单/ })).toHaveAttribute('href', '/orders')
+    expect(screen.getByRole('menuitem', { name: /我的库存/ })).toHaveAttribute('href', '/items')
+    expect(screen.getByRole('menuitem', { name: /我的履约单/ })).toHaveAttribute('href', '/fulfillments')
 
     // 首屏限时抢购海报与中文基线倒计时
     expect(screen.getByRole('heading', { name: '暗夜猎手 首发' })).toBeInTheDocument()
@@ -282,17 +285,34 @@ describe('S4 登录态入口', () => {
     expect(decodeURIComponent(login.getAttribute('href')!)).toBe('/login?next=/')
   })
 
-  it('已登录显示用户名与退出；退出调用登出并清空本地登录态', async () => {
+  it('已登录在头像下拉中显示用户名与退出；退出调用登出并清空本地登录态', async () => {
     useAuth.getState().setMe({ id: 1, username: 'demo', realNameVerified: false })
     useAuth.getState().setStatus('ready')
     renderHome()
 
     await screen.findByText('demo')
-    const logout = screen.getByRole('button', { name: '退出' })
+    fireEvent.click(screen.getByRole('button', { name: '个人账户菜单' }))
+    const logout = screen.getByRole('menuitem', { name: /退出/ })
     fireEvent.click(logout)
 
     await waitFor(() => expect(logoutCalls).toContain('POST'))
     await waitFor(() => expect(useAuth.getState().me).toBeNull())
     expect(await screen.findByRole('link', { name: '登录' })).toBeInTheDocument()
+  })
+
+  it('下滑超过 48px 时收起顶部导航，回滑顶部恢复展示', async () => {
+    renderHome()
+    await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
+
+    const header = document.querySelector('header')!
+    expect(header.className).toContain('translate-y-0')
+
+    Object.defineProperty(window, 'scrollY', { value: 140, configurable: true })
+    fireEvent.scroll(window)
+    expect(header.className).toContain('-translate-y-full')
+
+    Object.defineProperty(window, 'scrollY', { value: 10, configurable: true })
+    fireEvent.scroll(window)
+    expect(header.className).toContain('translate-y-0')
   })
 })
