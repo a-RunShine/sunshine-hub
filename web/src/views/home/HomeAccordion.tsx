@@ -6,6 +6,7 @@ import { CoverSilhouette } from '@/components/common/CoverSilhouette'
 import { DiagonalSurface } from '@/components/common/DiagonalSurface'
 import { LimitedBadge } from '@/components/common/LimitedBadge'
 import { PRODUCT_KIND_LABEL } from '@/components/product/ProductCard'
+import { ProductKindMark } from '@/components/product/ProductKindMark'
 import { silhouetteVariant } from '@/components/product/silhouette'
 import { pad2 } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -57,7 +58,6 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
         const indexLabel = pad2(index + 1)
         const kindLabel = PRODUCT_KIND_LABEL[product.kind]
         const categoryName = categoryNameById.get(product.categoryId)
-        const metaText = categoryName ? `${categoryName} · ${kindLabel}` : kindLabel
         const badgeLabel = product.limited ? '限量' : '常规'
         const detailPath = `/products/${product.id}`
 
@@ -148,8 +148,8 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
 
               <div className="absolute inset-x-0 bottom-0 z-[3] flex items-end justify-between gap-5 bg-gradient-to-t from-[#0c0e0d]/[0.92] via-[#131615]/[0.68] via-55% to-transparent px-[28px] pb-[26px] pt-[48px] max-[860px]:flex-col max-[860px]:items-start max-[860px]:gap-3.5 max-[860px]:px-[18px] max-[860px]:pb-[18px] max-[860px]:pt-8">
                 <div className="min-w-0 max-[860px]:w-full">
-                  <div className="mb-2 flex items-center gap-2.5">
-                    <span className="text-[14px] font-medium tracking-[0.02em] text-[#c4cac6]">{metaText}</span>
+                  <div className="mb-2 flex items-center gap-3">
+                    <ProductKindMark kind={product.kind} />
                     <LimitedBadge limited={product.limited} variant="pill" />
                   </div>
                   <h3 className="m-0 truncate text-[26px] font-bold leading-[1.2] tracking-[-0.01em] text-foreground max-[860px]:whitespace-normal max-[860px]:text-[22px]">

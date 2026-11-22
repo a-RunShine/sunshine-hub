@@ -4,6 +4,7 @@ import { Price } from '@/components/Price'
 import { CoverSilhouette } from '@/components/common/CoverSilhouette'
 import { DiagonalSurface } from '@/components/common/DiagonalSurface'
 import { LimitedBadge } from '@/components/common/LimitedBadge'
+import { ProductKindMark } from './ProductKindMark'
 import { silhouetteVariant } from './silhouette'
 
 /** 形态闭集映射；契约枚举外的值不在这里兜底文案。 */
@@ -14,23 +15,18 @@ export const PRODUCT_KIND_LABEL: Record<ProductKind, string> = {
 
 interface ProductCardProps {
   readonly product: ProductSummary
-  /** 页面用已加载分类表按 categoryId 解析；解析不到则不传，卡片不显示兜底分类名。 */
-  readonly categoryName?: string
   /**
-   * - `tile`（默认）：开放式上下细线展位（左上分类标、右上限量标、左下商品名、右下骨白主价）
+   * - `tile`（默认）：开放式上下细线展位（左上形态标、右上限量标、左下商品名、右下骨白主价）
    * - `lead`：全宽 `16:7` 主打横幅展位，用于默认第 1 排首位推荐
    */
   readonly variant?: 'tile' | 'lead'
 }
 
 /**
- * 商品展位卡：去除重复形态小字与多余详情文字，放大商品名与骨白价格并突出「限量」菱形徽标；
- * 整卡可点击进入商品详情页。金额只交给 Price 组件处理分转元。
+ * 商品展位卡：左上角使用「虚拟/实体」形态图标，右上角使用菱形限量图标，
+ * 去掉货架分类文字复读，突出商品名与骨白价格；整卡点击进入详情。
  */
-export function ProductCard({ product, categoryName, variant = 'tile' }: ProductCardProps) {
-  const kindLabel = PRODUCT_KIND_LABEL[product.kind]
-  const metaText = categoryName ? `${kindLabel} · ${categoryName}` : kindLabel
-
+export function ProductCard({ product, variant = 'tile' }: ProductCardProps) {
   if (variant === 'lead') {
     return (
       <Link to={`/products/${product.id}`} className="group block min-w-0">
@@ -38,9 +34,9 @@ export function ProductCard({ product, categoryName, variant = 'tile' }: Product
           <DiagonalSurface variant="band" />
 
           <div className="relative z-[2] flex flex-col items-start">
-            <div className="mb-3.5 flex flex-wrap items-center gap-2.5 text-[13px] font-medium text-[#c4cac6]">
+            <div className="mb-3.5 flex flex-wrap items-center gap-3">
+              <ProductKindMark kind={product.kind} />
               <LimitedBadge limited={product.limited} />
-              <span>{metaText}</span>
             </div>
 
             <h2 className="m-0 text-[34px] font-bold leading-[1.12] tracking-[-0.02em] text-foreground max-[860px]:text-[28px]">
@@ -82,7 +78,7 @@ export function ProductCard({ product, categoryName, variant = 'tile' }: Product
         <DiagonalSurface variant="card" />
 
         <div className="relative z-[2] flex min-h-[24px] items-center justify-between gap-2">
-          <span className="truncate text-[13px] font-medium text-[#c4cac6]">{metaText}</span>
+          <ProductKindMark kind={product.kind} />
           <LimitedBadge limited={product.limited} className="shrink-0" />
         </div>
 

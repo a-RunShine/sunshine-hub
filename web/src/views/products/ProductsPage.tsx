@@ -75,16 +75,6 @@ export default function ProductsPage() {
     [selectedCategoryId, selectedKind, page],
   )
 
-  const categoryNameById = useMemo(
-    () =>
-      new Map(
-        categories.state.status === 'ready'
-          ? categories.state.data.map((category) => [category.id, category.name] as const)
-          : [],
-      ),
-    [categories.state],
-  )
-
   function selectCategory(categoryId: number | undefined) {
     setSelectedCategoryId(categoryId)
     setPage(1)
@@ -387,30 +377,18 @@ export default function ProductsPage() {
                 key={`hybrid-${page}`}
                 className="catalog-enter flex flex-col gap-6"
               >
-                <ProductCard
-                  product={visibleItems[0]}
-                  categoryName={categoryNameById.get(visibleItems[0].categoryId)}
-                  variant="lead"
-                />
+                <ProductCard product={visibleItems[0]} variant="lead" />
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-[7fr_5fr]">
                   {visibleItems.slice(1, 3).map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      categoryName={categoryNameById.get(product.categoryId)}
-                    />
+                    <ProductCard key={product.id} product={product} />
                   ))}
                 </div>
 
                 {visibleItems.length > 3 && (
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {visibleItems.slice(3).map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        categoryName={categoryNameById.get(product.categoryId)}
-                      />
+                      <ProductCard key={product.id} product={product} />
                     ))}
                   </div>
                 )}
@@ -421,11 +399,7 @@ export default function ProductsPage() {
                 className="catalog-enter grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
               >
                 {visibleItems.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    categoryName={categoryNameById.get(product.categoryId)}
-                  />
+                  <ProductCard key={product.id} product={product} />
                 ))}
               </div>
             )}

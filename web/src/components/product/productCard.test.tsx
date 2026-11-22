@@ -34,7 +34,7 @@ function renderCard(product: ProductSummary) {
   return render(
     <MemoryRouter initialEntries={['/']}>
       <Routes>
-        <Route path="/" element={<ProductCard product={product} categoryName="服饰" />} />
+        <Route path="/" element={<ProductCard product={product} />} />
         <Route path="/products/:productId" element={<ProbeLocation />} />
       </Routes>
     </MemoryRouter>,
