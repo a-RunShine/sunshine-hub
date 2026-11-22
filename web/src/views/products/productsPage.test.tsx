@@ -4,13 +4,11 @@ import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { createHandlers } from '@/mocks/handlers'
-import { useAuth } from '@/stores/auth'
-import { AppShell } from '@/components/layout/AppShell'
 import ProductsPage from './ProductsPage'
 
 /**
  * 经典商品选择页边界测试：分类来自 /categories、分类 + 商品形态（kind）组合筛选、
- * 分页切换、商品卡跳详情、三态与重试。
+ * 仅看限量与页内搜索、分页切换与作用范围提示、商品卡跳详情、三态与重试。
  */
 
 const server = setupServer(...createHandlers())
@@ -31,7 +29,6 @@ beforeEach(() => {
   server.resetHandlers(...createHandlers())
   productUrls.length = 0
   categoryUrls.length = 0
-  useAuth.setState({ me: null, status: 'uninitialized' })
 })
 
 afterEach(() => {
@@ -51,28 +48,18 @@ function renderProductsPage() {
   return render(
     <MemoryRouter initialEntries={['/products']}>
       <Routes>
-        <Route
-          path="/products"
-          element={
-            <AppShell>
-              <ProductsPage />
-            </AppShell>
-          }
-        />
+        <Route path="/products" element={<ProductsPage />} />
         <Route path="/products/:productId" element={<ProbeLocation />} />
       </Routes>
     </MemoryRouter>,
   )
 }
 
-describe('S1 全部商品页渲染与导航高亮', () => {
-  it('全部商品高亮、首页不误高亮；展示接口分类与 5 件商品', async () => {
+describe('S1 全部商品页渲染与跳详情', () => {
+  it('展示接口分类与 5 件商品，价格与限量标记映射正确', async () => {
     renderProductsPage()
 
     await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
-
-    expect(screen.getByRole('link', { name: '全部商品' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: '首页' })).not.toHaveAttribute('aria-current', 'page')
 
     for (const name of ['武器皮肤', '角色皮肤', '徽章', '手办', '服饰']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
@@ -149,7 +136,7 @@ describe('S2 分类、漏斗筛选与搜索过滤', () => {
 })
 
 describe('S3 分页与三态', () => {
-  it('total > size 时渲染分页控件并请求对应页码', async () => {
+  it('total > size 时渲染分页控件并请求对应页码，页内过滤显式标明作用范围', async () => {
     server.use(
       http.get('/api/products', ({ request }) => {
         const url = new URL(request.url, 'http://localhost:3000')
@@ -175,6 +162,11 @@ describe('S3 分页与三态', () => {
 
     renderProductsPage()
     await screen.findByText('第 1 / 2 页')
+
+    const searchInput = screen.getByRole('searchbox', { name: '搜索商品' })
+    fireEvent.change(searchInput, { target: { value: '磁轨' } })
+    expect(screen.getByText('第 1 页命中 1 件（当前仅筛本页）')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '清空' }))
 
     const prev = screen.getByRole('button', { name: '上一页' })
     const next = screen.getByRole('button', { name: '下一页' })

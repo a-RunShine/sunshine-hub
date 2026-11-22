@@ -14,6 +14,7 @@
 - 架构决策：`docs/adr/`，改动涉及既有设计之前先扫一遍标题，标题本身就是结论
 - 规格与实施计划不在仓库里，在 GitHub Issues：#2 是完整规格，#7 是实施路径
 - 跨会话记忆：`docs/wiki/index.md`，**新会话先读它**。环境暗坑、工作方式约定、未结的环都在那层，仓库别处没写
+- 前端设计基线与约束：[web/AGENTS.md](web/AGENTS.md) 与 [web/DESIGN.md](web/DESIGN.md)，改动或新建前端页面/组件前先读，复用既有组件并遵守样式与边界护栏
 
 ## 改动纪律
 
@@ -38,6 +39,10 @@ Issues 和 spec 都存在 GitHub Issues 里，用 `gh` CLI 操作。详见 `docs
 ### Pull requests
 
 PR 描述按三段模板写：Summary 给图或树、Evidence 给 before/after、Merge Danger 标单向门还是双向门。详见 `docs/agents/pull-requests.md`。
+
+**PR 标 Ready 或请求合并前必须先过双轴 Code Review：** 对 `origin/main...HEAD` 跑一遍双轴 `/code-review`（`Standards` 对照 `CODING_STANDARDS/`、`Spec` 对照源 Issue 规格与设计基线），修完发现的问题并重跑校验后，再将 Draft PR 标为 `Ready for review` 或请 owner 审查合并。
+
+**交互/视觉迭代改动了原 Issue 范围或文案时同步回写源 Issue：** 若多轮打磨调整了布局、范围或文案，同步修订对应源 Issue 正文；若修改了 `#2`、`#7` 等规格/计划类 Issue 正文，必须按 `docs/wiki/workflow.md` 将每处改动的 `before/after` 贴进 PR 正文 Evidence 段。
 
 **push / 改正文前先查 PR 状态：** 跑 `scripts/pr-preflight.sh <pr-number>` 确认仍 OPEN，流程说明见 `docs/agents/pull-requests.md`。
 

@@ -1,10 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
-import type { components } from '@/types/api'
+import type { ProductSummary } from '@/api/catalog'
 import { ProductCard } from './ProductCard'
-
-type ProductSummary = components['schemas']['ProductSummary']
 
 const limitedProduct: ProductSummary = {
   id: 1,

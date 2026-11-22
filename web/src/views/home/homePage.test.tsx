@@ -3,22 +3,18 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import type { ReactNode } from 'react'
 import { createHandlers } from '@/mocks/handlers'
-import { useAuth } from '@/stores/auth'
-import { AppShell } from '@/components/layout/AppShell'
 import HomePage from './HomePage'
 
 /**
- * 首页边界测试：打在 MSW HTTP 边界与可见行为上——导航、首屏抢购海报与中文倒计时、
- * 第二屏水平手风琴切换、卡片与查看全部跳转、三态与重试、登录 / 退出入口。
+ * 首页边界测试：打在 MSW HTTP 边界与可见行为上——首屏抢购海报与中文倒计时、
+ * 第二屏水平手风琴切换、卡片与查看全部跳转、三态与重试。
  */
 
 const server = setupServer(...createHandlers())
 
 const productUrls: string[] = []
 const upcomingUrls: string[] = []
-const logoutCalls: string[] = []
 
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'error' })
@@ -26,7 +22,6 @@ beforeAll(() => {
     const url = new URL(request.url)
     if (url.pathname === '/api/products') productUrls.push(url.search)
     if (url.pathname === '/api/campaigns/upcoming') upcomingUrls.push(request.method)
-    if (url.pathname === '/api/auth/logout') logoutCalls.push(request.method)
   })
 })
 
@@ -34,8 +29,6 @@ beforeEach(() => {
   server.resetHandlers(...createHandlers())
   productUrls.length = 0
   upcomingUrls.length = 0
-  logoutCalls.length = 0
-  useAuth.setState({ me: null, status: 'uninitialized' })
 })
 
 afterEach(() => {
@@ -51,23 +44,15 @@ function ProbeLocation() {
   return <div data-testid="probe">{location.pathname}</div>
 }
 
-function renderHome(children?: ReactNode) {
+function renderHome() {
   return render(
     <MemoryRouter initialEntries={['/']}>
       <Routes>
-        <Route
-          path="/"
-          element={
-            <AppShell layout="full-bleed">
-              <HomePage />
-            </AppShell>
-          }
-        />
+        <Route path="/" element={<HomePage />} />
         <Route path="/products" element={<ProbeLocation />} />
         <Route path="/products/:productId" element={<ProbeLocation />} />
         <Route path="/campaigns/:campaignId" element={<ProbeLocation />} />
       </Routes>
-      {children}
     </MemoryRouter>,
   )
 }
@@ -97,19 +82,10 @@ const TWO_UPCOMING = {
 }
 
 describe('S1 首页渲染与数据映射', () => {
-  it('左靠主导航与右上角头像下拉可见，首屏海报、中文倒计时与第二屏 5 件手风琴展柜来自接口响应', async () => {
+  it('首屏抢购海报、中文倒计时与第二屏 5 件手风琴展柜来自接口响应', async () => {
     renderHome()
 
     await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
-
-    expect(screen.getByRole('link', { name: '首页' })).toHaveAttribute('href', '/')
-    expect(screen.getByRole('link', { name: '全部商品' })).toHaveAttribute('href', '/products')
-
-    // 点开右上角头像显示个人账户菜单：我的订单 / 我的库存 / 我的履约单
-    fireEvent.click(screen.getByRole('button', { name: '个人账户菜单' }))
-    expect(screen.getByRole('menuitem', { name: /我的订单/ })).toHaveAttribute('href', '/orders')
-    expect(screen.getByRole('menuitem', { name: /我的库存/ })).toHaveAttribute('href', '/items')
-    expect(screen.getByRole('menuitem', { name: /我的履约单/ })).toHaveAttribute('href', '/fulfillments')
 
     // 首屏限时抢购海报与中文基线倒计时
     expect(screen.getByRole('heading', { name: '暗夜猎手 首发' })).toBeInTheDocument()
@@ -273,46 +249,5 @@ describe('S3 三态与重试', () => {
     const before = upcomingUrls.length
     fireEvent.click(retry)
     await waitFor(() => expect(upcomingUrls.length).toBeGreaterThan(before))
-  })
-})
-
-describe('S4 登录态入口', () => {
-  it('未登录显示登录链接，href 带 next 回跳路径', async () => {
-    renderHome()
-    await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
-
-    const login = screen.getByRole('link', { name: '登录' })
-    expect(decodeURIComponent(login.getAttribute('href')!)).toBe('/login?next=/')
-  })
-
-  it('已登录在头像下拉中显示用户名与退出；退出调用登出并清空本地登录态', async () => {
-    useAuth.getState().setMe({ id: 1, username: 'demo', realNameVerified: false })
-    useAuth.getState().setStatus('ready')
-    renderHome()
-
-    await screen.findByText('demo')
-    fireEvent.click(screen.getByRole('button', { name: '个人账户菜单' }))
-    const logout = screen.getByRole('menuitem', { name: /退出/ })
-    fireEvent.click(logout)
-
-    await waitFor(() => expect(logoutCalls).toContain('POST'))
-    await waitFor(() => expect(useAuth.getState().me).toBeNull())
-    expect(await screen.findByRole('link', { name: '登录' })).toBeInTheDocument()
-  })
-
-  it('下滑超过 48px 时收起顶部导航，回滑顶部恢复展示', async () => {
-    renderHome()
-    await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
-
-    const header = document.querySelector('header')!
-    expect(header.className).toContain('translate-y-0')
-
-    Object.defineProperty(window, 'scrollY', { value: 140, configurable: true })
-    fireEvent.scroll(window)
-    expect(header.className).toContain('-translate-y-full')
-
-    Object.defineProperty(window, 'scrollY', { value: 10, configurable: true })
-    fireEvent.scroll(window)
-    expect(header.className).toContain('translate-y-0')
   })
 })

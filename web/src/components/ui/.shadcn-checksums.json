@@ -1,0 +1,8 @@
+{
+  "algorithm": "sha256",
+  "files": {
+    "badge.tsx": "dab689d836ad3292b41e7f4986b4e68e5d45c6903e4aeaae8972a82d4aebec29",
+    "button.tsx": "c2b999a96781e6c932632bd089095368e973bf5602e1b1a62156b7d2b43f1e84",
+    "card.tsx": "525c4bb2c051987be64df0e92e1d90174912b219bf541e24ffbc4a3406de49e8"
+  }
+}

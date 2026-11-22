@@ -17,7 +17,7 @@
 
 字段对不上时改定义，不要在组件里做二次映射兜住。兜住的那次映射会成为下一个人的困惑。
 
-*Enforced by*: 无。review 时搜组件里的内联接口定义，看有没有脱离 `src/types` 的。
+*Enforced by*: ESLint 的 `no-restricted-imports` 禁止 `src/api` 与 `src/mocks` 之外直接导入 `@/types/api`；但是否在组件里手抄后端内联字段或做多余二次映射，仍靠 review 判断。
 
 ---
 
@@ -89,7 +89,7 @@ Zustand 只放真正的客户端状态：登录态、从哪来的跳转参数、
 
 直接改源码的代价出现在下次加新组件的时候：CLI 会覆盖同名文件，你的改动静默消失。
 
-*Enforced by*: 无。review 看 `components/ui/` 下的文件有没有出现非 shadcn 原始的 diff。
+*Enforced by*: `scripts/check-ui-primitives.mjs`（`pnpm ui:check`，已接入 `pnpm check` 与 CI）校验 `src/components/ui/` 全部 `.ts`/`.tsx` 文件的 SHA-256 校验和；ESLint 同步禁止该目录导入业务模块或引入项目设计类名。需要新增或升级官方原语后通过 `pnpm ui:sync` 更新清单，review 核对变更合理性。
 
 ---
 
@@ -103,6 +103,22 @@ Zustand 只放真正的客户端状态：登录态、从哪来的跳转参数、
 
 ---
 
+### 纯视觉装饰符号与图标必须加 aria-hidden="true"
+
+箭头（`→`）、斜杠、切角边角线和纯装饰 SVG 图标写进 DOM 时，会混进按钮或链接的可访问名称里，导致读屏朗读乱码，也让测试里的 `getByRole(..., { name })` 与文本查询脆弱耦合到装饰字符。
+
+*Enforced by*: 无。review 看 JSX 里的装饰性箭头、角线、SVG 图标有没有包 `aria-hidden="true"`（承载独立语义的可交互图标应给 `aria-label`）。
+
+---
+
+### 不按可变 categoryId 或样本商品名硬编码展示与规则
+
+遵循 ADR-0014，分类是运营可随时增删的资源而非契约枚举，样式、兜底剪影、图标与快捷词只能跟随 `/categories` 返回值动态生成。一旦按具体 `categoryId` 或样板商品名写死分支，运营新增或重命名分类后前端就会显示错位；确需按系统闭集区分时，只用 `ProductKind`（`VIRTUAL` / `PHYSICAL`）。
+
+*Enforced by*: 无。review 看组件与工具函数里有没有针对数字 `categoryId` 或具体分类/商品名称字面量的 `switch`、映射表与条件分支。
+
+---
+
 ## 展示
 
 ### 每个数据页面都必须有加载态和空态
@@ -112,6 +128,14 @@ Zustand 只放真正的客户端状态：登录态、从哪来的跳转参数、
 三个状态缺一不可：加载中、有数据、无数据。错误态算第四个，接口挂了不能停在转圈上。
 
 *Enforced by*: 无。review 看页面的渲染分支里有没有这三个。
+
+---
+
+### 分页列表做页内临时筛选时必须明示作用范围
+
+服务端分页接口尚未支持某项搜索或筛选参数之前，若在前端对当前页 `items` 做过渡性过滤，计数区严禁把服务端 `total` 当作筛选命中总数展示，必须在界面上明确标明作用范围（如「当前仅筛本页」）。否则第 2 页有数据却在前台展示误导性总件数，会让购买人误以为全店只剩当前页这些结果。
+
+*Enforced by*: 无。review 看分页接口下游是否对 `items` 做了 `.filter()`，以及计数文案和空态引导是否与服务端 `total` 区分开。
 
 ---
 

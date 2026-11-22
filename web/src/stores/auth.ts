@@ -1,9 +1,8 @@
 import { create } from 'zustand'
 import { ApiError } from '@/api/client'
-import { getMe } from '@/api/identity'
-import type { components } from '@/types/api'
+import { getMe, type Me } from '@/api/identity'
 
-export type Me = components['schemas']['Me']
+export type { Me }
 
 /**
  * 启动时要先确认 cookie 有没有效，确认完才敢按 me 判断登录态。

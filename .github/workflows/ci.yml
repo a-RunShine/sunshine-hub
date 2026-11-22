@@ -80,6 +80,10 @@ jobs:
         working-directory: web
         run: pnpm lint
 
+      - name: 校验 ui 原语校验和
+        working-directory: web
+        run: pnpm ui:check
+
       - name: 单元测试
         working-directory: web
         run: pnpm test
@@ -118,7 +122,7 @@ jobs:
       - name: 术语检查脚本的回归测试
         run: ./scripts/test-check-glossary.sh
 
-      # docs-sync 分析器是纯离屏脚本（不联网、不跑 git/gh），行为同样要靠
-      # 内置 test runner 钉住；否则脚本坏了只会在 workflow 的 dry-run 日志里露脸。
-      - name: 文档同步脚本的回归测试
-        run: node --test scripts/docs-sync*.test.mjs
+      # scripts/*.test.mjs 是纯离屏回归测试（不联网、不跑 git/gh），钉住 docs-sync、
+      # check-doc-links、check-ui-primitives 等仓库护栏脚本的行为。
+      - name: 仓库脚本回归测试
+        run: node --test scripts/*.test.mjs
