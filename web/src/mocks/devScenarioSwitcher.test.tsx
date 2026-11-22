@@ -10,12 +10,6 @@ import {
 } from './devScenarioSelection'
 import { DevScenarioPanel } from './devScenarioSwitcher'
 
-/**
- * 开发期场景切换器测试：
- * - 面板清单来自场景注册表，数量与 id 都跟注册表对齐，不另抄一份；
- * - 选中后请求配置带上对应场景头；未选择时不写头，行为与现状等价。
- */
-
 beforeEach(() => resetScenarioSelection())
 
 describe('场景清单：来自注册表，不硬编码数量', () => {

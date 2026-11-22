@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* shadcn 的 CSS 变量。只放主题色与基础圆角，具体组件的样式由各自组件带；
-   三元组映射到本项目方向 C 暗绿黑 / 琥珀金 / 警示红令牌（见 tailwind.config.js）。 */
 @layer base {
   :root {
     --background: 150 8% 5%;
@@ -45,7 +43,6 @@
   }
 }
 
-/* 方向 C 斜切海报几何面与商品卡片同源斜切面 */
 .hero-diagonal-plane {
   clip-path: polygon(59% 0, 100% 0, 100% 100%, 39% 100%);
   background-color: #151917;
@@ -102,7 +99,6 @@
   );
 }
 
-/* R4-B 切角主 CTA 与搜索框切角外框 */
 .chamfer-cta {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%);
 }
@@ -126,7 +122,6 @@
   );
 }
 
-/* 方向 C-2 水平手风琴展柜：桌面端阻尼 flex 切换，移动端切换为竖向展开 */
 .acc-stage-wrap {
   display: flex;
   gap: 10px;
@@ -150,7 +145,6 @@
     border-color 220ms ease;
 }
 
-/* 顶部亮琥珀导轨只表示「当前展开」；限量属性用折叠条内的小标记表达，不占导轨通道 */
 .acc-slice:not(.is-expanded):hover {
   border-color: #363f3b;
   border-top-color: #4f5954;

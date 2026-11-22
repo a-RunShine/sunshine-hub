@@ -6,14 +6,12 @@ import { CoverSilhouette } from '@/components/common/CoverSilhouette'
 import { DiagonalSurface } from '@/components/common/DiagonalSurface'
 import { pad2 } from '@/lib/format'
 
-/** 场次类型闭集映射；契约枚举外的值不在这里兜底文案。 */
 const TYPE_LABEL: Record<CampaignSummary['type'], string> = {
   FLASH: '限时抢购',
   NORMAL: '普通售卖',
   DISCOUNT: '折扣返场',
 }
 
-/** 开售时刻展示到分钟：M月d日 HH:mm；非法时刻返回空串。 */
 export function formatStartAt(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
@@ -24,10 +22,6 @@ interface CampaignCardProps {
   readonly campaign: CampaignSummary
 }
 
-/**
- * 场次卡：场次名、关联商品、开售时刻、类型；整卡跳抢购页。
- * 倒计时数字只在首页主角位渲染，列表项只展示开售时刻；不拉详情配额字段。
- */
 export function CampaignCard({ campaign }: CampaignCardProps) {
   return (
     <Link to={`/campaigns/${campaign.id}`} className="group block min-w-0">

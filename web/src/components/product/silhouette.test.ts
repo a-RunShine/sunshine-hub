@@ -15,9 +15,6 @@ function product(overrides: Partial<ProductSummary>): ProductSummary {
   }
 }
 
-/**
- * 占位剪影边界：严格按系统闭集 ProductKind 映射，不依赖可变的 categoryId（ADR-0014）。
- */
 describe('silhouette 占位映射', () => {
   it('按商品形态映射剪影：虚拟道具枪形，实体周边盒形，与分类 ID 无关', () => {
     expect(silhouetteVariant(product({ categoryId: 1, kind: 'VIRTUAL' }))).toBe('weapon')

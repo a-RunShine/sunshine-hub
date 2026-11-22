@@ -17,16 +17,9 @@ import {
   setScenario,
 } from './campaignTestHarness'
 
-/**
- * 抢购页只读态测试：打在 MSW HTTP 边界与组件可见行为上——
- * 断言按钮可点 / 不可点、原因文案、倒计时数字，不断言内部函数。
- * 场景数据复用 scenarios 注册表；时间通过注入的 now / 冻结 Date.now 控制，不靠真跑 1 秒。
- */
-
 const testServer = createCampaignTestServer()
 registerCampaignTestServer(testServer.server, testServer.counters)
 
-/** 注入已实名购买人：claim 流程用例绕过登录 / 实名拦截，直接打抢购路径。 */
 function loginVerified() {
   useAuth.getState().setMe({ id: 1, username: 'demo', realNameVerified: true })
   useAuth.getState().setStatus('ready')
@@ -34,7 +27,6 @@ function loginVerified() {
 
 const getButton = () => screen.getByRole('button', { name: '立即抢购' })
 
-/** 进行中、可点的场次详情：配额有余量、本场额度剩 1、不在冷却中。 */
 function ongoingDetail(overrides: Partial<FlashCampaignDetail> = {}): FlashCampaignDetail {
   return {
     id: 201,
@@ -54,7 +46,6 @@ function ongoingDetail(overrides: Partial<FlashCampaignDetail> = {}): FlashCampa
   }
 }
 
-/** 抢购成功响应：编号带前导零，订单号 / 付款截止时间照 ClaimResult 契约形状。 */
 const successClaim: ClaimResult = {
   orderNo: 'SO1001',
   collectibleNumber: '0427',
@@ -113,7 +104,6 @@ describe('五种不可点态', () => {
 
 describe('匿名访问', () => {
   it('按钮保持可点，且不显示「剩余本场额度用尽」与「购买冷却中」', async () => {
-    // 匿名形状：购买人专属字段一律 null；配额有余量、场次进行中。
     testServer.server.use(
       http.get('/api/campaigns/4', () =>
         HttpResponse.json({
@@ -150,7 +140,6 @@ describe('售罄恢复', () => {
     testServer.server.use(
       http.get('/api/campaigns/103', () => {
         requests += 1
-        // 首次售罄；之后配额回流回升，剩余份数恢复
         if (requests === 1) return HttpResponse.json(soldOut)
         return HttpResponse.json({
           ...soldOut,
@@ -160,7 +149,6 @@ describe('售罄恢复', () => {
     )
 
     function RecoveryHarness() {
-      // 测试用短间隔驱动重取；生产默认 15 秒，见 polling.ts 注释
       const { state, reload } = useCampaignDetail('103')
       const reason = state.status === 'ready' ? state.claimability.reason : null
       useVisibilityPolling({
@@ -202,7 +190,6 @@ describe('场次不存在', () => {
 
 describe('倒计时服务端校准', () => {
   it('本机时间被调快时，倒计时按 serverTime 偏移后的口径计算', async () => {
-    // 本机被拨快 2 小时：本机视角已越过开售时刻 1 小时；服务端视角距开售还有 1 小时。
     const localClock = new Date('2026-01-01T12:00:00.000Z').getTime()
     const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(localClock)
     testServer.server.use(
@@ -256,18 +243,15 @@ describe('抢购防重复提交', () => {
     expect(button).toBeEnabled()
 
     fireEvent.click(button)
-    // 第一次点击后进入抢购中：文案变进行中，按钮禁用
     const pendingButton = await screen.findByRole('button', { name: '抢购中…' })
     expect(pendingButton).toBeDisabled()
 
-    // 在途未归时再快速连点两次
     fireEvent.click(pendingButton)
     fireEvent.click(pendingButton)
     expect(claimCalls).toBe(1)
 
     resolveClaimRef.current?.(HttpResponse.json(successClaim, { status: 201 }))
     expect(await screen.findByText('0427')).toBeInTheDocument()
-    // 成功落定后抢购请求仍然只有一个
     expect(claimCalls).toBe(1)
   })
 })
@@ -285,7 +269,6 @@ describe('抢购成功展示', () => {
     renderCampaignPage('202')
     fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
 
-    // 编号原样展示：0427 逐字一致，前导零不被数字化掉
     expect(await screen.findByText('0427')).toBeInTheDocument()
     expect(screen.queryByText('427')).not.toBeInTheDocument()
 
@@ -295,7 +278,6 @@ describe('抢购成功展示', () => {
   })
 
   it('付款倒计时按响应 serverTime 偏移后的服务端口径计算，不读裸本机时间', async () => {
-    // 本机被拨快 2 小时：本机视角已越过付款截止；服务端视角距截止还有 1 小时。
     const localClock = new Date('2026-01-01T12:00:00.000Z').getTime()
     const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(localClock)
     const serverTime = '2026-01-01T10:00:00.000Z'
@@ -328,11 +310,8 @@ interface FailureCase {
   readonly code: string
   readonly status: number
   readonly message: string
-  /** 页面主提示断言文案；保留服务端原文的码等于服务端 message。 */
   readonly summary: string
-  /** 失败后按钮是否回到可点。 */
   readonly enabled: boolean
-  /** 断言页面文案包含服务端 message 原文（500 / 429）。 */
   readonly keepServerMessage?: boolean
 }
 
@@ -371,7 +350,6 @@ describe('抢购失败按错误码分流', () => {
       }
       expect(screen.getByText(summary)).toBeInTheDocument()
       if (keepServerMessage) {
-        // 500 / 429：服务端 message 原文必须出现在页面上，不被前端兜底文案盖掉
         expect(screen.getByText(message)).toBeInTheDocument()
       }
     },
@@ -403,7 +381,6 @@ describe('抢购失败按错误码分流', () => {
   })
 })
 
-/** 与 CampaignPage 相同的 hook 组合：详情取数 + 提交状态机 + 页面层可见性轮询。 */
 function RecoveryHarness({ campaignId }: { campaignId: string }) {
   const { state, reload } = useCampaignDetail(campaignId)
   const { state: claim, claim: onClaim, clearFailure } = useCampaignClaim(campaignId, {
@@ -504,18 +481,15 @@ describe('轮询可见性暂停与卸载清理', () => {
     expect(await screen.findByText('售罄')).toBeInTheDocument()
     const baseline = detailRequests
 
-    // 切到后台：定时器暂停，期间不发详情请求
     Object.defineProperty(document, 'hidden', { configurable: true, value: true })
     document.dispatchEvent(new Event('visibilitychange'))
     await new Promise((resolve) => setTimeout(resolve, 250))
     expect(detailRequests).toBe(baseline)
 
-    // 回前台：先拉一轮再继续计时
     Object.defineProperty(document, 'hidden', { configurable: true, value: false })
     document.dispatchEvent(new Event('visibilitychange'))
     await waitFor(() => expect(detailRequests).toBe(baseline + 1))
 
-    // 卸载：定时器与 visibilitychange 监听一并清理，之后不再有详情请求
     unmount()
     await new Promise((resolve) => setTimeout(resolve, 250))
     expect(detailRequests).toBe(baseline + 1)
@@ -549,7 +523,6 @@ describe('成功后详情刷新', () => {
     fireEvent.click(screen.getByRole('button', { name: '立即抢购' }))
     expect(await screen.findByText('0427')).toBeInTheDocument()
 
-    // 成功后详情被重新拉取（GET 次数从 1 涨到 2），份数刷新为抢后值
     await waitFor(() => expect(detailRequests).toBe(2))
     expect(await screen.findByText('1199')).toBeInTheDocument()
   })

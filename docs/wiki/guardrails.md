@@ -170,6 +170,8 @@ Spring Boot 3.5.3 起默认带的 Surefire 有回归：**字段声明的 `@ArchT
 
 另有 `src/test/java/com/sunshinefps/ArchUnitImportTest.java` 兜住「ArchUnit 读不了当前 JDK 字节码」那一类失效。**那个测试红了不要改测试**，去查版本兼容性——见 [environment](environment.md)。
 
+> **2026-11-22 补充（Issue #84）**：`src/test/resources/archunit.properties` 设置 `archRule.failOnEmptyShould=false`（清理源码注释后规则说明集中于此）。原因是骨架阶段尚无 Controller、Repository 与 `internal` 包，ArchUnit 默认把空集匹配判为失败；代价是规则写错导致匹配不到任何类时也不会报错，因此每个模块落地后必须做一次「故意违规」验证，看到红色才算规则真正生效。`ArchUnitImportTest` 则通过断言扫描结果包含启动类与四个 `*Facade`，兜住 JDK 字节码不兼容导致的 0 类扫描静默通过。
+
 ## 错误码双份同步：这条是 blocking
 
 **2026-11-16 复核（`c5b5508`）**：`src/test/java/com/sunshinefps/ErrorCodeContractTest.java:29-46` 直接读 `api/openapi.yaml` 的 `ErrorCode` 枚举，与 `ErrorCode.java` 的成员做双向差集，**任一边缺一个就红**。它随 `mvn verify` 跑，所以是**拦人的**——与术语检查正好相反。
@@ -177,6 +179,8 @@ Spring Boot 3.5.3 起默认带的 Surefire 有回归：**字段声明的 `@ArchT
 **它只比常量名**（`:22` 注释明写）：**文案与 HTTP 状态码不入契约枚举，改了它不管**。所以「码对上了」不等于「语义对上了」——`UNIT_POOL_INCONSISTENT` 两边都有，但契约没给 claim 声明 500 出口，这个测试照样绿。那类缺口见 [contract-gaps](contract-gaps.md)。
 
 **对补契约的直接影响**：给第五个禁用态（失格/冷却）新增错误码时，**必须同时改 `ErrorCode.java` 与契约枚举**，否则 CI 红。这是 [contract-gaps](contract-gaps.md) 缺口 5 里那条耦合的来源。
+
+> **2026-11-22 行号与出处更正（Issue #84）**：上文引用的 `ErrorCodeContractTest.java:29-46` 旧行号与「`:22` 注释明写」均已 **superseded**。随 Issue #84 清理源码注释，`ErrorCodeContractTest` 的 `errorCodeEnumMatchesContract` 方法现位于 `src/test/java/com/sunshinefps/ErrorCodeContractTest.java:24-41`；只比对枚举常量名、不将中文文案与 HTTP 状态码写入 OpenAPI 枚举的契约边界已沉淀至 [ADR-0015](../adr/0015-two-layer-error-model.md)。
 
 ## `scripts/new-worktree.sh`
 

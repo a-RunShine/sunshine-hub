@@ -6,11 +6,6 @@ import { createHandlers } from '@/mocks/handlers'
 import { useAuth } from '@/stores/auth'
 import { AppShell } from './AppShell'
 
-/**
- * 应用外壳边界测试：左靠主导航与激活态、右上角账户头像菜单开关（点击 / 外部 / Esc / 路由切换）、
- * 匿名登录链接与已登录退出登出、滚动隐藏与回显、full-bleed / default 布局差异。
- */
-
 const server = setupServer(...createHandlers())
 const logoutCalls: string[] = []
 
@@ -82,7 +77,6 @@ describe('个人账户头像菜单开关与入口', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 
-    // 1. 点击打开并校验三个账户菜单项
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('menu', { name: '个人账户菜单' })).toBeInTheDocument()
@@ -90,24 +84,20 @@ describe('个人账户头像菜单开关与入口', () => {
     expect(screen.getByRole('menuitem', { name: /我的库存/ })).toHaveAttribute('href', '/items')
     expect(screen.getByRole('menuitem', { name: /我的履约单/ })).toHaveAttribute('href', '/fulfillments')
 
-    // 2. 再次点击按钮收起
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 
-    // 3. 点击菜单外部 mousedown 收起
     fireEvent.click(toggle)
     expect(screen.getByRole('menu')).toBeInTheDocument()
     fireEvent.mouseDown(document.body)
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 
-    // 4. 按 Escape 收起
     fireEvent.click(toggle)
     expect(screen.getByRole('menu')).toBeInTheDocument()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 
-    // 5. 路由切换时自动收起菜单并更新导航高亮
     fireEvent.click(toggle)
     expect(screen.getByRole('menu')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('link', { name: '全部商品' }))
@@ -158,18 +148,15 @@ describe('滚动显隐与布局形态', () => {
     fireEvent.click(screen.getByRole('button', { name: '个人账户菜单' }))
     expect(screen.getByRole('menu')).toBeInTheDocument()
 
-    // 下滑超过 48px：隐藏顶栏并关闭打开中的下拉菜单
     Object.defineProperty(window, 'scrollY', { value: 140, configurable: true, writable: true })
     fireEvent.scroll(window)
     expect(header.className).toContain('-translate-y-full')
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 
-    // 上滑超过阈值（delta < -6）：恢复顶栏
     Object.defineProperty(window, 'scrollY', { value: 100, configurable: true, writable: true })
     fireEvent.scroll(window)
     expect(header.className).toContain('translate-y-0')
 
-    // 再次下滑隐藏，随后回到 <= 24px 恢复展示
     Object.defineProperty(window, 'scrollY', { value: 160, configurable: true, writable: true })
     fireEvent.scroll(window)
     expect(header.className).toContain('-translate-y-full')

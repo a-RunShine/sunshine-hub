@@ -3,14 +3,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createHandlers } from './handlers'
 import { DEFAULT_SCENARIO_ID, scenarios } from './scenarios'
 
-/**
- * MSW HTTP 边界测试：只通过真实 fetch 打 handler 暴露出去的 HTTP 接口，
- * 不断言 handler 内部实现。场景选择由请求头 `X-Mock-Scenario` 完成，默认 happy。
- */
-
 const ORIGIN = 'http://localhost:3000'
 
-/** #32 冻结的 20 个场景 id（注册表可以多出场景，这些一个都不能少）。 */
 const FROZEN_SCENARIO_IDS = [
   'happy',
   'detail-upcoming',
@@ -225,14 +219,12 @@ describe('默认 happy path（不带场景头）', () => {
     expect(res.status).toBe(201)
     expect(res.headers.get('content-type')).toContain('application/json')
     const body = await res.json()
-    // 多一个少一个键都算红：键集合恰好是 ClaimResult 声明的四个字段
     expect(Object.keys(body).sort()).toEqual([
       'collectibleNumber',
       'orderNo',
       'payDeadline',
       'serverTime',
     ])
-    // 与 48e5cc7 基线 201 常量逐一对齐：编号固定 0427，单号 SO + 时间戳，截止时间为当前 +15 分钟，serverTime 为当前时间
     expect(body.collectibleNumber).toBe('0427')
     expect(body.orderNo).toMatch(/^SO\d+$/)
     const payDeadline = Date.parse(body.payDeadline)

@@ -3,13 +3,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { createHandlers } from './handlers'
 import { MOCK_SCENARIO_HEADER } from './scenarios'
 
-/**
- * 地址管理与用户签收的 MSW HTTP 边界测试：只通过真实 fetch 打 handler 暴露出去的 HTTP 接口，
- * 不断言 handler 内部实现。场景选择由请求头 `X-Mock-Scenario` 完成，与既有抢购/下单场景同协议。
- *
- * 每个用例前用全新 createHandlers() 复位闭包（地址表、履约单、未支付订单引用），用例之间互不复用状态。
- */
-
 const ORIGIN = 'http://localhost:3000'
 
 const server = setupServer(...createHandlers())
@@ -38,7 +31,6 @@ async function listAddresses(): Promise<Array<Record<string, unknown>>> {
   const res = await fetch(`${ORIGIN}/api/addresses`)
   expect(res.status).toBe(200)
   const body = await res.json()
-  // 契约形状：响应体是对象，列表在 `items` 数组里；别再按裸数组锁死。
   expect(body).toBeTypeOf('object')
   expect(Array.isArray(body.items)).toBe(true)
   return body.items
@@ -93,7 +85,6 @@ describe('地址与履约单种子数据', () => {
 
 describe('默认地址不变量', () => {
   it('列表为空时新增的第一条自动成为默认；列表已有地址时新地址不带默认', async () => {
-    // 注入空地址表：验证首条自动默认；用例结束后 beforeEach 复位回默认种子。
     server.resetHandlers(...createHandlers(undefined, { addresses: [] }))
     const first = await fetch(`${ORIGIN}/api/addresses`, {
       method: 'POST',
@@ -108,7 +99,6 @@ describe('默认地址不变量', () => {
     expect(list).toHaveLength(1)
     expect(list[0].isDefault).toBe(true)
 
-    // 当前闭包是空种子（刚由首条占位）：第二条新增不应顶替首条默认
     const created = await createAddress(addressBody('追加一条'))
     expect(created.status).toBe(201)
     const createdBody = await created.json()
@@ -132,7 +122,6 @@ describe('默认地址不变量', () => {
   })
 
   it('删除默认地址后，剩余最早创建的一条自动提升为默认', async () => {
-    // 种子默认是 id 1；删掉它，剩余 id 2、3，最早创建的 id 2 提升为默认
     const del = await fetch(`${ORIGIN}/api/addresses/1`, { method: 'DELETE' })
     expect(del.status).toBe(204)
     expect(await del.text()).toBe('')
@@ -182,7 +171,6 @@ describe('地址新增上限与编辑删除', () => {
   })
 
   it('PUT 编辑夹带 isDefault: true 不落库：响应与列表里默认标记保持原值', async () => {
-    // id 2 原是非默认；AddressInput 不接受 isDefault，请求体夹带该字段必须被忽略。
     const payload = { ...addressBody('林晚改名'), isDefault: true }
     const res = await fetch(`${ORIGIN}/api/addresses/2`, {
       method: 'PUT',
@@ -362,7 +350,6 @@ describe('地址与签收场景覆盖', () => {
 
 describe('未支付订单支付后释放地址引用', () => {
   it('被未支付订单引用的地址先 409；支付成功后再删除回 204', async () => {
-    // SO-UNPAID-1 未支付，引用地址 id 3；支付前删除被挡。
     const blocked = await fetch(`${ORIGIN}/api/addresses/3`, { method: 'DELETE' })
     expect(blocked.status).toBe(409)
     expect((await blocked.json()).code).toBe('ADDRESS_IN_USE')
@@ -374,7 +361,6 @@ describe('未支付订单支付后释放地址引用', () => {
     expect(payBody.amount).toBeTypeOf('number')
     expect(payBody.payUrl).toBeTypeOf('string')
 
-    // 订单已支付：地址引用释放，同一地址可删除。
     const deleted = await fetch(`${ORIGIN}/api/addresses/3`, { method: 'DELETE' })
     expect(deleted.status).toBe(204)
     expect(await deleted.text()).toBe('')

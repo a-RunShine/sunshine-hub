@@ -9,7 +9,6 @@ interface SectionHeaderProps {
   readonly className?: string
 }
 
-/** 统一区块标题头：负责标题字阶与右侧状态/操作位对齐，与底部分割线对齐。 */
 export function SectionHeader({
   title,
   titleId,

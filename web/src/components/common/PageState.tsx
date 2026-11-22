@@ -3,17 +3,10 @@ import { BrandMark } from '@/components/BrandMark'
 
 interface PageStateProps {
   readonly variant: 'loading' | 'empty' | 'error'
-  /** 错误态展示的服务端 / 兜底文案，由 api/errors 的 errorMessage 映射后传入。 */
   readonly message?: string
-  /** 错误态重试回调；重新拉取对应请求。 */
   readonly onRetry?: () => void
 }
 
-/**
- * 区块三态外壳：加载 / 空 / 错误可重试。
- * 商品网格、分类筛选行、即将开售区块三处独立复用；不做 showXxx 布尔开关。
- * 错误态文字与重试按钮走 danger 令牌。
- */
 export function PageState({ variant, message, onRetry }: PageStateProps) {
   if (variant === 'loading') {
     return (

@@ -4,10 +4,6 @@ import { ActionButton } from '@/components/common/ActionButton'
 import { useAuth } from '@/stores/auth'
 import { buildLoginUrl } from '@/lib/redirect'
 
-/**
- * 登录守卫：启动时先从 /me 恢复会话，确认完（ready）且确实没登录才回登录页。
- * 恢复期间渲染加载态；网络故障时只提示重试，不把用户当匿名踢去登录。
- */
 function RequireAuth({ children }: { children: ReactNode }) {
   const me = useAuth((state) => state.me)
   const status = useAuth((state) => state.status)

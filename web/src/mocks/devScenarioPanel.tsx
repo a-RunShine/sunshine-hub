@@ -7,7 +7,6 @@ import {
   subscribeScenarioSelection,
 } from './devScenarioSelection'
 
-/** 场景声明覆盖哪几类请求，用来在面板上标注它作用于谁；happy 没有任何覆盖。 */
 function scenarioTargets(scenario: MockScenario): string[] {
   const targets: string[] = []
   if (scenario.campaignDetail) targets.push('详情')
@@ -26,12 +25,6 @@ function scenarioTargets(scenario: MockScenario): string[] {
   return targets
 }
 
-/**
- * 开发期的假后端场景切换面板。
- * 选项清单直接读场景注册表（scenarios.ts），不在面板里另抄一份 id；
- * 新增场景后这里自动出现，无需改面板代码。
- * 整个组件只在 DEV 环境被动态导入，生产构建不打包。
- */
 export default function DevScenarioPanel() {
   const [selectedId, setSelectedId] = useState<string | null>(getSelectedScenarioId())
 

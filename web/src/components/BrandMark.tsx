@@ -1,13 +1,8 @@
 interface BrandMarkProps {
-  /** 记号边长（px），默认 16。 */
   readonly size?: number
   readonly className?: string
 }
 
-/**
- * 日出 / 光圈品牌记号：外圈光圈 + 地平线 + 半轮日出。
- * 纯 SVG 不携带文案；复用于导航品牌位、倒计时侧栏头部、空状态三处。
- */
 export function BrandMark({ size = 16, className }: BrandMarkProps) {
   return (
     <svg

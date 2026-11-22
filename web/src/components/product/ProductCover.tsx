@@ -6,7 +6,6 @@ type CoverPlacement = 'tile' | 'lead' | 'accordion'
 
 interface ProductCoverProps {
   readonly product: ProductSummary
-  /** 展台尺度：`tile`（普通卡）、`lead`（全宽横幅）、`accordion`（首页手风琴展开台）。 */
   readonly placement?: CoverPlacement
 }
 
@@ -30,7 +29,6 @@ const SILHOUETTE_CLASSES: Record<CoverPlacement, string | undefined> = {
   accordion: 'h-[112px] w-auto text-[#4f5954]',
 }
 
-/** 统一商品封面渲染：区分虚拟悬空投影与实体棚拍羽化，无图时按 ProductKind 回退剪影。 */
 export function ProductCover({ product, placement = 'tile' }: ProductCoverProps) {
   if (!product.coverUrl) {
     return (

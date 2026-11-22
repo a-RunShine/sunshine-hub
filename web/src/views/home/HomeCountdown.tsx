@@ -1,10 +1,6 @@
 import { cn } from '@/lib/utils'
 import { useCountdown } from './useCountdown'
 
-/**
- * 首页主角区中文基线倒计时：基于目标开售时刻每秒跳动，时分骨白、秒针琥珀金、
- * 等宽数字 tabular-nums 防抖动，不带额外英文缩写副标。
- */
 export function HomeCountdown({ target }: { target: string }) {
   const { hours, minutes, seconds } = useCountdown(target)
   const units = [

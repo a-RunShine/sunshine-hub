@@ -2,15 +2,7 @@ package com.sunshinefps.shared;
 
 import org.springframework.http.HttpStatus;
 
-/**
- * 业务错误码。一个错误同时带三样东西：给前端做分支的字符串、给用户看的文案、对应的 HTTP 状态码。
- *
- * <p>分成两层是有意的。前端根据字符串决定展示什么，网关和监控根据状态码判断错误类别。只靠其中一层都会失效。
- *
- * <p>新增错误码必须同步 api/openapi.yaml 的 ErrorCode 枚举。
- */
 public enum ErrorCode {
-    // 认证与身份
     UNAUTHORIZED("请先登录", HttpStatus.UNAUTHORIZED),
     FORBIDDEN("没有权限", HttpStatus.FORBIDDEN),
     REAL_NAME_REQUIRED("请先完成实名认证", HttpStatus.FORBIDDEN),
@@ -18,7 +10,6 @@ public enum ErrorCode {
     USERNAME_TAKEN("这个用户名已经被占用", HttpStatus.CONFLICT),
     BAD_CREDENTIALS("用户名或密码不对", HttpStatus.UNAUTHORIZED),
 
-    // 商品与售卖
     PRODUCT_NOT_FOUND("商品不存在", HttpStatus.NOT_FOUND),
     CATEGORY_NOT_FOUND("分类不存在", HttpStatus.NOT_FOUND),
     CATEGORY_IN_USE("分类下还有商品，先迁移商品再删除", HttpStatus.CONFLICT),
@@ -27,14 +18,12 @@ public enum ErrorCode {
     CAMPAIGN_ENDED("本场已经结束", HttpStatus.CONFLICT),
     QUOTA_EXCEEDED("配额超过商品限量", HttpStatus.BAD_REQUEST),
 
-    // 抢购
     ALREADY_PURCHASED("这件商品你已经买过了", HttpStatus.CONFLICT),
     PURCHASE_COOLDOWN("这件商品处于购买冷却期，到期后自动恢复可购", HttpStatus.CONFLICT),
     SOLD_OUT("已经抢完了", HttpStatus.GONE),
     UNIT_POOL_INCONSISTENT("编号池与配额不同步", HttpStatus.INTERNAL_SERVER_ERROR),
     RATE_LIMITED("操作太快了，歇一下再试", HttpStatus.TOO_MANY_REQUESTS),
 
-    // 交易
     ORDER_NOT_FOUND("订单不存在", HttpStatus.NOT_FOUND),
     ORDER_NOT_PAYABLE("这个订单现在不能支付", HttpStatus.CONFLICT),
     ORDER_NOT_CANCELLABLE("这个订单现在不能取消", HttpStatus.CONFLICT),
@@ -46,16 +35,13 @@ public enum ErrorCode {
     FULFILLMENT_NOT_FOUND("履约单不存在，或不属于当前账号", HttpStatus.NOT_FOUND),
     FULFILLMENT_NOT_SIGNABLE("这个履约单现在不能签收", HttpStatus.CONFLICT),
 
-    // 退款
     REFUND_NOT_FOUND("退款单不存在", HttpStatus.NOT_FOUND),
     REFUND_NOT_ALLOWED("这笔履约单不支持退款", HttpStatus.CONFLICT),
     REFUND_ALREADY_OPEN("已经有一个未结的退款申请", HttpStatus.CONFLICT),
 
-    // 内容
     ANNOUNCEMENT_NOT_FOUND("公告不存在", HttpStatus.NOT_FOUND),
     EVENT_NOT_FOUND("活动不存在", HttpStatus.NOT_FOUND),
 
-    // 兜底
     BAD_REQUEST("参数不合法", HttpStatus.BAD_REQUEST),
     INTERNAL_ERROR("服务出了点问题", HttpStatus.INTERNAL_SERVER_ERROR);
 

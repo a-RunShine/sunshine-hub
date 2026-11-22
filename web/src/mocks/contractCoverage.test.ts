@@ -5,14 +5,6 @@ import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { scenarios } from './scenarios'
 
-/**
- * 契约覆盖测试：把 OpenAPI 里 in-scope operation（claim、POST /orders、地址增删改/设默认、签收、分类管理端增删改）
- * 声明的错误码，与 mock 场景表能产出的错误码对齐。
- * - 用真实 YAML parser 解析 api/openapi.yaml；
- * - 共享 401 / 429 响应是 `$ref`，必须显式跟进去拿 description，不能静默跳过；
- * - GET 详情 404 等其它接口不在本 ticket 范围。
- */
-
 const here = path.dirname(fileURLToPath(import.meta.url))
 const openapiPath = path.resolve(here, '../../../api/openapi.yaml')
 
@@ -49,7 +41,6 @@ function resolveResponse(node: ResponseNode): ResponseDescription {
   return node
 }
 
-/** 从 description 文本里抽 `code：`（全角冒号）或 `code:`（半角冒号）后面声明的错误码列表。 */
 function extractCodes(description: string | undefined): string[] {
   if (!description) return []
   const codes = new Set<string>()
@@ -68,8 +59,6 @@ function declaredCodes(node: OperationNode, operation: string): string[] {
       codes.add(code)
     }
   }
-  // 契约里某个 in-scope operation 一个码都没解析出来，说明 description 写法变了而正则没跟上，
-  // 必须当场失败，不能让空数组静默通过后续循环。
   expect(
     codes.size,
     `契约 operation「${operation}」未解析出任何错误码，请核对 description 里的 code 声明格式`,

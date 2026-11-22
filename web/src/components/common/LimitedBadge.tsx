@@ -2,18 +2,11 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
 interface LimitedBadgeProps {
-  /** 是否为限量商品；为 false 时不渲染，避免给常规商品贴多余标签。 */
   readonly limited: boolean
-  /**
-   * - `slash`：定制战备菱形图标 + `限量`（默认，用于商品卡片与横幅）
-   * - `pill`：手风琴展开区的描边菱形徽标 + `限量`
-   * - `compact`：手风琴收起窄条内的紧凑菱形徽标
-   */
   readonly variant?: 'slash' | 'pill' | 'compact'
   readonly className?: string
 }
 
-/** 战备切角菱形矢量图标：用于建立全站「限量」稀缺款视觉记忆点。 */
 function LimitedDiamondIcon({ className }: { readonly className?: string }) {
   return (
     <svg
@@ -34,10 +27,6 @@ function LimitedDiamondIcon({ className }: { readonly className?: string }) {
   )
 }
 
-/**
- * 统一定制限量标记：采用定制战备菱形图标 + `限量` 语义文案；
- * 常规商品不渲染任何标签。
- */
 export function LimitedBadge({ limited, variant = 'slash', className }: LimitedBadgeProps) {
   if (!limited) return null
 

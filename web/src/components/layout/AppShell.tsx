@@ -21,17 +21,9 @@ const ACCOUNT_MENU_ITEMS = [
 
 interface AppShellProps {
   readonly children: ReactNode
-  /**
-   * `default`：带居中容器与左右内边距的标准内页；
-   * `full-bleed`：铺满视口宽度的沉浸页面（如首页满屏海报）。
-   */
   readonly layout?: 'default' | 'full-bleed'
 }
 
-/**
- * 应用外壳：左靠主导航（首页 / 全部商品）+ 右上角头像账户菜单（我的订单 / 我的库存 / 我的履约单）。
- * 下滚超过 48px 自动收起顶栏，上滑或回到顶部恢复；登录态直接读 useAuth，不额外发起业务请求。
- */
 export function AppShell({ children, layout = 'default' }: AppShellProps) {
   const me = useAuth((state) => state.me)
   const setMe = useAuth((state) => state.setMe)
@@ -45,13 +37,11 @@ export function AppShell({ children, layout = 'default' }: AppShellProps) {
   const menuContainerRef = useRef<HTMLDivElement | null>(null)
   const lastScrollYRef = useRef(0)
 
-  // 路由切换时顺手收起弹层并确保顶栏可见
   useEffect(() => {
     setMenuOpen(false)
     setHeaderHidden(false)
   }, [location.pathname, location.search])
 
-  // 监听页面滚动方向：下滑超过 48px 收起，上滑或回到顶部立刻呼出
   useEffect(() => {
     lastScrollYRef.current = typeof window !== 'undefined' ? window.scrollY : 0
 
@@ -73,7 +63,6 @@ export function AppShell({ children, layout = 'default' }: AppShellProps) {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // 点击菜单外部或按 Escape 关闭头像浮层
   useEffect(() => {
     if (!menuOpen) return
 
@@ -100,7 +89,6 @@ export function AppShell({ children, layout = 'default' }: AppShellProps) {
     setMenuOpen(false)
     try {
       await logout()
-      // 登出成功后才清本地登录态，不做乐观 UI。
       setMe(null)
       setStatus('ready')
     } finally {

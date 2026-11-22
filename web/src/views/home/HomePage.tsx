@@ -11,12 +11,6 @@ import { useResource } from '@/hooks/useResource'
 import { HomeAccordion } from './HomeAccordion'
 import { HomeCountdown } from './HomeCountdown'
 
-/**
- * 商城首页（方向 C-2 两屏结构）：
- * - 第一屏：优先取限时抢购场次作为满屏斜切海报 + 中文倒计时 + 场次入口（带克制滚动视差）；
- * - 第二屏：精选军需水平手风琴展柜（展示 5 件精选并引流至独立 /products 页）；
- * - 当存在其余未开售场次（rest.length > 0）时，在第二屏下方附即将开售列表。
- */
 export default function HomePage() {
   const upcoming = useResource(() => getUpcomingCampaigns(), [])
   const products = useResource(() => getProducts({ size: 5 }), [])
