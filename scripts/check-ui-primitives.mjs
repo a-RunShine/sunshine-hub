@@ -77,51 +77,37 @@ export function updateUiChecksums(root = defaultRoot) {
   };
 }
 
+function failResult(uiDir, checksumPath, error) {
+  return {
+    ok: false,
+    uiDir,
+    checksumPath,
+    fileCount: 0,
+    modified: [],
+    deleted: [],
+    untracked: [],
+    error,
+  };
+}
+
 export function verifyUiPrimitives(root = defaultRoot) {
   const resolvedRoot = resolve(root);
   const uiDir = join(resolvedRoot, UI_RELATIVE_DIR);
   const checksumPath = join(uiDir, CHECKSUM_FILENAME);
 
   if (!existsSync(uiDir)) {
-    return {
-      ok: false,
-      uiDir,
-      checksumPath,
-      fileCount: 0,
-      modified: [],
-      deleted: [],
-      untracked: [],
-      error: `找不到目录：${UI_RELATIVE_DIR}`,
-    };
+    return failResult(uiDir, checksumPath, `找不到目录：${UI_RELATIVE_DIR}`);
   }
 
   if (!existsSync(checksumPath)) {
-    return {
-      ok: false,
-      uiDir,
-      checksumPath,
-      fileCount: 0,
-      modified: [],
-      deleted: [],
-      untracked: [],
-      error: `缺少校验和清单 ${UI_RELATIVE_DIR}/${CHECKSUM_FILENAME}`,
-    };
+    return failResult(uiDir, checksumPath, `缺少校验和清单 ${UI_RELATIVE_DIR}/${CHECKSUM_FILENAME}`);
   }
 
   let parsed;
   try {
     parsed = JSON.parse(readFileSync(checksumPath, 'utf8'));
   } catch (err) {
-    return {
-      ok: false,
-      uiDir,
-      checksumPath,
-      fileCount: 0,
-      modified: [],
-      deleted: [],
-      untracked: [],
-      error: `校验和清单解析失败：${err.message}`,
-    };
+    return failResult(uiDir, checksumPath, `校验和清单解析失败：${err.message}`);
   }
 
   if (
@@ -132,32 +118,14 @@ export function verifyUiPrimitives(root = defaultRoot) {
     typeof parsed.files !== 'object' ||
     Array.isArray(parsed.files)
   ) {
-    return {
-      ok: false,
-      uiDir,
-      checksumPath,
-      fileCount: 0,
-      modified: [],
-      deleted: [],
-      untracked: [],
-      error: `校验和清单格式无效：${UI_RELATIVE_DIR}/${CHECKSUM_FILENAME}`,
-    };
+    return failResult(uiDir, checksumPath, `校验和清单格式无效：${UI_RELATIVE_DIR}/${CHECKSUM_FILENAME}`);
   }
 
   let actualFiles;
   try {
     actualFiles = computeUiChecksums(resolvedRoot).files;
   } catch (err) {
-    return {
-      ok: false,
-      uiDir,
-      checksumPath,
-      fileCount: 0,
-      modified: [],
-      deleted: [],
-      untracked: [],
-      error: err.message,
-    };
+    return failResult(uiDir, checksumPath, err.message);
   }
   const expectedFiles = parsed.files;
 

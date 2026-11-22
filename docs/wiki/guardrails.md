@@ -31,6 +31,8 @@
 > **2026-11-16 更正（superseded，`3701bd4`）**：上表旧版写 `setup-java@v4`，并把它列进「已知缺口」说已废弃。**PR #28 已升到 `@v5`**（`ci.yml:15`），那条缺口已结。
 >
 > **但同批其它 action 仍是 v4，没一起升**：`checkout@v4`（`:13`、`:43`、`:83`）、`pnpm/action-setup@v4`（`:45`）、`setup-node@v4`（`:49`、`:85`）。**别把「setup-java 升了」读成「action 版本都升了」。**
+>
+> **2026-11-22 行号更新（Issue #81）**：上条 `contract` job 对应的 `checkout@v4`（`:83`）与 `setup-node@v4`（`:85`）旧行号 **superseded**，随 `frontend` job 扩行分别位移至 **`:99`** 与 **`:101`**（`backend` `:13` 及 `frontend` `:43`、`:45`、`:49` 未位移）。
 
 `mvn verify` 里绑在 `verify` 阶段的三件事（行号按 `3701bd4`）：
 
@@ -61,7 +63,7 @@
 - **ESLint 边界与样式护栏（`web/eslint.config.js`）**：
   - `@/types/api` 导入边界：`src/api/**/*.ts` 与 `src/mocks/**/*.{ts,tsx}` 之外禁止直接导入 `@/types/api` / `@/types/api.*` 及相对路径 `types/api`（`src/mocks/**` 放行 `@/types/api` 但仍禁止 `axios`）。
   - 禁用旧灰度类名与 `rounded-md`：`src/views/**/*.{ts,tsx}`、`src/components/**/*.{ts,tsx}`、`src/router/**/*.{ts,tsx}`（排除 `src/components/ui/**`）在 `Literal` 与 `TemplateElement` 中禁止 Tailwind 默认灰度色板（`neutral`/`gray`/`zinc`/`slate`/`stone`，含状态前缀与方向边框、轮廓、渐变、描边填充前缀）与 `rounded-md`。
-  - `src/components/ui/**/*.{ts,tsx}` 源码锁定：禁止导入 `axios`、`react-router-dom`、`@/types/api`、`@/components/BrandMark`、`@/components/Price`、跨模块别名（`@/api/*`、`@/stores/*`、`@/hooks/*`、`@/views/*`、`@/types/*`、`@/router/*`、`@/components/*`、`@/mocks/*`、`@/lib/*` 仅放行 `@/lib/utils`）及任何 `../*` 上级相对路径；并禁止引入项目设计类名（`chamfer-cta`、`search-chamfer`、`*-ink-*`、`border-line`、`text-muted`、`text-danger`、`text-faint`）。
+  - `src/components/ui/**/*.{ts,tsx}` 源码锁定：禁止导入 `axios`、`react-router-dom`、`@/types/api`、`@/components/BrandMark`、`@/components/Price`、跨模块别名（`@/api/**`、`@/stores/**`、`@/hooks/**`、`@/views/**`、`@/types/**`、`@/router/**`、`@/components/**` 仅放行 `@/components/ui/**`、`@/mocks/**`、`@/lib/**` 仅放行 `@/lib/utils`）及任何 `../*` / `../**` 上级相对路径；并禁止引入项目设计类名（`chamfer-cta`、`search-chamfer`、`*-ink-*`、`border-line`、`text-muted`、`text-danger`、`text-faint`）。
 - **shadcn 原语校验和守卫（`scripts/check-ui-primitives.mjs`，`pnpm --dir web ui:check`）**：
   - 对 `web/src/components/ui/` 下除根目录白名单（`README.md`、`.gitkeep`、`.shadcn-checksums.json`）外的全部常规文件计算并比对 SHA-256（`.shadcn-checksums.json`），发现修改、删除或未登记文件即 `exit 1`，并在检测到任何符号链接时立即失败拦截。
   - 官方新增或升级原语后跑 `pnpm --dir web ui:sync` 更新清单；脚本回归测试在 `scripts/check-ui-primitives.test.mjs`。
