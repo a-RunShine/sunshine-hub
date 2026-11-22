@@ -54,10 +54,47 @@ jobs:
           cat > .docs-sync-run/step-helpers.sh <<'HELPERS'
           # 被各步骤 source；FULL 由 job env 提供。
 
+          begin_step() {
+            echo "$1" > .docs-sync-run/stage
+            STEP_ERR_LOG=".docs-sync-run/$2"
+            STEP_ERR_FIFO=".docs-sync-run/$2.fifo"
+            : > "$STEP_ERR_LOG"
+            rm -f "$STEP_ERR_FIFO"
+            mkfifo "$STEP_ERR_FIFO"
+            exec 3>&2
+            tee -a "$STEP_ERR_LOG" < "$STEP_ERR_FIFO" >&3 &
+            STEP_TEE_PID=$!
+            exec 2> "$STEP_ERR_FIFO"
+            trap 'rc=$?; exec 2>&3 3>&-; wait "$STEP_TEE_PID" || true; rm -f "$STEP_ERR_FIFO"; if [ "$rc" -eq 0 ]; then : > "$STEP_ERR_LOG"; fi' EXIT
+          }
+
+          write_plan_meta() {
+            local kind="$1" src=".docs-sync-run/plan.json" count_file="fixes-count"
+            if [ "$kind" = "dry" ]; then
+              src=".docs-sync-run/dry-run.json"
+              count_file="dry-fixes-count"
+            fi
+            node --input-type=module -e '
+              import fs from "node:fs";
+              const [, kind, src, countFile] = process.argv;
+              const data = JSON.parse(fs.readFileSync(src, "utf8"));
+              const out = ".docs-sync-run/";
+              fs.writeFileSync(out + countFile, String(data.fixes.length));
+              fs.writeFileSync(out + "branch", data.plan.branch ?? "");
+              fs.writeFileSync(out + "commit-msg", data.plan.commitMessage ?? "");
+              fs.writeFileSync(out + "reuse-pr", data.plan.reuseExistingPr ? String(data.plan.reuseExistingPr.number) : "");
+              if (kind === "apply") {
+                fs.writeFileSync(out + "reports-count", String(data.reports.length));
+                fs.writeFileSync(out + "changed-files.json", JSON.stringify(data.changedFiles ?? []));
+              }
+            ' "$kind" "$src" "$count_file"
+          }
+
           # 组装 docs-sync.mjs 参数；$1 = dry-run | apply
           build_args() {
             local mode="$1"
             ARGS=(--main-sha "$(cat .docs-sync-run/main-sha)"
+              --today "$(cat .docs-sync-run/today)"
               --issues .docs-sync-run/issues.json
               --prs .docs-sync-run/prs.json
               --issue-states .docs-sync-run/issue-states.json
@@ -113,6 +150,7 @@ jobs:
           lines.push(`- 触发：${triggerDesc}`);
           lines.push(`- 检查：${s.pass} pass / ${s.drift} drift / ${s.report} report`);
           lines.push('- 改动：');
+          if (plan.changedFiles.length === 0) lines.push('  - （本轮无新增文件改动，仅合入最新 main）');
           for (const f of plan.changedFiles) lines.push(`  - ${f}`);
           lines.push('');
           lines.push('## Evidence');
@@ -151,13 +189,14 @@ jobs:
       - name: 采集 issue、PR 与 git 历史事实
         run: |
           set -euo pipefail
-          echo "采集 issue/PR/git 历史事实" > .docs-sync-run/stage
-          exec 2> .docs-sync-run/err-collect.log
+          source .docs-sync-run/step-helpers.sh
+          begin_step "采集 issue/PR/git 历史事实" err-collect.log
 
           gh issue list --state open --json number,title,state,labels,updatedAt > .docs-sync-run/issues.json
           gh pr list --state open --json number,title,body,headRefName,reviewDecision,createdAt > .docs-sync-run/prs.json
           gh issue list --state all --json number,state > .docs-sync-run/issue-states.json
           git log --all --format=%H > .docs-sync-run/git-shas.txt
+          date -u +%F > .docs-sync-run/today
           echo "${{ github.event_name }}" > .docs-sync-run/event-name
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "${{ github.event.pull_request.number }}" > .docs-sync-run/trigger-pr
@@ -175,14 +214,12 @@ jobs:
           fi
           # 标注用实际被分析的树（HEAD），不用触发 PR 的 merge_commit_sha：并发串行下 main 头可能已前进
           git rev-parse HEAD > .docs-sync-run/main-sha
-          : > .docs-sync-run/err-collect.log
 
       - name: 干跑复核并留存九项结果
         run: |
           set -euo pipefail
           source .docs-sync-run/step-helpers.sh
-          echo "干跑复核" > .docs-sync-run/stage
-          exec 2> .docs-sync-run/err-dry-run.log
+          begin_step "干跑复核" err-dry-run.log
 
           if [ "$(cat .docs-sync-run/event-name)" = "pull_request" ]; then
             echo "PR #$(cat .docs-sync-run/trigger-pr) 合并 $(cat .docs-sync-run/trigger-merged-sha)" > .docs-sync-run/trigger-desc
@@ -195,23 +232,13 @@ jobs:
           # dry-run 不等待、不重读 issue 状态：只用首帧快照，poll 退化为一次比较
           build_args dry-run
           node scripts/docs-sync.mjs --dry-run "${ARGS[@]}" --plan-out .docs-sync-run/dry-run.json
-          node --input-type=module <<'EOF'
-          import fs from 'node:fs';
-          const dry = JSON.parse(fs.readFileSync('.docs-sync-run/dry-run.json', 'utf8'));
-          const out = '.docs-sync-run/';
-          fs.writeFileSync(out + 'dry-fixes-count', String(dry.fixes.length));
-          fs.writeFileSync(out + 'branch', dry.plan.branch ?? '');
-          fs.writeFileSync(out + 'commit-msg', dry.plan.commitMessage ?? '');
-          fs.writeFileSync(out + 'reuse-pr', dry.plan.reuseExistingPr ? String(dry.plan.reuseExistingPr.number) : '');
-          EOF
-          : > .docs-sync-run/err-dry-run.log
+          write_plan_meta dry
 
       - name: 按 dry-run 准备目标分支
         run: |
           set -euo pipefail
           source .docs-sync-run/step-helpers.sh
-          echo "准备目标分支" > .docs-sync-run/stage
-          exec 2> .docs-sync-run/err-branch.log
+          begin_step "准备目标分支" err-branch.log
 
           sync_remote_branch() {
             local branch="$1" hint="$2"
@@ -226,9 +253,9 @@ jobs:
             fi
           }
 
+          : > .docs-sync-run/prepared-branch
           if [ "$(cat .docs-sync-run/dry-fixes-count)" = "0" ]; then
             echo "dry-run 无自动修正：留在 main，不切分支。"
-            : > .docs-sync-run/err-branch.log
             exit 0
           fi
 
@@ -255,64 +282,66 @@ jobs:
               git switch -c "$BRANCH"
             fi
           fi
-          : > .docs-sync-run/err-branch.log
+          printf '%s' "$BRANCH" > .docs-sync-run/prepared-branch
 
       - name: 落盘修正并产出 plan
         run: |
           set -euo pipefail
           source .docs-sync-run/step-helpers.sh
-          echo "落盘修正" > .docs-sync-run/stage
-          exec 2> .docs-sync-run/err-apply.log
+          begin_step "落盘修正" err-apply.log
           build_args apply
           node scripts/docs-sync.mjs --apply "${ARGS[@]}" --plan-out .docs-sync-run/plan.json
-          : > .docs-sync-run/err-apply.log
 
       - name: 提交并开或更新 docs PR
         run: |
           set -euo pipefail
           source .docs-sync-run/step-helpers.sh
-          echo "提交并开/更新 docs PR" > .docs-sync-run/stage
-          exec 2> .docs-sync-run/err-pr.log
+          begin_step "提交并开/更新 docs PR" err-pr.log
 
-          node --input-type=module <<'EOF'
-          import fs from 'node:fs';
-          const plan = JSON.parse(fs.readFileSync('.docs-sync-run/plan.json', 'utf8'));
-          const out = '.docs-sync-run/';
-          fs.writeFileSync(out + 'fixes-count', String(plan.fixes.length));
-          fs.writeFileSync(out + 'reports-count', String(plan.reports.length));
-          fs.writeFileSync(out + 'branch', plan.plan.branch ?? '');
-          fs.writeFileSync(out + 'commit-msg', plan.plan.commitMessage ?? '');
-          fs.writeFileSync(out + 'reuse-pr', plan.plan.reuseExistingPr ? String(plan.plan.reuseExistingPr.number) : '');
-          fs.writeFileSync(out + 'changed-files.json', JSON.stringify(plan.changedFiles ?? []));
-          EOF
-          if [ "$(cat .docs-sync-run/fixes-count)" = "0" ]; then
+          write_plan_meta apply
+          if [ ! -s .docs-sync-run/prepared-branch ]; then
             echo "无自动修正：不提交、不推送、不开 PR。"
-            : > .docs-sync-run/err-pr.log
             exit 0
           fi
 
           BRANCH="$(cat .docs-sync-run/branch)"
           COMMIT_MSG="$(cat .docs-sync-run/commit-msg)"
           REUSE_PR="$(cat .docs-sync-run/reuse-pr)"
+          FIXES_COUNT="$(cat .docs-sync-run/fixes-count)"
 
-          mapfile -t FILES < <(node --input-type=module -e '
-            import fs from "node:fs";
-            const p = JSON.parse(fs.readFileSync(".docs-sync-run/changed-files.json", "utf8"));
-            p.forEach(f => console.log(f));
-          ')
-          if [ "${#FILES[@]}" -eq 0 ]; then
-            echo "无变更文件，退出。"
-            : > .docs-sync-run/err-pr.log
+          COMMITTED=0
+          if [ "$FIXES_COUNT" != "0" ]; then
+            FILES=()
+            while IFS= read -r f; do
+              [ -n "$f" ] && FILES+=("$f")
+            done < <(node --input-type=module -e '
+              import fs from "node:fs";
+              const p = JSON.parse(fs.readFileSync(".docs-sync-run/changed-files.json", "utf8"));
+              p.forEach(f => console.log(f));
+            ')
+            if [ "${#FILES[@]}" -gt 0 ]; then
+              git add -- "${FILES[@]}"
+              # 重跑可能没有新增改动：空索引不产生空提交
+              if ! git diff --cached --quiet; then
+                git commit -m "$COMMIT_MSG"
+                COMMITTED=1
+              fi
+            fi
+          fi
+
+          AHEAD_COUNT=0
+          if [ -n "$REUSE_PR" ]; then
+            AHEAD_COUNT="$(git rev-list --count "origin/$BRANCH..HEAD")"
+          fi
+
+          if [ "$COMMITTED" -eq 0 ] && [ "$AHEAD_COUNT" -eq 0 ]; then
+            echo "无新增改动：不提交、不推送、不开 PR。"
             exit 0
           fi
-          git add -- "${FILES[@]}"
-          # 重跑可能没有新增改动：空索引直接退出，不产生空提交
-          if git diff --cached --quiet; then
-            echo "无新增改动，退出。"
-            : > .docs-sync-run/err-pr.log
-            exit 0
+
+          if [ -n "$REUSE_PR" ]; then
+            ./scripts/pr-preflight.sh "$REUSE_PR"
           fi
-          git commit -m "$COMMIT_MSG"
 
           git diff --stat main..HEAD > .docs-sync-run/diff-stat.txt
 
@@ -336,18 +365,15 @@ jobs:
               --body-file .docs-sync-run/pr-body.md
             gh pr list --head "$BRANCH" --json number --jq '.[0].number' > .docs-sync-run/pr-number
           fi
-          : > .docs-sync-run/err-pr.log
 
       - name: 按 plan 追加滚动 docs issue
         run: |
           set -euo pipefail
           source .docs-sync-run/step-helpers.sh
-          echo "追加滚动 docs issue" > .docs-sync-run/stage
-          exec 2> .docs-sync-run/err-issue.log
+          begin_step "追加滚动 docs issue" err-issue.log
 
           if [ "$(cat .docs-sync-run/reports-count)" = "0" ]; then
             echo "无待人工判断项：不开 issue、不发评论。"
-            : > .docs-sync-run/err-issue.log
             exit 0
           fi
 
@@ -364,7 +390,6 @@ jobs:
             --max-chars 60000 --per-file 10 \
             --run-url "$RUN_URL" --artifact "$ARTIFACT" ${PR_ARG[@]+"${PR_ARG[@]}"}; then
             echo "报告节渲染失败：跳过评论。"
-            : > .docs-sync-run/err-issue.log
             exit 0
           fi
           guard_section .docs-sync-run/issue-section.md 60000
@@ -391,7 +416,6 @@ jobs:
             ./scripts/pr-preflight.sh "$PR_NUMBER"
             gh pr edit "$PR_NUMBER" --body-file .docs-sync-run/pr-body.md
           fi
-          : > .docs-sync-run/err-issue.log
 
       # 失败记录尽力而为：原始失败结论已经成立，这一步再坏也不覆盖它
       - name: 追加失败记录到滚动 issue
@@ -403,7 +427,7 @@ jobs:
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           STAGE="$(cat .docs-sync-run/stage 2>/dev/null || echo 未知环节)"
           MAIN_SHA="$(cat .docs-sync-run/main-sha 2>/dev/null || echo unknown)"
-          TODAY="$(date -u +%F)"
+          TODAY="$(cat .docs-sync-run/today 2>/dev/null || date -u +%F)"
           # 取阶段顺序里最后一个非空 stderr 日志
           TAIL="（没有捕获到 stderr）"
           for f in err-collect.log err-dry-run.log err-branch.log err-apply.log err-pr.log err-issue.log; do
@@ -411,7 +435,6 @@ jobs:
               TAIL="$(tail -n 20 ".docs-sync-run/$f")"
             fi
           done
-          printf '%s\n' "$TAIL" >&2
           export RUN_URL TODAY STAGE MAIN_SHA TAIL
 
           node --input-type=module <<'EOF'
