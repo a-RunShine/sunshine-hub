@@ -96,7 +96,7 @@ describe('S1 首页渲染与数据映射', () => {
   it('导航四项可见，分类 / 商品 / 场次文案与价格来自接口响应', async () => {
     renderHome()
 
-    await screen.findByText('暗夜猎手 限定皮肤')
+    await screen.findByRole('heading', { name: '暗夜猎手 限定皮肤' })
 
     expect(screen.getByRole('link', { name: '首页' })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: '我的订单' })).toHaveAttribute('href', '/orders')
@@ -108,10 +108,10 @@ describe('S1 首页渲染与数据映射', () => {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
 
-    // 商品名 / 价格 / 限量标记来自 /products
-    expect(screen.getByText('暗夜猎手 限定皮肤')).toBeInTheDocument()
-    expect(screen.getByText('破晓之环 典藏手办')).toBeInTheDocument()
-    expect(screen.getByText('赛季队服')).toBeInTheDocument()
+    // 商品名 / 价格 / 限量标记来自 /products（商品名按商品卡标题定位，避开右栏场次卡的关联商品名）
+    expect(screen.getByRole('heading', { name: '暗夜猎手 限定皮肤' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '破晓之环 典藏手办' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '赛季队服' })).toBeInTheDocument()
     expect(screen.getByText('¥128')).toBeInTheDocument()
     expect(screen.getByText('¥599')).toBeInTheDocument()
     expect(screen.getByText('¥199')).toBeInTheDocument()
@@ -129,7 +129,7 @@ describe('S1 首页渲染与数据映射', () => {
 
     await screen.findByText('破晓之环 返场')
 
-    const productCard = screen.getByText('暗夜猎手 限定皮肤').closest('a')
+    const productCard = screen.getByRole('heading', { name: '暗夜猎手 限定皮肤' }).closest('a')
     expect(productCard).toHaveAttribute('href', '/products/1')
 
     const campaignCard = screen.getByText('破晓之环 返场').closest('a')
@@ -140,16 +140,16 @@ describe('S1 首页渲染与数据映射', () => {
 describe('S2 分类筛选', () => {
   it('点分类 chip 后 /products 带对应 categoryId；点「全部」时不带该参数', async () => {
     renderHome()
-    await screen.findByText('暗夜猎手 限定皮肤')
+    await screen.findByRole('heading', { name: '暗夜猎手 限定皮肤' })
 
     fireEvent.click(screen.getByRole('button', { name: '手办' }))
     await waitFor(() => expect(productUrls.some((q) => q.includes('categoryId=4'))).toBe(true))
-    await screen.findByText('破晓之环 典藏手办')
-    expect(screen.queryByText('暗夜猎手 限定皮肤')).not.toBeInTheDocument()
+    await screen.findByRole('heading', { name: '破晓之环 典藏手办' })
+    expect(screen.queryByRole('heading', { name: '暗夜猎手 限定皮肤' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '全部' }))
     await waitFor(() => expect(productUrls.some((q) => q === '')).toBe(true))
-    await screen.findByText('暗夜猎手 限定皮肤')
+    await screen.findByRole('heading', { name: '暗夜猎手 限定皮肤' })
   })
 })
 
@@ -159,7 +159,7 @@ describe('S3 / S4 卡片跳转', () => {
     renderHome()
     await screen.findByText('破晓之环 返场')
 
-    fireEvent.click(screen.getByText('暗夜猎手 限定皮肤').closest('a')!)
+    fireEvent.click(screen.getByRole('heading', { name: '暗夜猎手 限定皮肤' }).closest('a')!)
     await screen.findByTestId('probe')
     expect(screen.getByTestId('probe').textContent).toBe('/products/1')
   })
@@ -216,6 +216,47 @@ describe('S5 三态与重试', () => {
     const before = categoryUrls.length
     fireEvent.click(retry)
     await waitFor(() => expect(categoryUrls.length).toBeGreaterThan(before))
+  })
+})
+
+describe('S5b 即将开售区块三态', () => {
+  it('upcoming 挂起时展示加载态，不渲染场次内容', async () => {
+    server.use(http.get('/api/campaigns/upcoming', () => new Promise(() => {})))
+    renderHome()
+
+    await screen.findByText('正在加载…')
+    expect(screen.queryByText('暗夜猎手 首发')).not.toBeInTheDocument()
+  })
+
+  it('upcoming 空数组时渲染空态与 BrandMark', async () => {
+    server.use(
+      http.get('/api/campaigns/upcoming', () =>
+        HttpResponse.json({ serverTime: new Date().toISOString(), items: [] }),
+      ),
+    )
+    renderHome()
+
+    await screen.findByText('暂时没有内容，稍后再来看看')
+    expect(document.querySelector('svg')).not.toBeNull()
+  })
+
+  it('upcoming 500：错误文案 + 重试按钮，点击后重新请求', async () => {
+    server.use(
+      http.get('/api/campaigns/upcoming', () =>
+        HttpResponse.json(
+          { code: 'INTERNAL_ERROR', message: '场次拉取失败' },
+          { status: 500 },
+        ),
+      ),
+    )
+    renderHome()
+
+    const retry = await screen.findByRole('button', { name: '重试' })
+    expect(screen.getByText('场次拉取失败')).toBeInTheDocument()
+
+    const before = upcomingUrls.length
+    fireEvent.click(retry)
+    await waitFor(() => expect(upcomingUrls.length).toBeGreaterThan(before))
   })
 })
 
