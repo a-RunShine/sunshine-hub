@@ -1,21 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import type { ProductSummary } from '@/api/catalog'
 import { Price, formatPrice } from '@/components/Price'
-import { CoverSilhouette } from '@/components/common/CoverSilhouette'
+import { ActionLink } from '@/components/common/ActionButton'
 import { DiagonalSurface } from '@/components/common/DiagonalSurface'
 import { LimitedBadge } from '@/components/common/LimitedBadge'
-import { PRODUCT_KIND_LABEL } from '@/components/product/ProductCard'
-import { ProductKindMark } from '@/components/product/ProductKindMark'
-import { silhouetteVariant } from '@/components/product/silhouette'
+import { ProductCover } from '@/components/product/ProductCover'
+import { PRODUCT_KIND_LABEL, ProductKindMark } from '@/components/product/ProductKindMark'
 import { pad2 } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 interface HomeAccordionProps {
   /** 首页精选展陈商品（最多 5 件）。 */
   readonly products: readonly ProductSummary[]
-  /** 由页面拉取分类接口后按 categoryId 解析；未加载时不阻塞展陈，退回形态标签。 */
-  readonly categoryNameById: ReadonlyMap<number, string>
 }
 
 /**
@@ -23,7 +20,7 @@ interface HomeAccordionProps {
  * - 桌面端阻尼 flex 切换，70ms hover 防抖；收起态为 vertical-rl 竖排导轨；
  * - <= 860px 自动退回竖向折叠展开；支持键盘方向键与 Enter/Space 操作。
  */
-export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps) {
+export function HomeAccordion({ products }: HomeAccordionProps) {
   const navigate = useNavigate()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const hoverTimerRef = useRef<number | null>(null)
@@ -57,7 +54,6 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
         const isExpanded = product.id === activeId
         const indexLabel = pad2(index + 1)
         const kindLabel = PRODUCT_KIND_LABEL[product.kind]
-        const categoryName = categoryNameById.get(product.categoryId)
         const badgeLabel = product.limited ? '限量' : '常规'
         const detailPath = `/products/${product.id}`
 
@@ -69,7 +65,7 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
             }}
             tabIndex={0}
             aria-expanded={isExpanded}
-            aria-label={`${indexLabel} ${product.name}，${categoryName ?? kindLabel}，${badgeLabel}，${formatPrice(product.minPrice)} 起`}
+            aria-label={`${indexLabel} ${product.name}，${kindLabel}，${badgeLabel}，${formatPrice(product.minPrice)} 起`}
             className={cn(
               'acc-slice group focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
               isExpanded && 'is-expanded',
@@ -128,22 +124,7 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
               </span>
 
               <div className="pointer-events-none absolute inset-x-[28px] bottom-[108px] top-[18px] z-[2] flex items-center justify-center max-[860px]:inset-x-[18px] max-[860px]:bottom-[142px] max-[860px]:top-[14px]">
-                {product.coverUrl ? (
-                  <img
-                    src={product.coverUrl}
-                    alt={product.name}
-                    className={
-                      product.kind === 'VIRTUAL'
-                        ? 'block max-h-[365px] w-[min(88%,620px)] -rotate-2 select-none object-contain drop-shadow-[0_26px_34px_rgba(0,0,0,0.82)] transition-transform duration-300 ease-out group-hover:scale-[1.025] max-[860px]:max-h-[210px] max-[860px]:w-[min(92%,340px)]'
-                        : 'studio-mask block aspect-[800/500] h-auto max-h-full w-auto max-w-[min(94%,640px)] select-none object-contain transition-transform duration-300 ease-out group-hover:scale-[1.025] max-[860px]:max-w-[min(96%,354px)]'
-                    }
-                  />
-                ) : (
-                  <CoverSilhouette
-                    variant={silhouetteVariant(product)}
-                    className="h-[112px] w-auto text-[#4f5954]"
-                  />
-                )}
+                <ProductCover product={product} placement="accordion" />
               </div>
 
               <div className="absolute inset-x-0 bottom-0 z-[3] flex items-end justify-between gap-5 bg-gradient-to-t from-[#0c0e0d]/[0.92] via-[#131615]/[0.68] via-55% to-transparent px-[28px] pb-[26px] pt-[48px] max-[860px]:flex-col max-[860px]:items-start max-[860px]:gap-3.5 max-[860px]:px-[18px] max-[860px]:pb-[18px] max-[860px]:pt-8">
@@ -158,15 +139,16 @@ export function HomeAccordion({ products, categoryNameById }: HomeAccordionProps
                 </div>
                 <div className="flex shrink-0 items-center gap-5 max-[860px]:w-full max-[860px]:justify-between">
                   <Price cents={product.minPrice} variant="hero" />
-                  <Link
+                  <ActionLink
                     to={detailPath}
+                    intent="primary"
                     tabIndex={isExpanded ? 0 : -1}
                     onClick={(event) => event.stopPropagation()}
-                    className="chamfer-cta inline-flex shrink-0 items-center gap-2 whitespace-nowrap bg-accent px-5 py-[11px] text-[14px] font-bold leading-[1.2] tracking-[0.03em] text-ink-950 transition-colors hover:bg-[#f6c84f]"
+                    className="shrink-0 whitespace-nowrap px-5 py-[11px]"
                   >
                     <span>查看详情</span>
                     <span aria-hidden="true">→</span>
-                  </Link>
+                  </ActionLink>
                 </div>
               </div>
             </div>

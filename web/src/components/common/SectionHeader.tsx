@@ -4,17 +4,15 @@ import { cn } from '@/lib/utils'
 interface SectionHeaderProps {
   readonly title: string
   readonly titleId?: string
-  readonly eyebrow?: string
   readonly right?: ReactNode
   readonly as?: 'h1' | 'h2'
   readonly className?: string
 }
 
-/** 统一区块标题头：负责可选 eyebrow、标题字阶与右侧状态/操作位对齐，与底部分割线对齐。 */
+/** 统一区块标题头：负责标题字阶与右侧状态/操作位对齐，与底部分割线对齐。 */
 export function SectionHeader({
   title,
   titleId,
-  eyebrow,
   right,
   as = 'h2',
   className,
@@ -28,24 +26,17 @@ export function SectionHeader({
         className,
       )}
     >
-      <div>
-        {eyebrow && (
-          <p className="mb-1 text-[12px] font-semibold tracking-[0.14em] text-accent">
-            {eyebrow}
-          </p>
+      <Heading
+        id={titleId}
+        className={cn(
+          'm-0 font-bold tracking-[-0.015em] text-foreground',
+          as === 'h1'
+            ? 'text-[30px] leading-[1.15] max-[860px]:text-[26px]'
+            : 'text-[26px] leading-[1.15] max-[860px]:text-[22px]',
         )}
-        <Heading
-          id={titleId}
-          className={cn(
-            'm-0 font-bold tracking-[-0.015em] text-foreground',
-            as === 'h1'
-              ? 'text-[30px] leading-[1.15] max-[860px]:text-[26px]'
-              : 'text-[26px] leading-[1.15] max-[860px]:text-[22px]',
-          )}
-        >
-          {title}
-        </Heading>
-      </div>
+      >
+        {title}
+      </Heading>
       {right && <div className="flex shrink-0 items-center gap-3 max-[640px]:w-full">{right}</div>}
     </div>
   )

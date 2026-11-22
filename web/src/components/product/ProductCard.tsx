@@ -1,17 +1,10 @@
 import { Link } from 'react-router-dom'
-import type { ProductKind, ProductSummary } from '@/api/catalog'
+import type { ProductSummary } from '@/api/catalog'
 import { Price } from '@/components/Price'
-import { CoverSilhouette } from '@/components/common/CoverSilhouette'
 import { DiagonalSurface } from '@/components/common/DiagonalSurface'
 import { LimitedBadge } from '@/components/common/LimitedBadge'
+import { ProductCover } from './ProductCover'
 import { ProductKindMark } from './ProductKindMark'
-import { silhouetteVariant } from './silhouette'
-
-/** 形态闭集映射；契约枚举外的值不在这里兜底文案。 */
-export const PRODUCT_KIND_LABEL: Record<ProductKind, string> = {
-  VIRTUAL: '虚拟道具',
-  PHYSICAL: '实体周边',
-}
 
 interface ProductCardProps {
   readonly product: ProductSummary
@@ -53,19 +46,7 @@ export function ProductCard({ product, variant = 'tile' }: ProductCardProps) {
           </div>
 
           <div className="relative z-[2] flex h-[240px] items-center justify-center md:h-[268px]">
-            {product.coverUrl ? (
-              <img
-                src={product.coverUrl}
-                alt={product.name}
-                className={
-                  product.kind === 'VIRTUAL'
-                    ? 'max-h-[250px] w-auto max-w-[94%] -rotate-3 object-contain drop-shadow-[0_24px_32px_rgba(0,0,0,0.72)] transition-transform duration-300 group-hover:scale-[1.03]'
-                    : 'studio-mask max-h-[245px] w-auto max-w-[92%] object-contain transition-transform duration-300 group-hover:scale-[1.03]'
-                }
-              />
-            ) : (
-              <CoverSilhouette variant={silhouetteVariant(product)} className="h-[112px] w-auto text-[#4f5954]" />
-            )}
+            <ProductCover product={product} placement="lead" />
           </div>
         </article>
       </Link>
@@ -83,19 +64,7 @@ export function ProductCard({ product, variant = 'tile' }: ProductCardProps) {
         </div>
 
         <div className="relative z-[2] my-3 flex h-[172px] items-center justify-center">
-          {product.coverUrl ? (
-            <img
-              src={product.coverUrl}
-              alt={product.name}
-              className={
-                product.kind === 'VIRTUAL'
-                  ? 'max-h-[158px] w-auto max-w-[88%] -rotate-2 object-contain drop-shadow-[0_18px_24px_rgba(0,0,0,0.76)] transition-transform duration-300 group-hover:scale-[1.035]'
-                  : 'studio-mask max-h-[158px] w-auto max-w-[88%] object-contain transition-transform duration-300 group-hover:scale-[1.035]'
-              }
-            />
-          ) : (
-            <CoverSilhouette variant={silhouetteVariant(product)} />
-          )}
+          <ProductCover product={product} placement="tile" />
         </div>
 
         <div className="relative z-[2] flex items-baseline justify-between gap-4 pt-1">

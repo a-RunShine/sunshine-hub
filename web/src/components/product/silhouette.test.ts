@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { components } from '@/types/api'
+import type { ProductSummary } from '@/api/catalog'
 import { silhouetteVariant } from './silhouette'
-
-type ProductSummary = components['schemas']['ProductSummary']
 
 function product(overrides: Partial<ProductSummary>): ProductSummary {
   return {
@@ -18,18 +16,13 @@ function product(overrides: Partial<ProductSummary>): ProductSummary {
 }
 
 /**
- * 占位美术映射兜底测试：剪影只在 coverUrl 为空时占位，按 categoryId 选轮廓，
- * 不按分类展示名硬编码；映射落空时按形态兜底。
+ * 占位剪影边界：严格按系统闭集 ProductKind 映射，不依赖可变的 categoryId（ADR-0014）。
  */
 describe('silhouette 占位映射', () => {
-  it('按 categoryId 选剪影：武器皮肤枪形、手办人形、服饰衣形', () => {
-    expect(silhouetteVariant(product({ categoryId: 1 }))).toBe('weapon')
-    expect(silhouetteVariant(product({ categoryId: 4, kind: 'PHYSICAL' }))).toBe('figure')
-    expect(silhouetteVariant(product({ categoryId: 5, kind: 'PHYSICAL' }))).toBe('shirt')
-  })
-
-  it('映射落空时按形态兜底：虚拟道具枪形，实体周边盒形', () => {
+  it('按商品形态映射剪影：虚拟道具枪形，实体周边盒形，与分类 ID 无关', () => {
+    expect(silhouetteVariant(product({ categoryId: 1, kind: 'VIRTUAL' }))).toBe('weapon')
     expect(silhouetteVariant(product({ categoryId: 99, kind: 'VIRTUAL' }))).toBe('weapon')
+    expect(silhouetteVariant(product({ categoryId: 4, kind: 'PHYSICAL' }))).toBe('box')
     expect(silhouetteVariant(product({ categoryId: 99, kind: 'PHYSICAL' }))).toBe('box')
   })
 })

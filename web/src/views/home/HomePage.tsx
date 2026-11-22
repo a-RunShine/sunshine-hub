@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useRef } from 'react'
-import { getCategories, getProducts, type Category } from '@/api/catalog'
+import { getProducts } from '@/api/catalog'
 import { getUpcomingCampaigns } from '@/api/campaign'
 import { CampaignCard, formatStartAt } from '@/components/campaign/CampaignCard'
 import { ActionLink } from '@/components/common/ActionButton'
+import { CoverSilhouette } from '@/components/common/CoverSilhouette'
 import { DiagonalSurface } from '@/components/common/DiagonalSurface'
 import { PageState } from '@/components/common/PageState'
 import { SectionHeader } from '@/components/common/SectionHeader'
@@ -12,14 +13,13 @@ import { HomeCountdown } from './HomeCountdown'
 
 /**
  * 商城首页（方向 C-2 两屏结构）：
- * - 第一屏：满屏限时抢购斜切海报 + 中文倒计时 + 场次入口（带克制滚动视差）；
+ * - 第一屏：优先取限时抢购场次作为满屏斜切海报 + 中文倒计时 + 场次入口（带克制滚动视差）；
  * - 第二屏：精选军需水平手风琴展柜（展示 5 件精选并引流至独立 /products 页）；
  * - 当存在其余未开售场次（rest.length > 0）时，在第二屏下方附即将开售列表。
  */
 export default function HomePage() {
   const upcoming = useResource(() => getUpcomingCampaigns(), [])
   const products = useResource(() => getProducts({ size: 5 }), [])
-  const categories = useResource<Category[]>(() => getCategories(), [])
   const weaponStageRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -48,15 +48,10 @@ export default function HomePage() {
     }
   }, [])
 
-  const categoryNameById = new Map(
-    categories.state.status === 'ready'
-      ? categories.state.data.map((category) => [category.id, category.name] as const)
-      : [],
-  )
-
   const upcomingItems = upcoming.state.status === 'ready' ? upcoming.state.data.items : []
-  const featured = upcomingItems[0] ?? null
-  const rest = upcomingItems.slice(1)
+  const featured =
+    upcomingItems.find((item) => item.type === 'FLASH') ?? upcomingItems[0] ?? null
+  const rest = featured ? upcomingItems.filter((item) => item.id !== featured.id) : []
 
   const featuredProducts =
     products.state.status === 'ready' ? products.state.data.items.slice(0, 5) : []
@@ -94,11 +89,17 @@ export default function HomePage() {
               className="pointer-events-none absolute right-[clamp(-68px,-2.5vw,-16px)] top-[clamp(20px,4.2vh,52px)] z-[3] w-[min(62vw,860px)] will-change-transform max-[1080px]:-right-[52px] max-[1080px]:top-[28px] max-[1080px]:w-[min(68vw,680px)] max-[860px]:relative max-[860px]:right-auto max-[860px]:top-auto max-[860px]:my-0 max-[860px]:flex max-[860px]:w-full max-[860px]:justify-start max-[860px]:pl-3"
               aria-hidden="true"
             >
-              <img
-                src={featured.coverUrl || '/assets/rifle-trim.png'}
-                alt={featured.productName}
-                className="block h-auto w-full origin-[64%_45%] -rotate-6 select-none drop-shadow-[0_30px_44px_rgba(0,0,0,0.8)] max-[860px]:w-[min(114vw,490px)] max-[860px]:max-w-none"
-              />
+              {featured.coverUrl ? (
+                <img
+                  src={featured.coverUrl}
+                  alt={featured.productName}
+                  className="block h-auto w-full origin-[64%_45%] -rotate-6 select-none drop-shadow-[0_30px_44px_rgba(0,0,0,0.8)] max-[860px]:w-[min(114vw,490px)] max-[860px]:max-w-none"
+                />
+              ) : (
+                <div className="flex h-[300px] w-full items-center justify-center">
+                  <CoverSilhouette variant="weapon" className="h-[180px] w-auto text-[#4f5954]" />
+                </div>
+              )}
             </div>
 
             <div className="relative z-[4] mx-auto flex w-full max-w-[1360px] items-end justify-start px-[clamp(20px,4vw,48px)] pb-[clamp(64px,8vh,84px)] pt-[clamp(32px,5vh,56px)] max-[860px]:py-0">
@@ -185,7 +186,7 @@ export default function HomePage() {
             <PageState variant="empty" />
           )}
           {products.state.status === 'ready' && featuredProducts.length > 0 && (
-            <HomeAccordion products={featuredProducts} categoryNameById={categoryNameById} />
+            <HomeAccordion products={featuredProducts} />
           )}
         </div>
       </section>

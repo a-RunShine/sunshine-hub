@@ -1,15 +1,16 @@
 import type { ProductKind } from '@/api/catalog'
 import { cn } from '@/lib/utils'
 
+/** 商品形态闭集映射（全站唯一数据源）；契约枚举外的值不做兜底文案。 */
+export const PRODUCT_KIND_LABEL: Record<ProductKind, string> = {
+  VIRTUAL: '虚拟道具',
+  PHYSICAL: '实体周边',
+}
+
 interface ProductKindMarkProps {
   /** 商品形态闭集（虚拟道具 / 实体周边），对应两套固定交付路径。 */
   readonly kind: ProductKind
   readonly className?: string
-}
-
-const KIND_COPY: Record<ProductKind, string> = {
-  VIRTUAL: '虚拟道具',
-  PHYSICAL: '实体周边',
 }
 
 function VirtualChipIcon() {
@@ -50,7 +51,7 @@ export function ProductKindMark({ kind, className }: ProductKindMarkProps) {
       )}
     >
       {kind === 'VIRTUAL' ? <VirtualChipIcon /> : <PhysicalCrateIcon />}
-      <span>{KIND_COPY[kind]}</span>
+      <span>{PRODUCT_KIND_LABEL[kind]}</span>
     </span>
   )
 }

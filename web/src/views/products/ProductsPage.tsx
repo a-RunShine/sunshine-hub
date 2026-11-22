@@ -3,7 +3,8 @@ import { getCategories, getProducts, type Category, type ProductKind, type Produ
 import { ActionButton } from '@/components/common/ActionButton'
 import { PageState } from '@/components/common/PageState'
 import { SectionHeader } from '@/components/common/SectionHeader'
-import { PRODUCT_KIND_LABEL, ProductCard } from '@/components/product/ProductCard'
+import { ProductCard } from '@/components/product/ProductCard'
+import { PRODUCT_KIND_LABEL } from '@/components/product/ProductKindMark'
 import { useResource } from '@/hooks/useResource'
 import { cn } from '@/lib/utils'
 
@@ -15,18 +16,13 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ProductKind | undefined; label: strin
   { value: 'PHYSICAL', label: PRODUCT_KIND_LABEL.PHYSICAL },
 ]
 
-/** 前端过渡期快速定位关键词（后端全库 keyword 与原型字段由 #80 接手）。 */
-const QUICK_SUBJECT_KEYWORDS = ['磁轨', '冲锋枪', '暗夜猎手', '手办', '队服'] as const
-
 function countActiveFunnelOptions(
   selectedKind: ProductKind | undefined,
   onlyLimited: boolean,
-  quickKeyword: string | null,
 ): number {
   let count = 0
   if (selectedKind !== undefined) count += 1
   if (onlyLimited) count += 1
-  if (quickKeyword !== null) count += 1
   return count
 }
 
@@ -34,12 +30,8 @@ function matchesLocalFilter(
   product: ProductSummary,
   query: string,
   onlyLimited: boolean,
-  quickKeyword: string | null,
 ): boolean {
   if (onlyLimited && !product.limited) return false
-  if (quickKeyword && !product.name.toLowerCase().includes(quickKeyword.toLowerCase())) {
-    return false
-  }
   const normalized = query.trim().toLowerCase()
   if (!normalized) return true
   return (
@@ -48,17 +40,25 @@ function matchesLocalFilter(
   )
 }
 
+function funnelOptionClass(active: boolean): string {
+  return cn(
+    'rounded-[2px] border px-3 py-1 text-[13px] transition-colors',
+    active
+      ? 'border-accent bg-accent/[0.1] font-semibold text-accent'
+      : 'border-line bg-ink-950 text-[#c4cac6] hover:border-[#3c4640] hover:text-foreground',
+  )
+}
+
 /**
  * 全部商品目录页（/products · R4-B 混合陈列）：
  * - 默认第 1 页且无筛选/搜索时启用「顶 2 排非对称 + 第 4 件起三列对称（末尾左对齐）」；
  * - 任一分类、漏斗筛选、搜索词激活或翻页后切换为规整三列对称网格，便于横向对比；
- * - categoryId / kind 直接驱动 `/api/products`；搜索与限量筛选在 #80 落契约前作本页即时过滤。
+ * - categoryId / kind 直接驱动 `/api/products`；搜索与限量筛选在 #80 落契约前作当前页过滤。
  */
 export default function ProductsPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(undefined)
   const [selectedKind, setSelectedKind] = useState<ProductKind | undefined>(undefined)
   const [onlyLimited, setOnlyLimited] = useState(false)
-  const [quickKeyword, setQuickKeyword] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [funnelOpen, setFunnelOpen] = useState(false)
   const [page, setPage] = useState(1)
@@ -89,7 +89,6 @@ export default function ProductsPage() {
     setSelectedCategoryId(undefined)
     setSelectedKind(undefined)
     setOnlyLimited(false)
-    setQuickKeyword(null)
     setSearchQuery('')
     setPage(1)
   }
@@ -97,20 +96,25 @@ export default function ProductsPage() {
   const pageData = products.state.status === 'ready' ? products.state.data : null
   const visibleItems = useMemo(() => {
     if (!pageData) return []
-    return pageData.items.filter((item) =>
-      matchesLocalFilter(item, searchQuery, onlyLimited, quickKeyword),
-    )
-  }, [pageData, searchQuery, onlyLimited, quickKeyword])
+    return pageData.items.filter((item) => matchesLocalFilter(item, searchQuery, onlyLimited))
+  }, [pageData, searchQuery, onlyLimited])
 
-  const hasLocalNarrowing =
-    onlyLimited || quickKeyword !== null || searchQuery.trim().length > 0
-  const activeFunnelCount = countActiveFunnelOptions(selectedKind, onlyLimited, quickKeyword)
+  const hasLocalNarrowing = onlyLimited || searchQuery.trim().length > 0
+  const activeFunnelCount = countActiveFunnelOptions(selectedKind, onlyLimited)
   const hasAnyFilter =
     selectedCategoryId !== undefined || activeFunnelCount > 0 || searchQuery.trim().length > 0
   const totalPages = pageData ? Math.max(1, Math.ceil(pageData.total / pageData.size)) : 1
 
-  const isHybridDefault =
-    !hasAnyFilter && page === 1 && visibleItems.length >= 4
+  const isHybridDefault = !hasAnyFilter && page === 1 && visibleItems.length >= 4
+
+  const summaryLabel = (() => {
+    if (!pageData) return ''
+    if (!hasLocalNarrowing) return `共 ${pageData.total} 件`
+    if (pageData.total > pageData.size) {
+      return `第 ${page} 页命中 ${visibleItems.length} 件（当前仅筛本页）`
+    }
+    return `当前页命中 ${visibleItems.length} 件（共 ${pageData.total} 件）`
+  })()
 
   return (
     <div>
@@ -147,10 +151,7 @@ export default function ProductsPage() {
         }
       />
 
-      <section
-        aria-label="筛选条件"
-        className="mb-6 border-b border-line pb-1"
-      >
+      <section aria-label="筛选条件" className="mb-6 border-b border-line pb-1">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0 flex-1">
             {categories.state.status === 'loading' && <PageState variant="loading" />}
@@ -213,9 +214,7 @@ export default function ProductsPage() {
           <div className="flex shrink-0 items-center gap-4 pb-1">
             {pageData && (
               <span className="text-[13px] font-medium tabular-nums text-[#c4cac6]" aria-live="polite">
-                {hasLocalNarrowing
-                  ? `当前页命中 ${visibleItems.length} 件（共 ${pageData.total} 件）`
-                  : `共 ${pageData.total} 件`}
+                {summaryLabel}
               </span>
             )}
 
@@ -252,7 +251,7 @@ export default function ProductsPage() {
         {funnelOpen && (
           <div
             id="products-funnel-panel"
-            className="mt-3 grid grid-cols-1 gap-5 border-t border-line bg-[#111513] px-5 py-4 md:grid-cols-3"
+            className="mt-3 grid grid-cols-1 gap-5 border-t border-line bg-[#111513] px-5 py-4 md:grid-cols-[1fr_1fr_auto]"
           >
             <div>
               <div className="mb-2 text-[13px] font-semibold tracking-[0.04em] text-[#c4cac6]">商品形态</div>
@@ -265,12 +264,7 @@ export default function ProductsPage() {
                       type="button"
                       aria-pressed={active}
                       onClick={() => selectKind(option.value)}
-                      className={cn(
-                        'rounded-[2px] border px-3 py-1 text-[13px] transition-colors',
-                        active
-                          ? 'border-accent bg-accent/[0.1] font-semibold text-accent'
-                          : 'border-line bg-ink-950 text-muted hover:border-[#3c4640] hover:text-foreground',
-                      )}
+                      className={funnelOptionClass(active)}
                     >
                       {option.label}
                     </button>
@@ -286,12 +280,7 @@ export default function ProductsPage() {
                   type="button"
                   aria-pressed={!onlyLimited}
                   onClick={() => setOnlyLimited(false)}
-                  className={cn(
-                    'rounded-[2px] border px-3 py-1 text-[13px] transition-colors',
-                    !onlyLimited
-                      ? 'border-accent bg-accent/[0.1] font-semibold text-accent'
-                      : 'border-line bg-ink-950 text-muted hover:border-[#3c4640] hover:text-foreground',
-                  )}
+                  className={funnelOptionClass(!onlyLimited)}
                 >
                   全部属性
                 </button>
@@ -299,54 +288,20 @@ export default function ProductsPage() {
                   type="button"
                   aria-pressed={onlyLimited}
                   onClick={() => setOnlyLimited(true)}
-                  className={cn(
-                    'rounded-[2px] border px-3 py-1 text-[13px] transition-colors',
-                    onlyLimited
-                      ? 'border-accent bg-accent/[0.1] font-semibold text-accent'
-                      : 'border-line bg-ink-950 text-muted hover:border-[#3c4640] hover:text-foreground',
-                  )}
+                  className={funnelOptionClass(onlyLimited)}
                 >
                   仅看限量
                 </button>
               </div>
             </div>
 
-            <div className="flex flex-col justify-between gap-3">
-              <div>
-                <div className="mb-2 text-[13px] font-semibold tracking-[0.04em] text-[#c4cac6]">
-                  快捷关键词定位
-                </div>
-                <div role="group" aria-label="快捷关键词" className="flex flex-wrap gap-2">
-                  {QUICK_SUBJECT_KEYWORDS.map((keyword) => {
-                    const active = quickKeyword === keyword
-                    return (
-                      <button
-                        key={keyword}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => setQuickKeyword(active ? null : keyword)}
-                        className={cn(
-                          'rounded-[2px] border px-3 py-1 text-[13px] transition-colors',
-                          active
-                            ? 'border-accent bg-accent/[0.1] font-semibold text-accent'
-                            : 'border-line bg-ink-950 text-[#c4cac6] hover:border-[#3c4640] hover:text-foreground',
-                        )}
-                      >
-                        {keyword}
-                      </button>
-                    )
-                  })}
-                </div>
+            {hasAnyFilter && (
+              <div className="flex items-end justify-end">
+                <ActionButton intent="link" onClick={resetAllFilters}>
+                  清空全部筛选
+                </ActionButton>
               </div>
-
-              {hasAnyFilter && (
-                <div className="flex justify-end">
-                  <ActionButton intent="link" onClick={resetAllFilters}>
-                    清空全部筛选
-                  </ActionButton>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         )}
       </section>
@@ -373,10 +328,7 @@ export default function ProductsPage() {
         {pageData && visibleItems.length > 0 && (
           <>
             {isHybridDefault ? (
-              <div
-                key={`hybrid-${page}`}
-                className="catalog-enter flex flex-col gap-6"
-              >
+              <div key={`hybrid-${page}`} className="catalog-enter flex flex-col gap-6">
                 <ProductCard product={visibleItems[0]} variant="lead" />
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-[7fr_5fr]">
@@ -395,7 +347,7 @@ export default function ProductsPage() {
               </div>
             ) : (
               <div
-                key={`${selectedCategoryId ?? 'all'}-${selectedKind ?? 'all'}-${onlyLimited}-${quickKeyword ?? 'none'}-${searchQuery}-${page}`}
+                key={`${selectedCategoryId ?? 'all'}-${selectedKind ?? 'all'}-${onlyLimited}-${searchQuery}-${page}`}
                 className="catalog-enter grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
               >
                 {visibleItems.map((product) => (
