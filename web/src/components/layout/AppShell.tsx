@@ -9,17 +9,27 @@ import { BrandMark } from '@/components/BrandMark'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
-  { to: '/', label: '首页' },
-  { to: '/orders', label: '我的订单' },
-  { to: '/items', label: '道具库' },
-  { to: '/fulfillments', label: '履约单' },
+  { to: '/', label: '首页', end: true },
+  { to: '/products', label: '全部军需', end: false },
+  { to: '/orders', label: '我的订单', end: false },
+  { to: '/items', label: '道具库', end: false },
+  { to: '/fulfillments', label: '履约单', end: false },
 ] as const
 
+interface AppShellProps {
+  readonly children: ReactNode
+  /**
+   * `default`：带居中容器与左右内边距的标准内页；
+   * `full-bleed`：铺满视口宽度的沉浸页面（如首页满屏海报）。
+   */
+  readonly layout?: 'default' | 'full-bleed'
+}
+
 /**
- * 应用外壳：顶部导航 + 品牌位 + 登录 / 退出入口，包裹页面 children。
+ * 应用外壳：顶部吸顶导航 + 品牌位 + 登录 / 退出入口，包裹页面 children。
  * 登录态直接读 useAuth；外壳不发业务请求，会话恢复沿用 App.tsx 的 restoreSession。
  */
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, layout = 'default' }: AppShellProps) {
   const me = useAuth((state) => state.me)
   const setMe = useAuth((state) => state.setMe)
   const setStatus = useAuth((state) => state.setStatus)
@@ -41,27 +51,31 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-ink-950 text-foreground">
-      <header className="border-b border-line">
-        <div className="mx-auto flex h-[72px] w-full max-w-[1200px] items-center gap-7 px-8">
-          <div className="flex min-w-[190px] items-center gap-3">
-            <BrandMark size={18} className="text-accent" />
-            <div>
-              <div className="font-mono text-[14px] font-bold tracking-[.18em] text-foreground">
-                SUNSHINE
-              </div>
-              <div className="text-[11px] tracking-[.14em] text-faint">FPS / 军需站</div>
+      <header className="sticky top-0 z-40 border-b border-[#222825] bg-[#0c0e0d]/[0.96] backdrop-blur-md">
+        <div className="mx-auto flex h-[64px] w-full max-w-[1360px] items-center justify-between gap-6 px-[clamp(20px,4vw,48px)] max-[860px]:h-auto max-[860px]:min-h-[64px] max-[860px]:flex-wrap max-[860px]:gap-x-3 max-[860px]:gap-y-0 max-[860px]:pt-2.5">
+          <Link to="/" className="flex shrink-0 items-center gap-3 text-foreground max-[860px]:order-1">
+            <BrandMark size={20} className="text-accent" />
+            <div className="flex flex-col leading-[1.15]">
+              <span className="text-[13px] font-bold tracking-[.16em] text-foreground">SUNSHINE</span>
+              <span className="mt-0.5 text-[12px] tracking-[.04em] text-muted">FPS 军需站</span>
             </div>
-          </div>
+          </Link>
 
-          <nav className="flex items-center gap-6">
+          <nav
+            aria-label="主导航"
+            className="flex h-full items-stretch gap-[clamp(18px,2.6vw,34px)] max-[860px]:order-3 max-[860px]:mt-1.5 max-[860px]:h-[42px] max-[860px]:w-full max-[860px]:gap-5 max-[860px]:overflow-x-auto max-[860px]:border-t max-[860px]:border-[#1b201e]"
+          >
             {NAV_ITEMS.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
+                end={item.end}
                 className={({ isActive }) =>
                   cn(
-                    'relative py-1.5 text-[12px] tracking-wide transition-colors',
-                    isActive ? 'text-foreground' : 'text-muted hover:text-foreground',
+                    'relative inline-flex h-full shrink-0 items-center whitespace-nowrap px-0.5 text-[14px] transition-colors max-[860px]:text-[13px]',
+                    isActive
+                      ? 'font-semibold text-foreground'
+                      : 'font-medium text-muted hover:text-foreground',
                   )
                 }
               >
@@ -75,27 +89,27 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-3 font-mono text-[11px] text-muted">
+          <div className="flex shrink-0 items-center gap-3 text-[13px] text-muted max-[860px]:order-2 max-[860px]:ml-auto">
             {me === null ? (
               <Link
                 to={buildLoginUrl(location)}
                 className={buttonVariants({
                   variant: 'ghost',
                   size: 'sm',
-                  className: 'hover:bg-ink-800 hover:text-foreground',
+                  className: 'h-8 px-2 text-[13px] text-muted hover:bg-ink-800 hover:text-foreground',
                 })}
               >
                 登录
               </Link>
             ) : (
               <>
-                <span className="text-foreground">{me.username}</span>
-                <span className="text-faint">/</span>
+                <span className="font-mono text-[13px] text-foreground">{me.username}</span>
+                <span className="h-3 w-px bg-line" aria-hidden="true" />
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="hover:bg-ink-800 hover:text-foreground"
+                  className="h-8 px-2 text-[13px] text-muted hover:bg-ink-800 hover:text-foreground"
                   disabled={loggingOut}
                   onClick={() => void onLogout()}
                 >
@@ -107,7 +121,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1200px] px-8 pb-10">{children}</main>
+      {layout === 'full-bleed' ? (
+        <main className="w-full">{children}</main>
+      ) : (
+        <main className="mx-auto w-full max-w-[1360px] px-[clamp(20px,4vw,48px)] pb-16 pt-8">
+          {children}
+        </main>
+      )}
     </div>
   )
 }

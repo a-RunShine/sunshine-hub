@@ -4,18 +4,18 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 商城是暗色调，比 shadcn 默认的中性灰更偏冷
+        // 商城方向 C 暗绿黑调色板，与 :root CSS 变量对齐
         ink: {
-          950: '#0b0d12',
-          900: '#121620',
-          800: '#1a2030',
-          700: '#242c40',
+          950: '#0c0e0d',
+          900: '#131615',
+          800: '#151917',
+          700: '#1e2421',
         },
-        // 弱文字与分组描边：弱文字统一提到 #7e8798，比原型的 #5d6678 对比度更够
-        muted: '#8c94a6',
-        faint: '#7e8798',
-        line: '#242c40',
-        'line-2': '#323c55',
+        // 弱文字与分组描边：对比度不低于 WCAG AA，正文视觉元素 >= 12px
+        muted: '#9da39f',
+        faint: '#b2b8b3',
+        line: '#252b28',
+        'line-2': '#363f3b',
         danger: '#e05a4f',
         // shadcn 件按 CSS 变量取色；变量值在 src/index.css 的 :root 映射到上方令牌
         background: 'hsl(var(--background) / <alpha-value>)',

@@ -16,14 +16,39 @@ export function formatPrice(cents: number): string {
 interface PriceProps {
   /** 整数分。 */
   readonly cents: number
+  /**
+   * `default`：卡片常规价；`hero`：手风琴展开底栏大号价；`compact`：收起导轨单价（无后缀）。
+   */
+  readonly variant?: 'default' | 'hero' | 'compact'
 }
 
-/** 价格展示：18px mono accent 主数字 + 11px weak 后缀；不接收分以外的换算结果。 */
-export function Price({ cents }: PriceProps) {
+/** 价格展示：只在展示处按分转元；按场景提供三档层级，不接收分以外的换算结果。 */
+export function Price({ cents, variant = 'default' }: PriceProps) {
+  const formatted = formatPrice(cents)
+
+  if (variant === 'compact') {
+    return (
+      <span className="whitespace-nowrap text-[13px] font-semibold leading-none tabular-nums text-muted">
+        {formatted}
+      </span>
+    )
+  }
+
+  if (variant === 'hero') {
+    return (
+      <span className="inline-flex items-baseline gap-1 whitespace-nowrap tabular-nums">
+        <span className="text-[24px] font-bold leading-none text-foreground max-[860px]:text-[22px]">
+          {formatted}
+        </span>
+        <span className="text-[13px] font-medium text-muted">起</span>
+      </span>
+    )
+  }
+
   return (
-    <span className="inline-flex items-baseline gap-1">
-      <span className="font-mono text-[18px] leading-none text-accent">{formatPrice(cents)}</span>
-      <span className="text-[11px] text-faint">起</span>
+    <span className="inline-flex items-baseline gap-1 whitespace-nowrap tabular-nums">
+      <span className="font-mono text-[18px] leading-none text-foreground">{formatted}</span>
+      <span className="text-[12px] text-muted">起</span>
     </span>
   )
 }

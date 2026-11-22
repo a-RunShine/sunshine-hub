@@ -54,10 +54,10 @@ describe('ProductCard 限量标记与跳转', () => {
     expect(screen.getByText('暗夜猎手 限定皮肤').closest('a')).toHaveAttribute('href', '/products/1')
   })
 
-  it('常规商品渲染「常规」badge，整卡链接指向 /products/:id', () => {
+  it('常规商品不贴标签，整卡链接指向 /products/:id', () => {
     renderCard(regularProduct)
 
-    expect(screen.getByText('常规')).toBeInTheDocument()
+    expect(screen.queryByText('常规')).not.toBeInTheDocument()
     expect(screen.queryByText('限量')).not.toBeInTheDocument()
     expect(screen.getByText('赛季队服').closest('a')).toHaveAttribute('href', '/products/3')
   })

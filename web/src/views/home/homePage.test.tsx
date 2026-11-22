@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -10,15 +10,13 @@ import { AppShell } from '@/components/layout/AppShell'
 import HomePage from './HomePage'
 
 /**
- * 首页边界测试：打在 MSW HTTP 边界与可见行为上——导航、分类筛选、卡片跳转、
- * 三态与重试、登录 / 退出入口。空 / 错误场景在测试内 resetHandlers 覆盖，
- * 不改共享成功种子；不断言 hook 内部状态与请求时机。
+ * 首页边界测试：打在 MSW HTTP 边界与可见行为上——导航、首屏抢购海报与中文倒计时、
+ * 第二屏水平手风琴切换、卡片与查看全部跳转、三态与重试、登录 / 退出入口。
  */
 
 const server = setupServer(...createHandlers())
 
 const productUrls: string[] = []
-const categoryUrls: string[] = []
 const upcomingUrls: string[] = []
 const logoutCalls: string[] = []
 
@@ -27,7 +25,6 @@ beforeAll(() => {
   server.events.on('request:start', ({ request }) => {
     const url = new URL(request.url)
     if (url.pathname === '/api/products') productUrls.push(url.search)
-    if (url.pathname === '/api/categories') categoryUrls.push(url.search)
     if (url.pathname === '/api/campaigns/upcoming') upcomingUrls.push(request.method)
     if (url.pathname === '/api/auth/logout') logoutCalls.push(request.method)
   })
@@ -36,7 +33,6 @@ beforeAll(() => {
 beforeEach(() => {
   server.resetHandlers(...createHandlers())
   productUrls.length = 0
-  categoryUrls.length = 0
   upcomingUrls.length = 0
   logoutCalls.length = 0
   useAuth.setState({ me: null, status: 'uninitialized' })
@@ -59,7 +55,15 @@ function renderHome(children?: ReactNode) {
   return render(
     <MemoryRouter initialEntries={['/']}>
       <Routes>
-        <Route path="/" element={<AppShell><HomePage /></AppShell>} />
+        <Route
+          path="/"
+          element={
+            <AppShell layout="full-bleed">
+              <HomePage />
+            </AppShell>
+          }
+        />
+        <Route path="/products" element={<ProbeLocation />} />
         <Route path="/products/:productId" element={<ProbeLocation />} />
         <Route path="/campaigns/:campaignId" element={<ProbeLocation />} />
       </Routes>
@@ -78,7 +82,7 @@ const TWO_UPCOMING = {
       productId: 1,
       productName: '暗夜猎手 限定皮肤',
       startAt: new Date(Date.now() + 3600_000).toISOString(),
-      coverUrl: '',
+      coverUrl: '/assets/rifle-trim.png',
     },
     {
       id: 2,
@@ -93,92 +97,107 @@ const TWO_UPCOMING = {
 }
 
 describe('S1 首页渲染与数据映射', () => {
-  it('导航四项可见，分类 / 商品 / 场次文案与价格来自接口响应', async () => {
+  it('顶栏五项可见，首屏海报、中文倒计时与第二屏 5 件手风琴展柜来自接口响应', async () => {
     renderHome()
 
-    await screen.findByRole('heading', { name: '暗夜猎手 限定皮肤' })
+    await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
 
     expect(screen.getByRole('link', { name: '首页' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: '全部军需' })).toHaveAttribute('href', '/products')
     expect(screen.getByRole('link', { name: '我的订单' })).toHaveAttribute('href', '/orders')
     expect(screen.getByRole('link', { name: '道具库' })).toHaveAttribute('href', '/items')
     expect(screen.getByRole('link', { name: '履约单' })).toHaveAttribute('href', '/fulfillments')
 
-    // 分类名来自 /categories，不硬编码
-    for (const name of ['武器皮肤', '角色皮肤', '徽章', '手办', '服饰']) {
-      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    // 首屏限时抢购海报与中文基线倒计时
+    expect(screen.getByRole('heading', { name: '暗夜猎手 首发' })).toBeInTheDocument()
+    const timer = screen.getByRole('timer', { name: '距离开售倒计时' })
+    expect(within(timer).getByText('时')).toBeInTheDocument()
+    expect(within(timer).getByText('分')).toBeInTheDocument()
+    expect(within(timer).getByText('秒')).toBeInTheDocument()
+    expect(screen.queryByText('HOURS')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /查看场次/ })).toHaveAttribute('href', '/campaigns/1')
+    expect(screen.getByText(/开售/)).toBeInTheDocument()
+
+    // 第二屏精选军需（无分类 Tab，右上查看全部入口）与 5 件手风琴切片
+    expect(screen.getByRole('heading', { name: '精选军需' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /查看全部/ })).toHaveAttribute('href', '/products')
+    expect(productUrls.some((q) => q.includes('size=5'))).toBe(true)
+
+    for (const name of [
+      '幽影长弓 磁轨狙击',
+      '疾风原型 战术冲锋枪',
+      '暗夜猎手 限定皮肤',
+      '破晓之环 典藏手办',
+      '赛季队服',
+    ]) {
+      expect(screen.getByRole('heading', { name })).toBeInTheDocument()
     }
-
-    // 商品名 / 价格 / 限量标记来自 /products（商品名按商品卡标题定位，避开右栏场次卡的关联商品名）
-    expect(screen.getByRole('heading', { name: '暗夜猎手 限定皮肤' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '破晓之环 典藏手办' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '赛季队服' })).toBeInTheDocument()
-    expect(screen.getByText('¥128')).toBeInTheDocument()
-    expect(screen.getByText('¥599')).toBeInTheDocument()
-    expect(screen.getByText('¥199')).toBeInTheDocument()
-    expect(screen.getAllByText('限量')).toHaveLength(2)
-    expect(screen.getByText('常规')).toBeInTheDocument()
-
-    // 场次名 / 开售时刻来自 /campaigns/upcoming（hero 标题与侧栏标题各一处）
-    expect(screen.getAllByText('暗夜猎手 首发').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText(/开售/).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('¥168').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('¥88').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('¥128').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('¥599').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('¥199').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('商品卡链接指向 /products/:id，场次卡链接指向 /campaigns/:id', async () => {
+  it('多场未开售时在第二屏下方渲染其余场次卡并指向 /campaigns/:id', async () => {
     server.use(http.get('/api/campaigns/upcoming', () => HttpResponse.json(TWO_UPCOMING)))
     renderHome()
 
     await screen.findByText('破晓之环 返场')
-
-    const productCard = screen.getByRole('heading', { name: '暗夜猎手 限定皮肤' }).closest('a')
-    expect(productCard).toHaveAttribute('href', '/products/1')
-
     const campaignCard = screen.getByText('破晓之环 返场').closest('a')
     expect(campaignCard).toHaveAttribute('href', '/campaigns/2')
   })
 })
 
-describe('S2 分类筛选', () => {
-  it('点分类 chip 后 /products 带对应 categoryId；点「全部」时不带该参数', async () => {
+describe('S2 手风琴切换与页面跳转', () => {
+  it('默认展开第一项，点击或键盘方向键可切换展开项，点查看详情进 /products/:id', async () => {
     renderHome()
-    await screen.findByRole('heading', { name: '暗夜猎手 限定皮肤' })
+    await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
 
-    fireEvent.click(screen.getByRole('button', { name: '手办' }))
-    await waitFor(() => expect(productUrls.some((q) => q.includes('categoryId=4'))).toBe(true))
-    await screen.findByRole('heading', { name: '破晓之环 典藏手办' })
-    expect(screen.queryByRole('heading', { name: '暗夜猎手 限定皮肤' })).not.toBeInTheDocument()
+    const slice1 = screen.getByRole('heading', { name: '幽影长弓 磁轨狙击' }).closest('article')!
+    const slice2 = screen.getByRole('heading', { name: '疾风原型 战术冲锋枪' }).closest('article')!
+    expect(slice1).toHaveAttribute('aria-expanded', 'true')
+    expect(slice2).toHaveAttribute('aria-expanded', 'false')
 
-    fireEvent.click(screen.getByRole('button', { name: '全部' }))
-    await waitFor(() => expect(productUrls.some((q) => q === '')).toBe(true))
-    await screen.findByRole('heading', { name: '暗夜猎手 限定皮肤' })
-  })
-})
+    // 点击收起项：只展开不直接跳走
+    fireEvent.click(slice2)
+    expect(slice2).toHaveAttribute('aria-expanded', 'true')
+    expect(slice1).toHaveAttribute('aria-expanded', 'false')
 
-describe('S3 / S4 卡片跳转', () => {
-  it('点商品卡进入商品详情路由', async () => {
-    server.use(http.get('/api/campaigns/upcoming', () => HttpResponse.json(TWO_UPCOMING)))
-    renderHome()
-    await screen.findByText('破晓之环 返场')
+    // 键盘右键切到第三项
+    fireEvent.keyDown(slice2, { key: 'ArrowRight' })
+    const slice3 = screen.getByRole('heading', { name: '暗夜猎手 限定皮肤' }).closest('article')!
+    expect(slice3).toHaveAttribute('aria-expanded', 'true')
 
-    fireEvent.click(screen.getByRole('heading', { name: '暗夜猎手 限定皮肤' }).closest('a')!)
+    // 点击已展开项里的「查看详情 →」跳转到对应详情路由
+    fireEvent.click(within(slice3).getByRole('link', { name: /查看详情/ }))
     await screen.findByTestId('probe')
     expect(screen.getByTestId('probe').textContent).toBe('/products/1')
   })
 
-  it('点场次卡进入抢购路由', async () => {
-    server.use(http.get('/api/campaigns/upcoming', () => HttpResponse.json(TWO_UPCOMING)))
+  it('点「查看全部 →」进入 /products', async () => {
     renderHome()
-    await screen.findByText('破晓之环 返场')
+    await screen.findByRole('heading', { name: '精选军需' })
 
-    fireEvent.click(screen.getByText('破晓之环 返场').closest('a')!)
+    fireEvent.click(screen.getByRole('link', { name: /查看全部/ }))
     await screen.findByTestId('probe')
-    expect(screen.getByTestId('probe').textContent).toBe('/campaigns/2')
+    expect(screen.getByTestId('probe').textContent).toBe('/products')
+  })
+
+  it('点首屏「查看场次 →」进入 /campaigns/1', async () => {
+    renderHome()
+    await screen.findByRole('heading', { name: '暗夜猎手 首发' })
+
+    fireEvent.click(screen.getByRole('link', { name: /查看场次/ }))
+    await screen.findByTestId('probe')
+    expect(screen.getByTestId('probe').textContent).toBe('/campaigns/1')
   })
 })
 
-describe('S5 三态与重试', () => {
-  it('商品列表空数组时渲染空态与 BrandMark', async () => {
+describe('S3 三态与重试', () => {
+  it('精选商品空数组时渲染空态与 BrandMark', async () => {
     server.use(
-      http.get('/api/products', () => HttpResponse.json({ items: [], page: 1, size: 20, total: 0 })),
+      http.get('/api/products', () => HttpResponse.json({ items: [], page: 1, size: 5, total: 0 })),
     )
     renderHome()
 
@@ -186,7 +205,7 @@ describe('S5 三态与重试', () => {
     expect(document.querySelector('svg')).not.toBeNull()
   })
 
-  it('商品列表 500：错误文案 + 重试按钮，点击后重新请求', async () => {
+  it('精选商品 500：错误文案 + 重试按钮，点击后重新请求', async () => {
     server.use(
       http.get('/api/products', () =>
         HttpResponse.json({ code: 'INTERNAL_ERROR', message: '服务出了点问题，稍后再试' }, { status: 500 }),
@@ -202,7 +221,7 @@ describe('S5 三态与重试', () => {
     await waitFor(() => expect(productUrls.length).toBeGreaterThan(before))
   })
 
-  it('分类 500：错误态可重试，对应请求重新发出', async () => {
+  it('分类接口 500 时不影响首页精选手风琴展示', async () => {
     server.use(
       http.get('/api/categories', () =>
         HttpResponse.json({ code: 'INTERNAL_ERROR', message: '分类拉取失败' }, { status: 500 }),
@@ -210,22 +229,16 @@ describe('S5 三态与重试', () => {
     )
     renderHome()
 
-    const retry = await screen.findByRole('button', { name: '重试' })
-    expect(screen.getByText('分类拉取失败')).toBeInTheDocument()
-
-    const before = categoryUrls.length
-    fireEvent.click(retry)
-    await waitFor(() => expect(categoryUrls.length).toBeGreaterThan(before))
+    await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
+    expect(screen.queryByText('分类拉取失败')).not.toBeInTheDocument()
   })
-})
 
-describe('S5b 即将开售区块三态', () => {
   it('upcoming 挂起时展示加载态，不渲染场次内容', async () => {
     server.use(http.get('/api/campaigns/upcoming', () => new Promise(() => {})))
     renderHome()
 
     await screen.findByText('正在加载…')
-    expect(screen.queryByText('暗夜猎手 首发')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '暗夜猎手 首发' })).not.toBeInTheDocument()
   })
 
   it('upcoming 空数组时渲染空态与 BrandMark', async () => {
@@ -260,10 +273,10 @@ describe('S5b 即将开售区块三态', () => {
   })
 })
 
-describe('S7 登录态入口', () => {
+describe('S4 登录态入口', () => {
   it('未登录显示登录链接，href 带 next 回跳路径', async () => {
     renderHome()
-    await screen.findByText('暗夜猎手 限定皮肤')
+    await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
 
     const login = screen.getByRole('link', { name: '登录' })
     expect(decodeURIComponent(login.getAttribute('href')!)).toBe('/login?next=/')

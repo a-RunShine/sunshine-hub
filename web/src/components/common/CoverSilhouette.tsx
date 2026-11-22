@@ -8,7 +8,7 @@ export type SilhouetteVariant = 'weapon' | 'figure' | 'shirt' | 'box'
  * 武器为半实心步枪侧影（枪托 / 机匣 / 弹匣 / 护木枪管），不用细线硬画细节；
  * coverUrl 有值时由卡片自己放图。
  */
-const SILHOUETTE_CLASS = 'h-[64px] w-auto text-[#3d4a66]'
+const SILHOUETTE_CLASS = 'h-[64px] w-auto text-[#4f5954]'
 
 export function CoverSilhouette({ variant, className }: { variant: SilhouetteVariant; className?: string }) {
   if (variant === 'shirt') {
@@ -26,7 +26,7 @@ export function CoverSilhouette({ variant, className }: { variant: SilhouetteVar
     )
   }
   return (
-    <svg viewBox="0 0 64 22" fill="currentColor" aria-hidden="true" className={cn('h-[64px] w-[206px] text-[#3d4a66]', className)}>
+    <svg viewBox="0 0 64 22" fill="currentColor" aria-hidden="true" className={cn('h-[64px] w-[206px] text-[#4f5954]', className)}>
       {/* 枪托 + 机匣 + 握把 + 弹匣 + 护木枪管 */}
       <path d="M2 8.2 5.2 16 11 16 11 12 13.2 12 12.6 18.2 15.6 18.2 17 12 22 12 23 19.2 26.2 19.2 27.2 12 33 12 33 10.6 61 10.6 61 8.4 33 8.4 33 7 11 7 11 8.2Z" />
       {/* 后瞄具 */}
