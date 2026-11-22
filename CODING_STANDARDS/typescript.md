@@ -89,7 +89,7 @@ Zustand 只放真正的客户端状态：登录态、从哪来的跳转参数、
 
 直接改源码的代价出现在下次加新组件的时候：CLI 会覆盖同名文件，你的改动静默消失。
 
-*Enforced by*: `scripts/check-ui-primitives.mjs`（`pnpm ui:check`，已接入 `pnpm check` 与 CI）校验 `src/components/ui/` 全部 `.ts`/`.tsx` 文件的 SHA-256 校验和；ESLint 同步禁止该目录导入业务模块或引入项目设计类名。需要新增或升级官方原语后通过 `pnpm ui:sync` 更新清单，review 核对变更合理性。
+*Enforced by*: `scripts/check-ui-primitives.mjs`（`pnpm ui:check`，已接入 `pnpm check` 与 CI）校验 `src/components/ui/` 下源码与资源文件的 SHA-256 校验和并拦截符号链接；ESLint 同步禁止该目录导入业务模块、跨目录相对导入或引入项目设计类名。需要新增或升级官方原语后通过 `pnpm ui:sync` 更新清单，review 核对变更合理性。
 
 ---
 

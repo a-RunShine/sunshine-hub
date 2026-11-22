@@ -11,6 +11,8 @@
 > **2026-11-17 基准更新（`b987a6f`）**：PR #33（merge commit `b987a6f`，2026-11-17T02:21:29Z，来源 https://github.com/a-RunShine/sunshine-hub/pull/33 ）合并，**本页行号基准改为 `main` = `b987a6f`**；承载的 Issue #31（"chore: 文档链接加机器检查，别再靠手搓"）于 2026-11-17T02:21:31Z 由 #33 自动关闭（来源 https://github.com/a-RunShine/sunshine-hub/issues/31 ）。**`ci.yml` 只有 contract job 位移**：job 范围 `:79-95` → **`:79-100`**，新增「扫文档相对链接与 wiki 孤儿页」一步（`:94-95`）；backend（`:9-37`）、frontend（`:39-77`）范围未动。
 >
 > **superseded**：上一条基准写「`ci.yml` 行号未位移，三个 job 仍是 `:9-37` / `:39-77` / `:79-95`」——contract 范围这半句已被 #33 打破（扩到 `:100`）；更早的 `c5b5508` 基准同样过时。
+>
+> **2026-11-22 基准更新（Issue #81，`chore/81-web-guardrails`）**：上段 `b987a6f` 基准中关于 `ci.yml` `frontend` / `contract` 范围及 `check-doc-links.mjs` 旧扫描范围的断言均 **superseded**。当前 `.github/workflows/ci.yml` 三段范围：`backend` **`:9-37`**（未位移）、`frontend` **`:39-93`**（原 `:39-77`，新增 `pnpm ui:check` `:83-85`）、`contract` **`:95-128`**（原 `:79-100`，`check-doc-links.mjs` 移至 `:110-111`，`check-glossary.sh` 移至 `:115-116`，`node --test scripts/*.test.mjs` 落在 `:127-128` 替代原 `docs-sync*.test.mjs`）。
 
 相关页：[index](index.md) · [environment](environment.md) · [workflow](workflow.md) · [open-loops](open-loops.md) · [contract-gaps](contract-gaps.md) · [decisions-2026-11-16](decisions-2026-11-16.md)
 
@@ -36,13 +38,15 @@
 - **Checkstyle** `check`（`pom.xml:210`，旧号 `:207`）：`failOnViolation=true` + `violationSeverity=warning`（`pom.xml:203-204`，旧号 `:202-203`）——**warning 级也拦**，不是只拦 error。配置在 `config/checkstyle/checkstyle.xml`。
 - **Surefire** 跑测试，版本 pin 在 `3.5.2`（`pom.xml:30`、`:166-167`，未位移）。
 
-### job `frontend`（`ci.yml:39-77`）
+### job `frontend`（~~`ci.yml:39-77`~~ → `ci.yml:39-93`）
 
-pnpm 12（`:45-47`）+ node 22（`:49-53`），依次：`install --frozen-lockfile` → `gen:types` → `tsc --noEmit` → `lint` → `test` → `build`。**六步全拦**，没有 `continue-on-error`。
+~~pnpm 12（`:45-47`）+ node 22（`:49-53`），依次：`install --frozen-lockfile` → `gen:types` → `tsc --noEmit` → `lint` → `test` → `build`。**六步全拦**，没有 `continue-on-error`。~~（superseded，见下方 2026-11-22 更新）
+
+> **2026-11-22 更新（Issue #81）**：`frontend` job 范围扩至 `ci.yml:39-93`，依次执行：`install --frozen-lockfile`（`:55-57`）→ `gen:types`（`:59-61`）→ 核对生成类型一致（`:66-73`）→ `tsc --noEmit`（`:75-77`）→ `pnpm lint`（`:79-81`）→ **`pnpm ui:check`**（`:83-85`）→ `pnpm test`（`:87-89`）→ `pnpm build`（`:91-93`），全程 blocking，本地统一入口为 `pnpm --dir web check`。新增前端静态与原语护栏见下方「前端静态与原语护栏」。
 
 `gen:types` 每次从 `api/openapi.yaml` 重生成 `src/types/api.ts`。生成物已提交，所以这一步实际在校验它有没有漂移。详见 [environment](environment.md)。
 
-### job `contract`（`ci.yml:79-100`）
+### job `contract`（~~`ci.yml:79-100`~~ → `ci.yml:95-128`）
 
 | 步骤 | 拦不拦 |
 | --- | --- |
@@ -50,13 +54,27 @@ pnpm 12（`:45-47`）+ node 22（`:49-53`），依次：`install --frozen-lockfi
 | `node scripts/check-doc-links.mjs`（`:94-95`，注释 `:92-93`） | **拦（blocking）**，2026-11-17 随 PR #33 新增，见下方「文档链接与孤儿页检查」 |
 | `./scripts/check-glossary.sh`（`:99-100`，注释 `:97-98`） | **不拦（advisory）**，而且提取本身有 bug，见下方更正条 |
 
+> **2026-11-22 更新（Issue #81）**：上表行号及原测试命令均 **superseded**。当前 `contract` job 范围为 `ci.yml:95-128`：`redocly lint` 在 `:105-106`；`node scripts/check-doc-links.mjs` 在 `:110-111`；`./scripts/check-glossary.sh` 在 `:115-116`；`./scripts/test-check-glossary.sh` 在 `:122-123`；原 `node --test scripts/docs-sync*.test.mjs` 扩展为 **`node --test scripts/*.test.mjs`**（`:127-128`），统一回归测试 `docs-sync*.test.mjs`、`check-doc-links.test.mjs` 与 `check-ui-primitives.test.mjs`。
+
+## 前端静态与原语护栏：blocking（2026-11-22，Issue #81）
+
+- **ESLint 边界与样式护栏（`web/eslint.config.js`）**：
+  - `@/types/api` 导入边界：`src/api/**/*.ts` 与 `src/mocks/**/*.{ts,tsx}` 之外禁止直接导入 `@/types/api` / `@/types/api.*` 及相对路径 `types/api`（`src/mocks/**` 放行 `@/types/api` 但仍禁止 `axios`）。
+  - 禁用旧灰度类名与 `rounded-md`：`src/views/**/*.{ts,tsx}`、`src/components/**/*.{ts,tsx}`、`src/router/**/*.{ts,tsx}`（排除 `src/components/ui/**`）在 `Literal` 与 `TemplateElement` 中禁止 Tailwind 默认灰度色板（`neutral`/`gray`/`zinc`/`slate`/`stone`，含状态前缀与方向边框、轮廓、渐变、描边填充前缀）与 `rounded-md`。
+  - `src/components/ui/**/*.{ts,tsx}` 源码锁定：禁止导入 `axios`、`react-router-dom`、`@/types/api`、`@/components/BrandMark`、`@/components/Price`、跨模块别名（`@/api/*`、`@/stores/*`、`@/hooks/*`、`@/views/*`、`@/types/*`、`@/router/*`、`@/components/*`、`@/mocks/*`、`@/lib/*` 仅放行 `@/lib/utils`）及任何 `../*` 上级相对路径；并禁止引入项目设计类名（`chamfer-cta`、`search-chamfer`、`*-ink-*`、`border-line`、`text-muted`、`text-danger`、`text-faint`）。
+- **shadcn 原语校验和守卫（`scripts/check-ui-primitives.mjs`，`pnpm --dir web ui:check`）**：
+  - 对 `web/src/components/ui/` 下除根目录白名单（`README.md`、`.gitkeep`、`.shadcn-checksums.json`）外的全部常规文件计算并比对 SHA-256（`.shadcn-checksums.json`），发现修改、删除或未登记文件即 `exit 1`，并在检测到任何符号链接时立即失败拦截。
+  - 官方新增或升级原语后跑 `pnpm --dir web ui:sync` 更新清单；脚本回归测试在 `scripts/check-ui-primitives.test.mjs`。
+
 ## 文档链接与孤儿页检查：这条是 blocking（2026-11-17，`b987a6f`）
 
 **2026-11-17 复核（基线 `b987a6f`）**：`scripts/check-doc-links.mjs`（仅用 node 标准库、零新依赖）由 **PR #33** 合入（merge commit `b987a6f`，2026-11-17T02:21:29Z），接进 contract job（`ci.yml:94-95`）；承载的 **Issue #31** 于 2026-11-17T02:21:31Z 由 #33 自动关闭。来源：PR https://github.com/a-RunShine/sunshine-hub/pull/33 、Issue https://github.com/a-RunShine/sunshine-hub/issues/31 。
 
 **命中即 `exit 1`，不做 advisory**（脚本头注释 `:4` 明写：advisory 的教训见 `check-glossary.sh` 与 issue #29）。**与术语检查正好相反**：术语护栏（#29）恒 `exit 0`、只出候选；这条断链 / 孤儿 / index 缺失任一命中就红。两者是各自独立的文档护栏，别混。
 
-**扫描范围**（脚本 `:92-96`）：`docs/**/*.md`、根目录 `AGENTS.md`、`GLOSSARY.md`（存在才收）、`CODING_STANDARDS/**/*.md`。
+**扫描范围**（~~脚本 `:92-96`~~，旧范围断言 superseded，见下方 2026-11-22 更新）：`docs/**/*.md`、根目录 `AGENTS.md`、`GLOSSARY.md`（存在才收）、`CODING_STANDARDS/**/*.md`。
+
+> **2026-11-22 更新（Issue #81）**：`scripts/check-doc-links.mjs` 扫描范围新增顶层模块根文档 `*/AGENTS.md` 与 `*/DESIGN.md`（覆盖 `web/AGENTS.md` 与 `web/DESIGN.md`，忽略 `.git`、`node_modules`、`target`、`dist`、`.oil-ui`、`scripts` 及点目录），并导出 `collectMarkdownSources`、`extractLinks`、`checkDocLinks`，回归测试在 `scripts/check-doc-links.test.mjs`。因脚本重构导出，下文「判定逻辑」与「本地复跑」中引用的 `b987a6f` 旧内部行号亦 **superseded**（现行：`maskCodeSpans` `:68-82`、`extractLinks` `:84-117`、`checkDocLinks` `:119-166`、`main` `:168-185`）。
 
 **判定逻辑**：
 

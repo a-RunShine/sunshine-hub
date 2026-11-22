@@ -17,6 +17,7 @@ const defaultRoot = resolve(join(here, '..'));
 
 export const UI_RELATIVE_DIR = join('web', 'src', 'components', 'ui');
 export const CHECKSUM_FILENAME = '.shadcn-checksums.json';
+const IGNORED_ROOT_META_FILES = new Set(['README.md', '.gitkeep', CHECKSUM_FILENAME]);
 
 function sha256File(filePath) {
   return createHash('sha256').update(readFileSync(filePath)).digest('hex');
@@ -29,13 +30,18 @@ function collectUiFiles(uiDir) {
       a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
     );
     for (const entry of entries) {
-      if (entry.name === '.git' || entry.name === 'node_modules') continue;
       const full = join(dir, entry.name);
+      const relPath = relative(uiDir, full).split(sep).join('/');
+      if (entry.isSymbolicLink()) {
+        throw new Error(`禁止在 ${UI_RELATIVE_DIR} 中放置符号链接：${relPath}`);
+      }
       if (entry.isDirectory()) {
         walk(full);
-      } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))) {
-        out.push(full);
+        continue;
       }
+      if (!entry.isFile()) continue;
+      if (dir === uiDir && IGNORED_ROOT_META_FILES.has(entry.name)) continue;
+      out.push(full);
     }
   }
   walk(uiDir);
@@ -138,7 +144,21 @@ export function verifyUiPrimitives(root = defaultRoot) {
     };
   }
 
-  const { files: actualFiles } = computeUiChecksums(resolvedRoot);
+  let actualFiles;
+  try {
+    actualFiles = computeUiChecksums(resolvedRoot).files;
+  } catch (err) {
+    return {
+      ok: false,
+      uiDir,
+      checksumPath,
+      fileCount: 0,
+      modified: [],
+      deleted: [],
+      untracked: [],
+      error: err.message,
+    };
+  }
   const expectedFiles = parsed.files;
 
   const modified = [];

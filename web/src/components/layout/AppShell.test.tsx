@@ -179,6 +179,19 @@ describe('滚动显隐与布局形态', () => {
     expect(header.className).toContain('translate-y-0')
   })
 
+  it('顶栏下滑隐藏后通过导航切换路由，恢复展示且菜单保持关闭', () => {
+    renderShell('/')
+
+    const header = document.querySelector('header')!
+    Object.defineProperty(window, 'scrollY', { value: 140, configurable: true, writable: true })
+    fireEvent.scroll(window)
+    expect(header.className).toContain('-translate-y-full')
+
+    fireEvent.click(screen.getByRole('link', { name: '全部商品' }))
+    expect(header.className).toContain('translate-y-0')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
   it('区分 layout="default" 与 layout="full-bleed" 的主容器宽度类名', () => {
     const { unmount } = renderShell('/', 'default')
     const defaultMain = screen.getByRole('main')

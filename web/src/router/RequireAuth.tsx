@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
+import { ActionButton } from '@/components/common/ActionButton'
 import { useAuth } from '@/stores/auth'
 import { buildLoginUrl } from '@/lib/redirect'
 
@@ -16,14 +17,10 @@ function RequireAuth({ children }: { children: ReactNode }) {
   if (status === 'error') {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 text-sm text-muted">
-        <p>网络异常，暂时确认不了登录状态</p>
-        <button
-          type="button"
-          className="rounded-[2px] border border-line bg-ink-900 px-4 py-2 text-foreground transition-colors hover:border-line-2"
-          onClick={() => void restoreSession()}
-        >
+        <p className="text-danger">网络异常，暂时确认不了登录状态</p>
+        <ActionButton intent="secondary" onClick={() => void restoreSession()}>
           重试
-        </button>
+        </ActionButton>
       </div>
     )
   }
