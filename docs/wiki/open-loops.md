@@ -149,6 +149,9 @@
 
 > **2026-11-20 复核（main `c55ccb6`）**：open issue 5 个。原「**2026-11-17 open issue 快照（六个）**：#2（规格，`ready-for-agent`）、#3（文档与决策审查，`needs-triage` + `docs`）、#7（实施路径，`docs`）、#27（issue 正文扫描，`needs-triage`）、#29（术语护栏修复，`needs-triage`）、#32（MSW 失败态，`needs-triage`）。契约修订 ticket 仍未开。」按历史断言保留。
 
+
+> **2026-11-22 复核（main `9658881`）**：open issue 17 个。原「**2026-11-17 open issue 快照（六个）**：#2（规格，`ready-for-agent`）、#3（文档与决策审查，`needs-triage` + `docs`）、#7（实施路径，`docs`）、#27（issue 正文扫描，`needs-triage`）、#29（术语护栏修复，`needs-triage`）、#32（MSW 失败态，`needs-triage`）。契约修订 ticket 仍未开。」按历史断言保留。
+
 ## 已知但未做（环境护栏）
 
 来自 **2026-11-16 交接记录**，属于「有偏差先修，再做功能」那一类：
