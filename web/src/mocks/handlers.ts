@@ -121,11 +121,29 @@ const discountCampaign: SimpleCampaignDetail = {
 
 const products: ProductSummary[] = [
   {
+    id: 4,
+    name: '幽影长弓 磁轨狙击',
+    kind: 'VIRTUAL',
+    categoryId: 1,
+    coverUrl: '/assets/weapon-sniper.png',
+    minPrice: 16800,
+    limited: true,
+  },
+  {
+    id: 5,
+    name: '疾风原型 战术冲锋枪',
+    kind: 'VIRTUAL',
+    categoryId: 1,
+    coverUrl: '/assets/weapon-smg.png',
+    minPrice: 8800,
+    limited: false,
+  },
+  {
     id: 1,
     name: '暗夜猎手 限定皮肤',
     kind: 'VIRTUAL',
     categoryId: 1,
-    coverUrl: '',
+    coverUrl: '/assets/rifle-trim.png',
     minPrice: 12800,
     limited: true,
   },
@@ -134,7 +152,7 @@ const products: ProductSummary[] = [
     name: '破晓之环 典藏手办',
     kind: 'PHYSICAL',
     categoryId: 4,
-    coverUrl: '',
+    coverUrl: '/assets/product-figurine.png',
     minPrice: 59900,
     limited: true,
   },
@@ -143,7 +161,7 @@ const products: ProductSummary[] = [
     name: '赛季队服',
     kind: 'PHYSICAL',
     categoryId: 5,
-    coverUrl: '',
+    coverUrl: '/assets/product-jersey.png',
     minPrice: 19900,
     limited: false,
   },
@@ -390,12 +408,18 @@ export function createHandlers(
       const url = new URL(request.url, 'http://localhost:3000')
       const kind = url.searchParams.get('kind')
       const categoryId = url.searchParams.get('categoryId')
-      let items = products
-      if (kind !== null) items = items.filter((p) => p.kind === kind)
+      const pageRaw = Number(url.searchParams.get('page') ?? '1')
+      const sizeRaw = Number(url.searchParams.get('size') ?? '20')
+      const page = Number.isInteger(pageRaw) && pageRaw >= 1 ? pageRaw : 1
+      const size = Number.isInteger(sizeRaw) && sizeRaw >= 1 ? sizeRaw : 20
+      let filtered = products
+      if (kind !== null) filtered = filtered.filter((p) => p.kind === kind)
       if (categoryId !== null) {
-        items = items.filter((p) => p.categoryId === Number(categoryId))
+        filtered = filtered.filter((p) => p.categoryId === Number(categoryId))
       }
-      return HttpResponse.json({ items, page: 1, size: 20, total: items.length })
+      const start = (page - 1) * size
+      const items = filtered.slice(start, start + size)
+      return HttpResponse.json({ items, page, size, total: filtered.length })
     }),
 
     http.get('/api/categories', () => {
@@ -650,7 +674,7 @@ export function createHandlers(
             productId: 1,
             productName: '暗夜猎手 限定皮肤',
             startAt: new Date(Date.now() + 3600_000).toISOString(),
-            coverUrl: '',
+            coverUrl: '/assets/rifle-trim.png',
           },
         ],
       }),
@@ -728,6 +752,9 @@ export function createHandlers(
     }),
 
     http.post('/api/auth/login', () => HttpResponse.json(me)),
+
+    // 登出：契约 204 无响应体；清会话由前端外壳在成功后处理。
+    http.post('/api/auth/logout', () => new HttpResponse(null, { status: 204 })),
 
     // 提交实名：成功回写最新购买人档案（realNameVerified 翻 true）；缺姓名或证件号按契约回 400。
     http.put('/api/me/real-name', async ({ request }) => {

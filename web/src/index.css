@@ -2,16 +2,318 @@
 @tailwind components;
 @tailwind utilities;
 
-/* shadcn 的 CSS 变量。只放主题色，具体组件的样式由各自组件带 */
+/* shadcn 的 CSS 变量。只放主题色与基础圆角，具体组件的样式由各自组件带；
+   三元组映射到本项目方向 C 暗绿黑 / 琥珀金 / 警示红令牌（见 tailwind.config.js）。 */
 @layer base {
   :root {
-    --background: 222 47% 5%;
-    --foreground: 210 20% 96%;
-    --border: 220 20% 18%;
-    --radius: 0.5rem;
+    --background: 150 8% 5%;
+    --foreground: 42 32% 93%;
+
+    --card: 160 7% 8%;
+    --card-foreground: 42 32% 93%;
+
+    --primary: 43 86% 55%;
+    --primary-foreground: 150 8% 5%;
+
+    --secondary: 150 9% 9%;
+    --secondary-foreground: 42 32% 93%;
+
+    --muted: 150 9% 9%;
+    --muted-foreground: 140 4% 63%;
+
+    --accent: 43 86% 55%;
+    --accent-foreground: 150 8% 5%;
+
+    --destructive: 5 70% 59%;
+    --destructive-foreground: 42 32% 93%;
+
+    --input: 150 7% 16%;
+    --ring: 43 86% 55%;
+    --border: 150 7% 16%;
+
+    --radius: 0.125rem;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    overflow-x: clip;
   }
 
   body {
-    @apply bg-ink-950 text-neutral-100;
+    overflow-x: clip;
+    @apply bg-ink-950 text-foreground;
+  }
+}
+
+/* 方向 C 斜切海报几何面与商品卡片同源斜切面 */
+.hero-diagonal-plane {
+  clip-path: polygon(59% 0, 100% 0, 100% 100%, 39% 100%);
+  background-color: #151917;
+}
+
+.hero-diagonal-plane::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      circle at 73% 38%,
+      rgba(239, 184, 41, 0.11) 0%,
+      rgba(239, 184, 41, 0.035) 32%,
+      rgba(21, 25, 23, 0) 62%
+    ),
+    linear-gradient(to top, rgba(12, 14, 13, 0.42) 0%, rgba(12, 14, 13, 0) 26%);
+}
+
+.card-facet {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-color: #161b18;
+  clip-path: polygon(48% 0, 100% 0, 100% 100%, 24% 100%);
+}
+
+.card-facet::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 66% 42%,
+    rgba(243, 239, 230, 0.055) 0%,
+    rgba(239, 184, 41, 0.025) 42%,
+    rgba(22, 27, 24, 0) 74%
+  );
+}
+
+.band-diagonal-plane {
+  background-color: #161c19;
+  clip-path: polygon(46% 0, 100% 0, 100% 100%, 36% 100%);
+}
+
+.band-diagonal-plane::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 70% 45%,
+    rgba(239, 184, 41, 0.09) 0%,
+    rgba(243, 239, 230, 0.03) 38%,
+    rgba(22, 28, 25, 0) 72%
+  );
+}
+
+/* R4-B 切角主 CTA 与搜索框切角外框 */
+.chamfer-cta {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%);
+}
+
+.search-chamfer {
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+}
+
+.studio-mask {
+  -webkit-mask-image: radial-gradient(
+    ellipse 42% 46% at 50% 50%,
+    #000 36%,
+    rgba(0, 0, 0, 0.5) 60%,
+    transparent 86%
+  );
+  mask-image: radial-gradient(
+    ellipse 42% 46% at 50% 50%,
+    #000 36%,
+    rgba(0, 0, 0, 0.5) 60%,
+    transparent 86%
+  );
+}
+
+/* 方向 C-2 水平手风琴展柜：桌面端阻尼 flex 切换，移动端切换为竖向展开 */
+.acc-stage-wrap {
+  display: flex;
+  gap: 10px;
+  height: 550px;
+  width: 100%;
+}
+
+.acc-slice {
+  position: relative;
+  flex: 0.72 1 0%;
+  min-width: 72px;
+  height: 100%;
+  border-radius: 2px;
+  border: 1px solid #252b28;
+  border-top: 3px solid #3b433f;
+  background-color: #131615;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    flex 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease;
+}
+
+/* 顶部亮琥珀导轨只表示「当前展开」；限量属性用折叠条内的小标记表达，不占导轨通道 */
+.acc-slice:not(.is-expanded):hover {
+  border-color: #363f3b;
+  border-top-color: #4f5954;
+}
+
+.acc-slice.is-expanded {
+  flex: 5.2 1 0%;
+  border-color: #303834;
+  border-top-color: #efb829;
+}
+
+.acc-expanded {
+  position: absolute;
+  inset: 0;
+  min-width: 480px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 110ms ease 0ms;
+}
+
+.acc-slice.is-expanded .acc-expanded {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 240ms ease 60ms;
+}
+
+.acc-facet {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: #151917;
+  clip-path: polygon(45% 0, 100% 0, 100% 100%, 26% 100%);
+}
+
+.acc-facet::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 62% 42%,
+    rgba(243, 239, 230, 0.055) 0%,
+    rgba(239, 184, 41, 0.02) 40%,
+    rgba(21, 25, 23, 0) 70%
+  );
+}
+
+.acc-slice--limited .acc-facet::before {
+  background: radial-gradient(
+    circle at 62% 42%,
+    rgba(239, 184, 41, 0.105) 0%,
+    rgba(239, 184, 41, 0.03) 36%,
+    rgba(21, 25, 23, 0) 68%
+  );
+}
+
+.acc-rail {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 10px 24px;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 200ms ease 140ms;
+}
+
+.acc-slice.is-expanded .acc-rail {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease 0ms;
+}
+
+@keyframes catalogFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.catalog-enter {
+  animation: catalogFadeIn 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.acc-rail-title {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .hero-diagonal-plane {
+    clip-path: polygon(68% 0, 100% 0, 100% 100%, 16% 100%);
+  }
+
+  .acc-stage-wrap {
+    flex-direction: column;
+    height: auto;
+    gap: 10px;
+  }
+
+  .acc-slice {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    height: 64px;
+    transition:
+      height 360ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 200ms ease;
+  }
+
+  .acc-slice.is-expanded {
+    flex: none;
+    height: 410px;
+  }
+
+  .acc-expanded {
+    min-width: 0;
+  }
+
+  .acc-facet {
+    clip-path: polygon(35% 0, 100% 0, 100% 100%, 10% 100%);
+  }
+
+  .acc-rail {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 18px;
+    gap: 12px;
+  }
+
+  .acc-rail-title {
+    writing-mode: horizontal-tb;
+    text-orientation: initial;
+    letter-spacing: 0.02em;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .acc-slice,
+  .acc-expanded,
+  .acc-rail {
+    transition-duration: 0.01ms !important;
+  }
+
+  .catalog-enter {
+    animation-duration: 0.01ms !important;
   }
 }

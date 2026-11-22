@@ -26,8 +26,8 @@ export function CampaignCountdown({ target, offsetMs, label, now = Date.now }: C
 
   const left = remainingMs(target, serverNow(now(), offsetMs))
   return (
-    <p className="text-sm text-neutral-400">
-      {label}：<span className="font-mono text-neutral-100">{formatCountdown(left)}</span>
+    <p className="text-[15px] text-[#c4cac6]">
+      {label}：<span className="font-mono font-semibold text-foreground">{formatCountdown(left)}</span>
     </p>
   )
 }

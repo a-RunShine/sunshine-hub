@@ -23,3 +23,10 @@ export async function submitRealName(input: RealNameInput): Promise<Me> {
   const { data } = await client.put<Me>('/me/real-name', input)
   return data
 }
+
+/**
+ * 登出。POST /auth/logout，契约 204 无响应体；成功后由外壳清掉本地登录态，不做乐观 UI。
+ */
+export async function logout(): Promise<void> {
+  await client.post('/auth/logout')
+}

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { RealNameInput } from '@/api/identity'
+import { ActionButton } from '@/components/common/ActionButton'
 import { ID_NUMBER_PATTERN, REAL_NAME_MAX_LENGTH } from './realNameFieldRules'
 
 interface CampaignRealNameDialogProps {
@@ -81,25 +82,25 @@ export function CampaignRealNameDialog({
     >
       <form
         onSubmit={handleSubmit}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-md border border-neutral-700 bg-ink-900 px-6 py-6"
+        className="flex w-full max-w-sm flex-col gap-4 rounded-[2px] border border-line border-t-2 border-t-accent bg-[#131715] px-6 py-6 shadow-[0_24px_48px_rgba(0,0,0,0.72)]"
       >
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-base font-medium text-neutral-100">完成实名认证</h2>
-            <p className="mt-1 text-sm text-neutral-400">提交后自动继续刚才的抢购，无需再次点击。</p>
+            <h2 className="text-base font-semibold text-foreground">完成实名认证</h2>
+            <p className="mt-1 text-sm text-muted">提交后自动继续刚才的抢购，无需再次点击。</p>
           </div>
           <button
             type="button"
             aria-label="关闭"
             disabled={submitting}
             onClick={onCancel}
-            className="text-neutral-400 hover:text-neutral-200 disabled:opacity-50"
+            className="text-muted transition-colors hover:text-foreground disabled:opacity-50"
           >
             ✕
           </button>
         </div>
 
-        <label className="flex flex-col gap-1.5 text-sm text-neutral-200" htmlFor="real-name">
+        <label className="flex flex-col gap-1.5 text-sm text-foreground" htmlFor="real-name">
           购买人姓名
           <input
             id="real-name"
@@ -109,12 +110,12 @@ export function CampaignRealNameDialog({
             autoComplete="name"
             disabled={submitting}
             onChange={(event) => setRealName(event.target.value)}
-            className="rounded-md border border-neutral-700 bg-ink-800 px-3 py-2 text-neutral-100 outline-none focus:border-accent"
+            className="rounded-[2px] border border-line bg-ink-950 px-3 py-2 text-[16px] text-foreground outline-none transition-colors focus:border-accent sm:text-sm"
           />
         </label>
         {fieldError.realName !== null && <p className="text-sm text-red-400">{fieldError.realName}</p>}
 
-        <label className="flex flex-col gap-1.5 text-sm text-neutral-200" htmlFor="id-number">
+        <label className="flex flex-col gap-1.5 text-sm text-foreground" htmlFor="id-number">
           证件号
           <input
             id="id-number"
@@ -123,29 +124,20 @@ export function CampaignRealNameDialog({
             autoComplete="off"
             disabled={submitting}
             onChange={(event) => setIdNumber(event.target.value)}
-            className="rounded-md border border-neutral-700 bg-ink-800 px-3 py-2 text-neutral-100 outline-none focus:border-accent"
+            className="rounded-[2px] border border-line bg-ink-950 px-3 py-2 text-[16px] text-foreground outline-none transition-colors focus:border-accent sm:text-sm"
           />
         </label>
         {fieldError.idNumber !== null && <p className="text-sm text-red-400">{fieldError.idNumber}</p>}
 
         {error !== null && <p className="text-sm text-red-400">{error}</p>}
 
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={onCancel}
-            className="rounded-md border border-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+        <div className="flex justify-end gap-3 pt-1">
+          <ActionButton intent="secondary" disabled={submitting} onClick={onCancel}>
             放弃
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-ink-950 hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          </ActionButton>
+          <ActionButton type="submit" intent="primary" disabled={submitting}>
             {submitting ? '提交中…' : '提交并继续抢购'}
-          </button>
+          </ActionButton>
         </div>
       </form>
     </div>
