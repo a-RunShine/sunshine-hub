@@ -131,6 +131,8 @@
 - **代价**：`client.ts:59-63` 对所有 5xx 覆盖文案，所以用户看到的仍是通用兜底。**这是可接受的**——`code` 保留可供前端分支，告警是服务端职责，spec 要的是「要告警」而不是「给用户看不同文案」。若 owner 要区分文案，得改 `client.ts`，那属于代码改动、不在契约范围。
 - **相邻但不同**：#3 的 P2-1 指出 Lua 把「键不存在」和「库存为 0」合并成 `-2 售罄`（#2:213 的 `or '-1'`），与 `-3` 要告警的原则自相矛盾。**那是脚本语义问题，本缺口是契约出口问题**，两件事，别合并成一个 ticket。见 [issue-3-review](issue-3-review.md)。
 
+> **2026-11-22 更正（`main` = `567fd6a`，针对 `:122` 与 `:131` 的 `superseded` 断言）**：上文 `:122`「`web/src/api/client.ts:59-63` 的 5xx 分支会把 message 统一兜底成『服务出了点问题，稍后再试』」与 `:131`「`client.ts:59-63` 对所有 5xx 覆盖文案」**均已过时（superseded）**。自 commit `92061f1`（PR #55）起，`web/src/api/client.ts:60-68` 的 5xx 分支改为保留响应体内的服务端 `message` 原文，仅在 `body?.message` 缺失时回落兜底文案；`web/src/views/campaign/claimFailure.ts:81-94,135` 对 `UNIT_POOL_INCONSISTENT` 与 `INTERNAL_ERROR` 亦配置 `preserveServerMessage: true` 透传服务端提示。双层错误模型与服务端脱敏边界见 [ADR-0015](../adr/0015-two-layer-error-model.md)。原文 `:122` 与 `:131` 按历史记录保留。
+
 ## 缺口 2：点击前拿不到「已购 / 限购」状态
 
 **页面需要**：按钮禁用态要在**点击前**就渲染出来。已购的人不该看到一个能点的「立即抢购」。

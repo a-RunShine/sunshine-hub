@@ -24,6 +24,12 @@
 
 `grep -rn` 能找到一半，判断哪个词算旧词靠人。命中之后逐条过，不是看一眼有没有命中就收工。
 
+## 注释纪律
+
+源码与测试不写叙事、分段、复述代码或文档的注释（含包说明、Facade 样板与 Props JSDoc），也不要模仿尚未清理的旧注释或运维配置里的注释写法。架构与机制取舍写进 `docs/adr/`（并同步 [docs/wiki/decisions.md](docs/wiki/decisions.md)），环境与工具链暗坑写进 `docs/wiki/`。
+
+具体范围、允许保留的语法指令与例外边界，以 [CODING_STANDARDS/java.md](CODING_STANDARDS/java.md) 和 [CODING_STANDARDS/typescript.md](CODING_STANDARDS/typescript.md) 为准。
+
 ## 代码评审
 
 评审任何 diff 之前，先读对应技术栈的规范：后端 `CODING_STANDARDS/java.md`，前端 `CODING_STANDARDS/typescript.md`。两边都动过就读两份。

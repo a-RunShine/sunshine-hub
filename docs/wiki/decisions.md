@@ -6,7 +6,9 @@
 
 ## 不要重新讨论的这些
 
-**现行：14 份 ADR**（2026-11-19 更新：本 PR 新增 [0014](../adr/0014-category-as-resource.md)。合并前 `main` = `010ca2c` 为 13 份，合并后 `ls docs/adr/*.md | wc -l` = 14）。下表 14 行齐全，标题即结论。
+**现行：17 份 ADR**（2026-11-22 更新：本 PR 新增 [0015](../adr/0015-two-layer-error-model.md)、[0016](../adr/0016-flash-sale-clock-dedup-and-recovery-polling.md)、[0017](../adr/0017-session-recovery-and-non-optimistic-writes.md)。基于 `main` = `567fd6a` 的 14 份，合并后 `ls docs/adr/*.md | wc -l` = 17）。下表 17 行齐全，标题即结论。
+
+> **2026-11-19 原句（superseded，保留）**：「现行：14 份 ADR（2026-11-19 更新：本 PR 新增 [0014](../adr/0014-category-as-resource.md)。合并前 `main` = `010ca2c` 为 13 份，合并后 `ls docs/adr/*.md | wc -l` = 14）」。该计数在 2026-11-22 新增 0015–0017 后失效，按带 SHA 的口径更新如上。
 
 > **2026-11-16 原句（保留）**：「现行：13 份 ADR（2026-11-16 复核，`main` = `3701bd4`，`ls docs/adr/*.md | wc -l` = 13）」。该计数在 2026-11-19 新增 0014 后失效，按带 SHA 的口径更新如上。
 
@@ -39,6 +41,9 @@
 | [0012](../adr/0012-per-campaign-purchase-limit.md) | 限时抢购的每人额度按场次配置，不跨场累计 |
 | [0013](../adr/0013-two-tier-cooldown.md) | 未支付惩罚是两档冷却，不是永久失格 |
 | [0014](../adr/0014-category-as-resource.md) | 商品分类是资源，不是契约里的枚举 |
+| [0015](../adr/0015-two-layer-error-model.md) | 错误响应采用 HTTP 状态码与 ErrorCode 双层模型，契约只锁定枚举名 |
+| [0016](../adr/0016-flash-sale-clock-dedup-and-recovery-polling.md) | 限时抢购前端统一服务端校时、在途防重与可恢复态轮询 |
+| [0017](../adr/0017-session-recovery-and-non-optimistic-writes.md) | 前端会话恢复区分 401 与网络故障，204 写操作不做乐观更新 |
 
 **0012 / 0013 于 2026-11-16 随 PR #30（`742ef1e`）进 main**，是 D1–D4 的正式落点，**可直接引用为现行结论**。变更的历史记录与「推翻了什么、保留了什么」见 [decisions-2026-11-16](decisions-2026-11-16.md)。
 
