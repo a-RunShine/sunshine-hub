@@ -16,15 +16,17 @@
 // 用法：node scripts/check-doc-links.mjs [仓库根目录]
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(process.argv[2] ?? join(here, '..'));
+const defaultRoot = resolve(join(here, '..'));
 
 const EXTERNAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
 const LINK = /\]\(([^)]*)\)/g;
 const FENCE = /^\s{0,3}(`{3,}|~{3,})/;
+const MODULE_ROOT_DOCS = ['AGENTS.md', 'DESIGN.md'];
+const IGNORED_TOP_DIRS = new Set(['.git', 'node_modules', 'target', 'dist', '.oil-ui', 'scripts']);
 
 function walkMarkdown(dir) {
   if (!existsSync(dir)) return [];
@@ -35,6 +37,31 @@ function walkMarkdown(dir) {
     else if (entry.isFile() && entry.name.endsWith('.md')) out.push(full);
   }
   return out;
+}
+
+function collectModuleRootDocs(root) {
+  if (!existsSync(root)) return [];
+  const out = [];
+  for (const entry of readdirSync(root, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name.startsWith('.') || IGNORED_TOP_DIRS.has(entry.name)) continue;
+    for (const docName of MODULE_ROOT_DOCS) {
+      const candidate = join(root, entry.name, docName);
+      if (existsSync(candidate)) out.push(candidate);
+    }
+  }
+  return out;
+}
+
+export function collectMarkdownSources(root) {
+  const resolvedRoot = resolve(root);
+  const raw = [
+    ...walkMarkdown(join(resolvedRoot, 'docs')),
+    ...['AGENTS.md', 'GLOSSARY.md'].map((n) => join(resolvedRoot, n)).filter(existsSync),
+    ...walkMarkdown(join(resolvedRoot, 'CODING_STANDARDS')),
+    ...collectModuleRootDocs(resolvedRoot),
+  ];
+  return [...new Set(raw)].sort();
 }
 
 // 代码块与行内代码里的 `](...)` 是示例，不是链接。漏掉这层会把文档里的写法样例判断链。
@@ -54,7 +81,7 @@ function maskCodeSpans(line) {
   return chars.join('');
 }
 
-function extractLinks(file) {
+export function extractLinks(file) {
   const found = [];
   let fence = null;
   const lines = readFileSync(file, 'utf8').split('\n');
@@ -89,56 +116,75 @@ function extractLinks(file) {
   return found;
 }
 
-const sources = [
-  ...walkMarkdown(join(root, 'docs')),
-  ...['AGENTS.md', 'GLOSSARY.md'].map((n) => join(root, n)).filter(existsSync),
-  ...walkMarkdown(join(root, 'CODING_STANDARDS')),
-].sort();
+export function checkDocLinks(root = defaultRoot) {
+  const resolvedRoot = resolve(root);
+  const sources = collectMarkdownSources(resolvedRoot);
 
-const broken = [];
-const linksByFile = new Map();
-let total = 0;
+  const broken = [];
+  const linksByFile = new Map();
+  let total = 0;
 
-for (const file of sources) {
-  const links = extractLinks(file);
-  linksByFile.set(file, links);
-  total += links.length;
-  for (const link of links) {
-    if (!existsSync(link.target)) broken.push({ file, ...link });
+  for (const file of sources) {
+    const links = extractLinks(file);
+    linksByFile.set(file, links);
+    total += links.length;
+    for (const link of links) {
+      if (!existsSync(link.target)) broken.push({ file, ...link });
+    }
   }
-}
 
-const wikiDir = join(root, 'docs', 'wiki');
-const indexPath = join(wikiDir, 'index.md');
-const orphans = [];
-let wikiNote;
-let wikiUnjudgeable = false;
+  const wikiDir = join(resolvedRoot, 'docs', 'wiki');
+  const indexPath = join(wikiDir, 'index.md');
+  const orphans = [];
+  let wikiNote;
+  let wikiUnjudgeable = false;
 
-if (!existsSync(wikiDir)) {
-  wikiNote = 'docs/wiki/ 不存在，跳过孤儿检查。';
-} else if (!existsSync(indexPath)) {
-  wikiNote = 'docs/wiki/ 存在但没有 index.md，无法判定登记关系。';
-  wikiUnjudgeable = true;
-} else {
-  const pages = walkMarkdown(wikiDir).filter((p) => p !== indexPath);
-  const registered = new Set((linksByFile.get(indexPath) ?? []).map((l) => l.target));
-  for (const page of pages) {
-    if (!registered.has(page)) orphans.push({ file: page, reason: '未被 docs/wiki/index.md 登记' });
+  if (!existsSync(wikiDir)) {
+    wikiNote = 'docs/wiki/ 不存在，跳过孤儿检查。';
+  } else if (!existsSync(indexPath)) {
+    wikiNote = 'docs/wiki/ 存在但没有 index.md，无法判定登记关系。';
+    wikiUnjudgeable = true;
+  } else {
+    const pages = walkMarkdown(wikiDir).filter((p) => p !== indexPath);
+    const registered = new Set((linksByFile.get(indexPath) ?? []).map((l) => l.target));
+    for (const page of pages) {
+      if (!registered.has(page)) orphans.push({ file: page, reason: '未被 docs/wiki/index.md 登记' });
+    }
+    wikiNote = `docs/wiki/ ${pages.length + 1} 页：${orphans.length ? `${orphans.length} 个孤儿` : '零孤儿'}。`;
   }
-  wikiNote = `docs/wiki/ ${pages.length + 1} 页：${orphans.length ? `${orphans.length} 个孤儿` : '零孤儿'}。`;
+
+  return {
+    root: resolvedRoot,
+    sources,
+    total,
+    broken,
+    orphans,
+    wikiNote,
+    wikiUnjudgeable,
+    ok: broken.length === 0 && orphans.length === 0 && !wikiUnjudgeable,
+  };
 }
 
-const rel = (p) => (p.startsWith(root) ? p.slice(root.length + 1) : p);
+function main(argv) {
+  const root = resolve(argv[0] ?? defaultRoot);
+  const result = checkDocLinks(root);
+  const rel = (p) => relative(result.root, p).split(sep).join('/');
 
-for (const b of broken) {
-  console.error(`断链 ${rel(b.file)}:${b.line}  ${b.raw}  目标不存在`);
+  for (const b of result.broken) {
+    console.error(`断链 ${rel(b.file)}:${b.line}  ${b.raw}  目标不存在`);
+  }
+  for (const o of result.orphans) {
+    console.error(`孤儿 ${rel(o.file)}  ${o.reason}`);
+  }
+  if (result.wikiUnjudgeable) console.error(`孤儿检查无法进行：${result.wikiNote}`);
+
+  console.log(`扫 ${result.sources.length} 个文件、${result.total} 条相对链接：${result.broken.length ? `${result.broken.length} 条断链` : '零断链'}。`);
+  console.log(result.wikiNote);
+
+  return result.ok ? 0 : 1;
 }
-for (const o of orphans) {
-  console.error(`孤儿 ${rel(o.file)}  ${o.reason}`);
+
+const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  process.exit(main(process.argv.slice(2)));
 }
-if (wikiUnjudgeable) console.error(`孤儿检查无法进行：${wikiNote}`);
-
-console.log(`扫 ${sources.length} 个文件、${total} 条相对链接：${broken.length ? `${broken.length} 条断链` : '零断链'}。`);
-console.log(wikiNote);
-
-process.exit(broken.length || orphans.length || wikiUnjudgeable ? 1 : 0);

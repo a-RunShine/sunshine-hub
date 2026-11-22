@@ -10,6 +10,9 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
+    "ui:check": "node ../scripts/check-ui-primitives.mjs",
+    "ui:sync": "node ../scripts/check-ui-primitives.mjs --update",
+    "check": "pnpm exec tsc --noEmit && pnpm lint && pnpm ui:check && pnpm test && pnpm build",
     "gen:types": "openapi-typescript ../api/openapi.yaml -o src/types/api.ts"
   },
   "dependencies": {

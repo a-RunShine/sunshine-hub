@@ -1,6 +1,4 @@
-import type { components } from '@/types/api'
-
-type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
+import type { FlashCampaignDetail } from '@/api/campaign'
 
 /**
  * 不可点原因。本票落五种只读态；#52 失败路径会往这个联合类型里补点击后的失败态。

@@ -7,4 +7,4 @@
 - 需要改行为时，在同一层（或上一层）新建自己的组件包住它，定制写在外层。
 - 直接改源码，下次 CLI 加新组件会覆盖同名文件，改动静默消失。
 
-目前目录是空的，等页面用到第一个组件时再执行 `pnpm dlx shadcn@latest add <name>`。
+新增或升级官方原语请执行 `pnpm dlx shadcn@latest add <name>`，随后运行 `pnpm --dir web ui:sync` 刷新校验和清单（`.shadcn-checksums.json`）。本目录受 ESLint 导入/类名边界限制，并由 `pnpm --dir web ui:check`（已接入 `pnpm check` 与 CI）校验源码完整性。

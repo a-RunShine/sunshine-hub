@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { cancelReserveCampaign, reserveCampaign } from '@/api/campaign'
 import { errorMessage } from '@/api/errors'
 import { submitRealName, type RealNameInput } from '@/api/identity'
+import { ActionButton, ActionLink } from '@/components/common/ActionButton'
 import { buildLoginUrl } from '@/lib/redirect'
 import { useAuth } from '@/stores/auth'
 import { useCampaignDetail } from './useCampaignDetail'
@@ -123,7 +124,7 @@ export default function CampaignPage() {
 
   if (state.status === 'loading') {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6 text-sm text-neutral-400">
+      <main className="flex min-h-screen items-center justify-center px-6 text-sm text-muted">
         正在加载场次…
       </main>
     )
@@ -132,11 +133,11 @@ export default function CampaignPage() {
   if (state.status === 'not-found') {
     return (
       <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-3 px-6 text-center">
-        <h1 className="text-xl font-medium">场次不存在</h1>
-        <p className="text-sm text-neutral-400">你要找的限时抢购场次可能已经下线，或链接有误。</p>
-        <Link to="/" className="text-sm text-accent hover:underline">
+        <h1 className="text-xl font-medium text-foreground">场次不存在</h1>
+        <p className="text-sm text-muted">你要找的限时抢购场次可能已经下线，或链接有误。</p>
+        <ActionLink to="/" intent="link">
           返回首页
-        </Link>
+        </ActionLink>
       </main>
     )
   }
@@ -144,15 +145,11 @@ export default function CampaignPage() {
   if (state.status === 'error') {
     return (
       <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-4 px-6 text-center">
-        <h1 className="text-xl font-medium">暂时看不到这场抢购</h1>
-        <p className="text-sm text-neutral-400">{state.message}</p>
-        <button
-          type="button"
-          onClick={() => void reload()}
-          className="rounded-md border border-neutral-700 px-4 py-2 text-neutral-200 hover:border-neutral-500"
-        >
+        <h1 className="text-xl font-medium text-foreground">暂时看不到这场抢购</h1>
+        <p className="text-sm text-danger">{state.message}</p>
+        <ActionButton intent="secondary" onClick={() => void reload()}>
           重试
-        </button>
+        </ActionButton>
       </main>
     )
   }

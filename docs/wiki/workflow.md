@@ -107,8 +107,10 @@ git merge origin/main
 **2026-11-16 交接记录**：
 
 - 后端 `mvn verify`（先设 `JAVA_HOME`，见 [environment](environment.md)）
-- 前端 `pnpm test && pnpm build && pnpm lint`
-- 文档 `node scripts/check-doc-links.mjs`（**2026-11-17，`b987a6f`，PR #33**）：扫 `docs/**/*.md`、`AGENTS.md`、`GLOSSARY.md`、`CODING_STANDARDS/` 的相对链接与 `docs/wiki/` 孤儿页，**命中即红（blocking）**；扫描范围与有意不查项见 [guardrails](guardrails.md)。
+- ~~前端 `pnpm test && pnpm build && pnpm lint`~~（superseded，见下方 2026-11-22 更新）
+- 文档 `node scripts/check-doc-links.mjs`（**2026-11-17，`b987a6f`，PR #33**）：~~扫 `docs/**/*.md`、`AGENTS.md`、`GLOSSARY.md`、`CODING_STANDARDS/` 的相对链接与 `docs/wiki/` 孤儿页~~（扫描范围已扩展，superseded，见下方 2026-11-22 更新），**命中即红（blocking）**；扫描范围与有意不查项见 [guardrails](guardrails.md)。
+
+> **2026-11-22 更新（Issue #81）**：前端本地校验统一收口为 **`pnpm --dir web check`**（依次执行 `tsc --noEmit`、`eslint .`、`ui:check`、`vitest run`、`vite build`）；`scripts/check-doc-links.mjs` 扫描范围扩展至顶层模块根文档 `*/AGENTS.md` 与 `*/DESIGN.md`（覆盖 `web/AGENTS.md` 与 `web/DESIGN.md`）；`ci.yml` 各步骤行号同步位移，见 [guardrails](guardrails.md)。
 
 > **2026-11-16 更新（`3701bd4`，PR #28）**：后端现在可以用 **`./mvnw verify`**——wrapper 已提交（`mvnw` / `.mvn/wrapper/maven-wrapper.properties`，Maven 3.9.16，`only-script`），不必依赖本机装的 `mvn`。**但 `JAVA_HOME` 仍要手动 export 到 JDK 25**：enforcer 门槛已从 `[21,)` 提到 **`[25,)`**（`pom.xml:128`），**不 export 会在最开始就被拦下**，不再只是 toolchain 阶段失败。wrapper 解决的是 Maven 版本，不是 JDK 版本。
 
@@ -121,6 +123,13 @@ git merge origin/main
 `AGENTS.md`：评审任何 diff 之前先读对应技术栈的规范——后端 `CODING_STANDARDS/java.md`，前端 `CODING_STANDARDS/typescript.md`，两边都动过就读两份。
 
 那两份里全是机器判不了的判断题，能交给 CI 的一条都不在里面。不读它们，评审只能凭印象。
+
+## PR 标 Ready 前的收口检查
+
+**2026-11-22 追加（源自 #68 / PR #77 复盘，Issue #81）**：
+
+- **PR 从 Draft 标 Ready（或请求 owner 合并）前，必须先跑一遍双轴 `/code-review`**：只跑单测与多轮视觉检查仍可能漏过领域约束（例如 PR #77 曾险些带出违反 ADR-0014 的 `silhouette.ts` 与未同步源 Issue）。收口时必须对 `origin/main...HEAD` 跑双轴 review（`Standards` 轴对照 `CODING_STANDARDS/`、`Spec` 轴对照源 Issue 与设计基线），修完发现的问题并重跑校验绿灯后，才将 PR 标为 `Ready for review` 或交由 owner 合并。
+- **交互/视觉迭代改动了原 Issue 范围或文案时同步回写源 Issue**：多轮打磨改变布局、范围或文案后，同步修订对应源 Issue 正文留痕；若改动了 `#2`、`#7` 等规格/实施计划类 Issue 正文，仍按上文「改 issue 正文必须把 before/after 贴进 PR 正文」要求，将每处 `before/after` 贴进 PR 正文 Evidence 段。
 
 ## PR 描述格式
 
