@@ -39,10 +39,6 @@ function renderCard(product: ProductSummary) {
   )
 }
 
-/**
- * 商品卡边界：限量 / 常规 badge 文案与整卡跳转不受剪影映射改动影响；
- * 价格只交 Price 组件，卡片内不做分→元换算。
- */
 describe('ProductCard 限量标记与跳转', () => {
   it('限量商品渲染「限量」badge，整卡链接指向 /products/:id', () => {
     renderCard(limitedProduct)

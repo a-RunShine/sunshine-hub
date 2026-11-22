@@ -16,11 +16,6 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
-/**
- * 错误码在 Java 和契约里各有一份，靠注释互相提醒迟早漏。这里直接比对两边，漏一个就红。
- *
- * <p>只比常量名。文案和 HTTP 状态码不入契约枚举，前端拿字符串做分支，文案由后端随响应下发。
- */
 class ErrorCodeContractTest {
 
     private static final Path CONTRACT = Path.of("api", "openapi.yaml");
@@ -56,7 +51,6 @@ class ErrorCodeContractTest {
                             ((Map<String, Object>) root.get("components")).get("schemas");
             Map<String, Object> errorCode = (Map<String, Object>) schemas.get("ErrorCode");
             List<String> enumValues = (List<String>) errorCode.get("enum");
-            // 用 TreeSet 顺手排掉重复项，比较结果只关心成员
             return new TreeSet<>(enumValues);
         }
     }

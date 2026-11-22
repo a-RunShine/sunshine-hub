@@ -42,9 +42,7 @@ export default tseslint.config(
     plugins: { 'react-hooks': reactHooks },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      // 契约里没有 any，前端也不许有
       '@typescript-eslint/no-explicit-any': 'error',
-      // 组件与业务代码不得直接发请求或直接导入生成的 OpenAPI 类型定义
       'no-restricted-imports': [
         'error',
         {
@@ -55,12 +53,10 @@ export default tseslint.config(
     },
   },
   {
-    // api 层是唯一允许碰 axios 与 @/types/api 的地方
     files: ['src/api/**/*.ts'],
     rules: { 'no-restricted-imports': 'off' },
   },
   {
-    // mock 层需要按契约构造假数据，允许导入 @/types/api，但仍禁止直接引 axios
     files: ['src/mocks/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
@@ -72,7 +68,6 @@ export default tseslint.config(
     },
   },
   {
-    // 页面、业务组件与路由统一使用 obsidian 语义令牌，禁用默认灰度类名与 rounded-md
     files: ['src/views/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}', 'src/router/**/*.{ts,tsx}'],
     ignores: ['src/components/ui/**'],
     rules: {
@@ -90,7 +85,6 @@ export default tseslint.config(
     },
   },
   {
-    // 锁定 shadcn 原语源码边界：禁止导入业务/应用模块与项目设计类名
     files: ['src/components/ui/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [

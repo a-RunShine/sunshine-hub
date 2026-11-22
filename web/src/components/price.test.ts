@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { formatPrice } from './Price'
 
-/**
- * S6：金额纯函数边界。契约金额一律是整数分，只在展示层除 100；
- * 这里只断言输出口径，不测 Price 组件样式。
- */
 describe('formatPrice（分 → 元，唯一换算处）', () => {
   it('整百分去掉小数：12800 → ¥128', () => {
     expect(formatPrice(12800)).toBe('¥128')

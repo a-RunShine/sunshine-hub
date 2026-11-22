@@ -16,7 +16,6 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // 关掉 MSW 之后，请求打到这里，转给后端
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,

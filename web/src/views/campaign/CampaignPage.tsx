@@ -14,39 +14,28 @@ import { isRecoverableBlock } from './claimability'
 import { CampaignDetailView } from './CampaignDetailView'
 import { CampaignRealNameDialog } from './CampaignRealNameDialog'
 
-/**
- * 抢购页路由入口。只负责取数状态分支（加载中 / 不存在 / 错误 / 有数据），
- * 具体展示交给 CampaignDetailView，按钮区交给 CampaignClaimButton。
- */
 export default function CampaignPage() {
   const { campaignId = '' } = useParams<{ campaignId: string }>()
   const { state, reload } = useCampaignDetail(campaignId)
 
-  // 实名弹窗状态：页面内状态，刷新就该丢掉；实名态本身留在 auth store。
   const [realNameOpen, setRealNameOpen] = useState(false)
   const [realNameSubmitting, setRealNameSubmitting] = useState(false)
   const [realNameError, setRealNameError] = useState<string | null>(null)
 
   const setMe = useAuth((state) => state.setMe)
 
-  // 匿名点预约 / 抢购：与 401 拦截器、RequireAuth 同一套回跳口径，登录后回到本场次。
   const navigate = useNavigate()
   const location = useLocation()
   const onRequireLogin = useCallback(() => {
     navigate(buildLoginUrl(location))
   }, [navigate, location])
 
-  // 抢购成功后重新拉一次详情，刷新剩余份数 / 剩余本场额度；提交状态留在页面内，不进全局 store。
   const { state: claim, claim: runClaim, clearFailure } = useCampaignClaim(campaignId, {
     onClaimed: reload,
-    // 服务端回 403 未实名：回到空闲态后由本层开实名表单。
     onRealNameRequired: () => setRealNameOpen(true),
-    // 会话过期回 401：走登录回跳口径，不在按钮区落失败提示。
     onRequireLogin,
   })
 
-  // 可恢复态（售罄配额回流 / 冷却到期）统一挂一套可见性轮询：详情口径与抢购失败口径任一命中即开启，
-  // 配额回升 / 到期后按钮自行恢复可点；轮询只在可恢复态运行，页面不可见时暂停，卸载时清理。
   const detailReason = state.status === 'ready' ? state.claimability.reason : null
   const claimRecoverable = claim.phase === 'failed' && claim.failure.recoverable
   useVisibilityPolling({
@@ -55,16 +44,11 @@ export default function CampaignPage() {
     onTick: reload,
   })
 
-  // 可恢复失败态解除：失败后新一轮详情回到可点口径时，清掉失败 overlay（门槛与判定见共享 hook）。
   useRecoverableFailureReset(claim, state, clearFailure)
 
   const [reserving, setReserving] = useState(false)
   const [reserveError, setReserveError] = useState<string | null>(null)
 
-  /**
-   * 预约 / 取消预约：204 无响应体，成功后重拉详情把 `reserved` 刷成新值；
-   * 失败时给一句可理解的提示，界面状态不与服务端脱节（不做乐观更新）。
-   */
   const runReserveAction = useCallback(
     async (action: () => Promise<void>) => {
       setReserving(true)
@@ -90,14 +74,10 @@ export default function CampaignPage() {
     [campaignId, runReserveAction],
   )
 
-  // 点击直接发抢购；未登录 / 未实名不在前端预判：由服务端 401 / 403 响应分别走登录回跳与实名弹窗。
-  // 按钮全程可点，拦截发生在点击之后（ADR-0009）。
   const handleClaimClick = useCallback(() => {
     runClaim()
   }, [runClaim])
 
-  // 实名提交成功：用回写的最新购买人档案更新 store 实名态，关掉表单后重放抢购；
-  // 重放仍走 useCampaignClaim 的同一条 claim()，防重闸口与状态机不绕开。
   const handleRealNameSubmit = useCallback(
     async (input: RealNameInput) => {
       setRealNameSubmitting(true)
@@ -116,7 +96,6 @@ export default function CampaignPage() {
     [setMe, runClaim],
   )
 
-  // 放弃填写：关掉表单并清掉错误，按钮回到可点态，不留半开弹窗或卡住的 loading。
   const handleRealNameCancel = useCallback(() => {
     setRealNameOpen(false)
     setRealNameError(null)

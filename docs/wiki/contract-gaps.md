@@ -107,6 +107,8 @@
 
 `Me.realNameVerified` 已在 required 里（`:1634`），`web/src/stores/auth.ts:57` 的 `needRealName()` 也已就位，**做可点拦截不需要改契约**。
 
+> **2026-11-22 行号更正（Issue #84）**：上文引用的 `web/src/lib/redirect.ts:10` 与 `web/src/stores/auth.ts:57` 旧行号已 **superseded**；清理源码注释后，`buildLoginUrl` 现位于 `web/src/lib/redirect.ts:6-8`，`needRealName()` 现位于 `web/src/stores/auth.ts:42-45`。上文引用的 `ErrorCode.java` `c5b5508` 旧行号（`:24` / `:25` / `:29`）亦随之位移至 `CAMPAIGN_NOT_STARTED` `:17`、`CAMPAIGN_ENDED` `:18`、`ALREADY_PURCHASED` `:21`。
+
 「抢购中」的转圈是 in-flight 态，issue #7 第 58 行已把它与「按钮禁用态」并列单列，不占这五个名额。
 
 > **2026-11-16 更正（superseded）**：本页旧版缺口 5 给的候选清单是「未开售、已结束、售罄、已购/限购、**未实名**」。**该清单已被上表取代**——把未实名算进禁用态违反 ADR-0009:3。旧清单保留在此处以显示它曾被误判：凑够五个不代表凑对了，第五个应当是**失格/冷却**。
@@ -131,7 +133,9 @@
 - **代价**：`client.ts:59-63` 对所有 5xx 覆盖文案，所以用户看到的仍是通用兜底。**这是可接受的**——`code` 保留可供前端分支，告警是服务端职责，spec 要的是「要告警」而不是「给用户看不同文案」。若 owner 要区分文案，得改 `client.ts`，那属于代码改动、不在契约范围。
 - **相邻但不同**：#3 的 P2-1 指出 Lua 把「键不存在」和「库存为 0」合并成 `-2 售罄`（#2:213 的 `or '-1'`），与 `-3` 要告警的原则自相矛盾。**那是脚本语义问题，本缺口是契约出口问题**，两件事，别合并成一个 ticket。见 [issue-3-review](issue-3-review.md)。
 
-> **2026-11-22 更正（`main` = `567fd6a`，针对 `:122` 与 `:131` 的 `superseded` 断言）**：上文 `:122`「`web/src/api/client.ts:59-63` 的 5xx 分支会把 message 统一兜底成『服务出了点问题，稍后再试』」与 `:131`「`client.ts:59-63` 对所有 5xx 覆盖文案」**均已过时（superseded）**。自 commit `92061f1`（PR #55）起，`web/src/api/client.ts:60-68` 的 5xx 分支改为保留响应体内的服务端 `message` 原文，仅在 `body?.message` 缺失时回落兜底文案；`web/src/views/campaign/claimFailure.ts:81-94,135` 对 `UNIT_POOL_INCONSISTENT` 与 `INTERNAL_ERROR` 亦配置 `preserveServerMessage: true` 透传服务端提示。双层错误模型与服务端脱敏边界见 [ADR-0015](../adr/0015-two-layer-error-model.md)。原文 `:122` 与 `:131` 按历史记录保留。
+> **2026-11-22 更正（`main` = `567fd6a`，针对 `:124` 与 `:133` 的 `superseded` 断言）**：上文 `:124`「`web/src/api/client.ts:59-63` 的 5xx 分支会把 message 统一兜底成『服务出了点问题，稍后再试』」与 `:133`「`client.ts:59-63` 对所有 5xx 覆盖文案」**均已过时（superseded）**。自 commit `92061f1`（PR #55）起，`web/src/api/client.ts:60-68` 的 5xx 分支改为保留响应体内的服务端 `message` 原文，仅在 `body?.message` 缺失时回落兜底文案；`web/src/views/campaign/claimFailure.ts:81-94,135` 对 `UNIT_POOL_INCONSISTENT` 与 `INTERNAL_ERROR` 亦配置 `preserveServerMessage: true` 透传服务端提示。双层错误模型与服务端脱敏边界见 [ADR-0015](../adr/0015-two-layer-error-model.md)。原文 `:124` 与 `:133` 按历史记录保留。
+>
+> **2026-11-22 行号更新（Issue #84）**：随 Issue #84 清理源码注释，本节引用的 `ErrorCode.java:31`（`c5b5508` 旧号）与上条 `567fd6a` 快照里的 `web/src/api/client.ts:60-68`、`web/src/views/campaign/claimFailure.ts:81-94,135` 均已 **superseded**；现行位置分别为 `src/main/java/com/sunshinefps/shared/ErrorCode.java:24`（`UNIT_POOL_INCONSISTENT`）、`web/src/api/client.ts:53-61` 与 `web/src/views/campaign/claimFailure.ts:58-71,105`。
 
 ## 缺口 2：点击前拿不到「已购 / 限购」状态
 
@@ -239,6 +243,8 @@ spec 的缓存策略是逻辑过期 + 返回旧值：`campaign:detail:{campaignI
 
 **新增错误码的机器耦合（2026-11-16）**：第五态（失格/冷却）要落地就得新增错误码（例如 `PURCHASE_DISQUALIFIED`）。**必须同时改两处**：`src/main/java/com/sunshinefps/shared/ErrorCode.java` 与 `api/openapi.yaml` 的 `ErrorCode` 枚举（`:1085`）。`src/test/java/com/sunshinefps/ErrorCodeContractTest.java:29-46` 直接比对两边成员，**漏一边就红**，而且它只比常量名，不比文案与状态码（`:22` 注释）。这条是 blocking，不是 advisory——与术语检查不同，见 [guardrails](guardrails.md)。
 
+> **2026-11-22 行号与出处更新（Issue #84）**：上文引用的 `ErrorCodeContractTest.java:29-46` 旧行号与「`:22` 注释」已 **superseded**；清理源码注释后，`errorCodeEnumMatchesContract` 现位于 `src/test/java/com/sunshinefps/ErrorCodeContractTest.java:24-41`，契约只锁枚举常量名的边界见 [ADR-0015](../adr/0015-two-layer-error-model.md)。
+
 ## 下一个契约 ticket 的范围（2026-11-16）
 
 **来源**：决策 worker 在 **ADR-0012:33** 与 **ADR-0013:31**（行号按 `e107847`）里明确记了「契约缺口，本轮不改，契约修订是下一个 ticket」，加上本页原有的五处。**合并成一份范围，避免开重票。**
@@ -266,6 +272,8 @@ spec 的缓存策略是逻辑过期 + 返回旧值：`campaign:detail:{campaignI
 **2026-11-16 复核**：`web/src/mocks/handlers.ts:109-119` 的 claim handler **无条件返回 201**。七个 handler 里没有任何一个返回 409 / 410 / 500。
 
 所以即使契约补齐了，**当前 mock 也演示不了三种失败因**。这与 [open-loops](open-loops.md) 里「MSW handler 只有骨架用的几条」是同一件事的两面。
+
+> **2026-11-22 行号与状态更新（Issue #84）**：上文引用的 `web/src/mocks/handlers.ts:109-119` 旧行号及「无条件返回 201、七个 handler 造不出失败态」断言均已 **superseded**。后续实现已引入场景注册表（`web/src/mocks/scenarios.ts`），经 Issue #84 清理源码注释后，`POST /api/campaigns/:campaignId/claim` handler 现位于 `web/src/mocks/handlers.ts:651-663`，按请求头 `X-Mock-Scenario` 返回对应失败态（含 `409` / `410` / `500` 等），缺省仍回 `201`。
 
 ## 结论
 

@@ -10,12 +10,6 @@ import {
   renderCampaignPageWithProbe,
 } from './campaignTestHarness'
 
-/**
- * #54 预约 / 取消预约测试：打在 MSW HTTP 边界与可见行为上。
- * 三态（匿名 null / 未预约 false / 已预约 true）分开断言；预约与取消都走 204 空体，
- * 成功后重拉详情刷新 `reserved`；开售后入口消失；预约不动配额与抢购按钮可点性。
- */
-
 const { server, counters } = createCampaignTestServer()
 registerCampaignTestServer(server, counters)
 
@@ -23,10 +17,6 @@ const getReserveButton = () => screen.getByRole('button', { name: '预约' })
 const queryCancelButton = () => screen.queryByRole('button', { name: '取消预约' })
 const getClaimButton = () => screen.getByRole('button', { name: '立即抢购' })
 
-/**
- * 测试本地预约态桩：GET 读本地标记，POST 置 true、DELETE 置 false，
- * 与 handlers.ts 闭包口径一致；handler 闭包不外泄到其它用例。
- */
 function reserveScenarioHandlers(campaignId: number) {
   let reserved = false
   return [
@@ -44,7 +34,6 @@ function reserveScenarioHandlers(campaignId: number) {
   ]
 }
 
-/** 已登录未预约、未开售的内联详情；配额中性可售。 */
 function notReservedDetail() {
   return {
     id: 41,
@@ -73,7 +62,6 @@ describe('预约三态', () => {
 
     fireEvent.click(getReserveButton())
 
-    // 与 RequireAuth / 401 拦截器同一套口径：带 next 回到本场次
     await waitFor(() => {
       expect(screen.getByTestId('probe').textContent).toBe('/login?next=%2Fcampaigns%2F4')
     })
@@ -109,9 +97,7 @@ describe('预约成功', () => {
     fireEvent.click(getReserveButton())
 
     await waitFor(() => expect(queryCancelButton()).toBeInTheDocument())
-    // 请求方法与路径钉住：POST /api/campaigns/41/reserve
     expect(counters.reserve).toEqual([{ method: 'POST', path: '/api/campaigns/41/reserve' }])
-    // 成功后重拉了详情，reserved 以服务端最新值为准
     expect(counters.detail.length).toBeGreaterThan(getCountBefore)
   })
 
@@ -126,7 +112,6 @@ describe('预约成功', () => {
     fireEvent.click(getReserveButton())
     await waitFor(() => expect(queryCancelButton()).toBeInTheDocument())
 
-    // 配额与按钮可点性都不随预约变化
     expect(screen.getByText('4817')).toBeInTheDocument()
     expect(getClaimButton()).toBeDisabled()
     expect(screen.getByText('未开售')).toBeInTheDocument()
@@ -160,7 +145,6 @@ describe('开售后预约入口消失', () => {
 
   it('status 仍是 UPCOMING，但服务端口径时间已越过开售时刻：入口消失（走服务端时间偏移，不用裸 Date.now）', async () => {
     const localClock = Date.parse('2026-01-01T12:00:00.000Z')
-    // 稳定引用：hook 的取数回调按 now 引用收窄依赖，内联箭头会触发无限重取
     const frozenNow = () => localClock
     server.use(
       http.get('/api/campaigns/777', () =>
@@ -218,7 +202,6 @@ describe('预约 / 取消失败', () => {
     fireEvent.click(getReserveButton())
 
     await waitFor(() => expect(screen.getByText('本场已经结束')).toBeInTheDocument())
-    // 失败后仍停留在预约入口，界面不与服务端脱节
     expect(getReserveButton()).toBeEnabled()
     expect(queryCancelButton()).not.toBeInTheDocument()
   })

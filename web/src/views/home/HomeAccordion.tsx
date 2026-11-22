@@ -11,15 +11,9 @@ import { pad2 } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 interface HomeAccordionProps {
-  /** 首页精选展陈商品（最多 5 件）。 */
   readonly products: readonly ProductSummary[]
 }
 
-/**
- * 方向 C-2 精选军需水平手风琴展柜：
- * - 桌面端阻尼 flex 切换，70ms hover 防抖；收起态为 vertical-rl 竖排导轨；
- * - <= 860px 自动退回竖向折叠展开；支持键盘方向键与 Enter/Space 操作。
- */
 export function HomeAccordion({ products }: HomeAccordionProps) {
   const navigate = useNavigate()
   const [selectedId, setSelectedId] = useState<number | null>(null)

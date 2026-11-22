@@ -10,20 +10,11 @@ import {
   renderCampaignPageWithProbe,
 } from './campaignTestHarness'
 
-/**
- * #53 未登录 / 未实名的可点拦截与实名后自动重放：打在 MSW HTTP 边界与可见行为上。
- * 拦截一律由服务端响应驱动：前端不做本地预判，点击直接发 claim；
- * - 匿名：服务端回 401 `UNAUTHORIZED`，走既有登录回跳，带本场次路径；
- * - 未实名：服务端回 403 `REAL_NAME_REQUIRED`，进同一个实名表单，成功后同一条路径重放；
- * - 放弃填写：按钮回可点，无残留弹窗与 loading。
- */
-
 const { server, counters } = createCampaignTestServer()
 registerCampaignTestServer(server, counters)
 
 const getClaimButton = () => screen.getByRole('button', { name: '立即抢购' })
 
-/** 进行中、可点的场次详情：配额有余量、本场额度剩 1、不在冷却中。 */
 function ongoingDetail(): FlashCampaignDetail {
   return {
     id: 301,
@@ -42,7 +33,6 @@ function ongoingDetail(): FlashCampaignDetail {
   }
 }
 
-/** 抢购成功响应，形状照 ClaimResult 契约。 */
 const successClaim: ClaimResult = {
   orderNo: 'SO1001',
   collectibleNumber: '0427',
@@ -50,7 +40,6 @@ const successClaim: ClaimResult = {
   serverTime: new Date().toISOString(),
 }
 
-/** 实名提交成功回写的购买人档案：`realNameVerified` 翻成 true。 */
 const verifiedMe = { id: 1, username: 'demo', realNameVerified: true, realName: '张三', idNumberTail: '1234' }
 
 function loginUnverified() {
@@ -87,7 +76,6 @@ describe('未登录点抢购', () => {
     await waitFor(() => {
       expect(screen.getByTestId('probe').textContent).toBe('/login?next=%2Fcampaigns%2F4')
     })
-    // 拦截发生在点击之后：claim 已按服务端分流口径发出过一次
     expect(counters.claim).toHaveLength(1)
   })
 })
@@ -106,7 +94,6 @@ describe('服务端 403 REAL_NAME_REQUIRED 触发实名表单', () => {
     expect(await screen.findByRole('heading', { name: '实名测试场（进行中）' })).toBeInTheDocument()
     fireEvent.click(getClaimButton())
 
-    // 表单出现；底层抢购按钮仍在可点态，没有卡在「抢购中」
     expect(await screen.findByRole('dialog', { name: '完成实名认证' })).toBeInTheDocument()
     expect(getClaimButton()).toBeEnabled()
     expect(screen.queryByRole('button', { name: '抢购中…' })).not.toBeInTheDocument()
@@ -143,7 +130,6 @@ describe('实名提交成功后自动重放抢购', () => {
       http.put('/api/me/real-name', () => HttpResponse.json(verifiedMe, { status: 200 })),
       http.post('/api/campaigns/301/claim', () => {
         claimCalls += 1
-        // 第一次：服务端判定未实名回 403；实名补齐后重放的第二次：正常成交
         if (claimCalls === 1) {
           return HttpResponse.json(
             { code: 'REAL_NAME_REQUIRED', message: '请先完成实名认证' },
@@ -159,7 +145,6 @@ describe('实名提交成功后自动重放抢购', () => {
 
     fillAndSubmitRealName()
 
-    // 首次 claim 收到 403；实名成功后重放走同一条抢购路径，claim 计数涨到 2
     await waitFor(() => expect(counters.claim).toHaveLength(2))
     expect(counters.realName).toEqual(['PUT'])
     expect(await screen.findByText('0427')).toBeInTheDocument()
@@ -173,7 +158,6 @@ describe('实名提交成功后自动重放抢购', () => {
       http.put('/api/me/real-name', () => HttpResponse.json(verifiedMe, { status: 200 })),
       http.post('/api/campaigns/301/claim', () => {
         claimCalls += 1
-        // 第一次 403 开表单；实名补齐后重放成交，与上一条用例同一条链路
         if (claimCalls === 1) {
           return HttpResponse.json(
             { code: 'REAL_NAME_REQUIRED', message: '请先完成实名认证' },
@@ -189,7 +173,6 @@ describe('实名提交成功后自动重放抢购', () => {
     fillAndSubmitRealName()
     await screen.findByText('0427')
 
-    // 回写走 store 既有 setter：当前购买人实名态翻成 true，后续不会再重复弹表单
     expect(useAuth.getState().me?.realNameVerified).toBe(true)
   })
 })
@@ -236,14 +219,12 @@ describe('放弃填写', () => {
 
 describe('服务端 403 REAL_NAME_REQUIRED', () => {
   it('本地以为已实名、服务端回 403：进入同一套实名表单，成功后重放抢购', async () => {
-    // 本地会话态标记已实名，但服务端判定未实名：走服务端错误分支，不另起一套实现。
     loginVerified()
     let claimCalls = 0
     server.use(
       http.get('/api/campaigns/301', () => HttpResponse.json(ongoingDetail())),
       http.post('/api/campaigns/301/claim', () => {
         claimCalls += 1
-        // 第一次：服务端判定未实名回 403；实名补齐后重放的第二次：正常成交
         if (claimCalls === 1) {
           return HttpResponse.json(
             { code: 'REAL_NAME_REQUIRED', message: '请先完成实名认证' },
@@ -257,13 +238,11 @@ describe('服务端 403 REAL_NAME_REQUIRED', () => {
     renderCampaignPage('301')
     fireEvent.click(await screen.findByRole('button', { name: '立即抢购' }))
 
-    // 403 回来后打开实名表单；第一次 claim 已发出过一次
     expect(await screen.findByRole('dialog', { name: '完成实名认证' })).toBeInTheDocument()
     expect(counters.claim).toHaveLength(1)
 
     fillAndSubmitRealName()
 
-    // 实名成功后重放：claim 计数涨到 2，结果面板出现
     await waitFor(() => expect(counters.claim).toHaveLength(2))
     expect(await screen.findByText('0427')).toBeInTheDocument()
   })
@@ -288,7 +267,6 @@ describe('实名提交失败', () => {
     fillAndSubmitRealName()
 
     expect(await screen.findByText('已实名，不允许覆盖')).toBeInTheDocument()
-    // 失败后表单仍在，提交按钮回到可点态，可重试或放弃
     expect(screen.getByRole('dialog', { name: '完成实名认证' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '提交并继续抢购' })).toBeEnabled()
     expect(counters.claim).toHaveLength(1)

@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react'
 import { pad2 } from '@/lib/format'
 
-/**
- * 首页展示级倒计时：基于 startAt 做本地相对时间，每秒跳动一次。
- * 不接抢购页的服务端时钟校准与轮询；目标已过或非法时刻回落到 0。
- */
 export function useCountdown(target: string) {
   const [now, setNow] = useState(() => Date.now())
 

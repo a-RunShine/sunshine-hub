@@ -6,11 +6,6 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { createHandlers } from '@/mocks/handlers'
 import HomePage from './HomePage'
 
-/**
- * 首页边界测试：打在 MSW HTTP 边界与可见行为上——首屏抢购海报与中文倒计时、
- * 第二屏水平手风琴切换、卡片与查看全部跳转、三态与重试。
- */
-
 const server = setupServer(...createHandlers())
 
 const productUrls: string[] = []
@@ -87,7 +82,6 @@ describe('S1 首页渲染与数据映射', () => {
 
     await screen.findByRole('heading', { name: '幽影长弓 磁轨狙击' })
 
-    // 首屏限时抢购海报与中文基线倒计时
     expect(screen.getByRole('heading', { name: '暗夜猎手 首发' })).toBeInTheDocument()
     const timer = screen.getByRole('timer', { name: '距离开售倒计时' })
     expect(within(timer).getByText('时')).toBeInTheDocument()
@@ -97,7 +91,6 @@ describe('S1 首页渲染与数据映射', () => {
     expect(screen.getByRole('link', { name: /查看场次/ })).toHaveAttribute('href', '/campaigns/1')
     expect(screen.getByText(/开售/)).toBeInTheDocument()
 
-    // 第二屏精选军需（无分类 Tab，右上查看全部入口）与 5 件手风琴切片
     expect(screen.getByRole('heading', { name: '精选军需' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /查看全部/ })).toHaveAttribute('href', '/products')
     expect(productUrls.some((q) => q.includes('size=5'))).toBe(true)
@@ -138,17 +131,14 @@ describe('S2 手风琴切换与页面跳转', () => {
     expect(slice1).toHaveAttribute('aria-expanded', 'true')
     expect(slice2).toHaveAttribute('aria-expanded', 'false')
 
-    // 点击收起项：只展开不直接跳走
     fireEvent.click(slice2)
     expect(slice2).toHaveAttribute('aria-expanded', 'true')
     expect(slice1).toHaveAttribute('aria-expanded', 'false')
 
-    // 键盘右键切到第三项
     fireEvent.keyDown(slice2, { key: 'ArrowRight' })
     const slice3 = screen.getByRole('heading', { name: '暗夜猎手 限定皮肤' }).closest('article')!
     expect(slice3).toHaveAttribute('aria-expanded', 'true')
 
-    // 点击已展开项里的「查看详情 →」跳转到对应详情路由
     fireEvent.click(within(slice3).getByRole('link', { name: /查看详情/ }))
     await screen.findByTestId('probe')
     expect(screen.getByTestId('probe').textContent).toBe('/products/1')

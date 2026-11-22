@@ -1,14 +1,12 @@
 import type { ProductKind } from '@/api/catalog'
 import { cn } from '@/lib/utils'
 
-/** 商品形态闭集映射（全站唯一数据源）；契约枚举外的值不做兜底文案。 */
 export const PRODUCT_KIND_LABEL: Record<ProductKind, string> = {
   VIRTUAL: '虚拟道具',
   PHYSICAL: '实体周边',
 }
 
 interface ProductKindMarkProps {
-  /** 商品形态闭集（虚拟道具 / 实体周边），对应两套固定交付路径。 */
   readonly kind: ProductKind
   readonly className?: string
 }
@@ -37,11 +35,6 @@ function PhysicalCrateIcon() {
   )
 }
 
-/**
- * 商品形态识别角标（闭集二选一）：
- * 用数字芯片标与立体货箱标分别区分「虚拟道具（支付即入库）」和「实体周边（需走履约发货）」；
- * 不渲染可变的货架分类名（如武器皮肤 / 手办 / 服饰），避免每张卡片左上角文字复读。
- */
 export function ProductKindMark({ kind, className }: ProductKindMarkProps) {
   return (
     <span

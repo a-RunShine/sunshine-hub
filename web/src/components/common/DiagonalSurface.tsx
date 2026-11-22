@@ -3,9 +3,7 @@ import { cn } from '@/lib/utils'
 type DiagonalVariant = 'hero' | 'card' | 'accordion' | 'band'
 
 interface DiagonalSurfaceProps {
-  /** 几何斜切场景变体，统一管控多处展台的斜切暗面与 1px 基准线角度。 */
   readonly variant: DiagonalVariant
-  /** 是否叠加 SVG 1px `#252b28` 斜切线；默认开启。 */
   readonly showSeam?: boolean
   readonly className?: string
 }
@@ -53,10 +51,6 @@ function DiagonalSeamLine({
   )
 }
 
-/**
- * 统一斜切暗面几何基底：集中渲染方向 C 的暗绿黑斜切面与 1px 发丝级分割线，
- * 避免在首页、手风琴、商品展台与活动条之间重复内联 `<svg>` 斜线坐标。
- */
 export function DiagonalSurface({ variant, showSeam = true, className }: DiagonalSurfaceProps) {
   const coords = DESKTOP_SEAM_COORDS[variant]
 

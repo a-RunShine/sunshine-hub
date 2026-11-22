@@ -19,10 +19,6 @@ interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly children: ReactNode
 }
 
-/**
- * 业务级操作按钮包装：保留 `ui/button` 官方源码不动，通过外层意图样式统一 R4-B 切角主行动、
- * 边框次行动与下划线链接按钮的质感。
- */
 export function ActionButton({
   intent = 'primary',
   className,
@@ -59,7 +55,6 @@ interface ActionLinkProps extends LinkProps {
   readonly children: ReactNode
 }
 
-/** 与 ActionButton 共用同一套视觉意图的路由链接版本。 */
 export function ActionLink({ intent = 'primary', className, children, ...props }: ActionLinkProps) {
   return (
     <Link className={cn(INTENT_CLASSES[intent], className)} {...props}>

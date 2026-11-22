@@ -49,12 +49,6 @@ function funnelOptionClass(active: boolean): string {
   )
 }
 
-/**
- * 全部商品目录页（/products · R4-B 混合陈列）：
- * - 默认第 1 页且无筛选/搜索时启用「顶 2 排非对称 + 第 4 件起三列对称（末尾左对齐）」；
- * - 任一分类、漏斗筛选、搜索词激活或翻页后切换为规整三列对称网格，便于横向对比；
- * - categoryId / kind 直接驱动 `/api/products`；搜索与限量筛选在 #80 落契约前作当前页过滤。
- */
 export default function ProductsPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(undefined)
   const [selectedKind, setSelectedKind] = useState<ProductKind | undefined>(undefined)

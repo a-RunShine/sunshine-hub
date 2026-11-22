@@ -3,13 +3,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { createHandlers } from './handlers'
 import { MOCK_SCENARIO_HEADER } from './scenarios'
 
-/**
- * 分类资源的 MSW HTTP 边界测试：只通过真实 fetch 打 handler 暴露出去的 HTTP 接口，
- * 不断言 handler 内部实现。场景选择由请求头 `X-Mock-Scenario` 完成，与既有抢购/下单场景同协议。
- *
- * 每个用例前用全新 createHandlers() 复位闭包（分类表、商品引用），用例之间互不复用状态。
- */
-
 const ORIGIN = 'http://localhost:3000'
 
 const server = setupServer(...createHandlers())
@@ -102,7 +95,6 @@ describe('管理端分类增删改查', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.name).toBe('金属徽章')
-    // 名称可改、id 不变：响应 id 必须与请求路径 id 相同。
     expect(body.id).toBe(3)
 
     const list = await (await fetch(`${ORIGIN}/api/categories`)).json()

@@ -4,15 +4,10 @@ import { ActionButton } from '@/components/common/ActionButton'
 import { ID_NUMBER_PATTERN, REAL_NAME_MAX_LENGTH } from './realNameFieldRules'
 
 interface CampaignRealNameDialogProps {
-  /** 表单是否打开；false 时不渲染任何节点。 */
   readonly open: boolean
-  /** 实名请求在途：提交按钮进入加载态，表单不可重复提交。 */
   readonly submitting: boolean
-  /** 提交失败的可理解提示；null 表示无错误。 */
   readonly error: string | null
-  /** 校验通过后提交实名（上层调 API，成功后自动重放抢购）。 */
   readonly onSubmit: (input: RealNameInput) => void
-  /** 放弃填写：关掉表单，回到抢购按钮可点态。 */
   readonly onCancel: () => void
 }
 
@@ -21,11 +16,6 @@ interface FieldError {
   idNumber: string | null
 }
 
-/**
- * 实名录入弹窗（ADR-0009：实名放在抢购之前，入口出现在抢购动作里）。
- * 只采集姓名与证件号；前端校验只复刻契约上的长度 / 格式约束，不另立一套规则。
- * 提交成功后的自动重放抢购由上层负责，本组件不感知抢购流程。
- */
 export function CampaignRealNameDialog({
   open,
   submitting,
@@ -37,7 +27,6 @@ export function CampaignRealNameDialog({
   const [idNumber, setIdNumber] = useState('')
   const [fieldError, setFieldError] = useState<FieldError>({ realName: null, idNumber: null })
 
-  // 每次打开表单时清掉上一次的填写与校验残留，避免带着旧值渲染新一场次
   useEffect(() => {
     if (open) {
       setRealName('')
@@ -76,7 +65,6 @@ export function CampaignRealNameDialog({
       aria-label="完成实名认证"
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/70 px-4"
       onMouseDown={(event) => {
-        // 点遮罩视为放弃；在途期间不允许中途关掉，避免把请求悬空
         if (event.target === event.currentTarget && !submitting) onCancel()
       }}
     >

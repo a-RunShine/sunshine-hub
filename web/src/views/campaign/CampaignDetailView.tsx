@@ -12,18 +12,14 @@ interface CampaignDetailViewProps {
   readonly claimability: Claimability
   readonly claim: ClaimState
   readonly onClaim: () => void
-  /** 未开售；开售后预约入口消失。 */
   readonly beforeStart?: boolean
-  /** 预约 / 取消请求在途。 */
   readonly reserving?: boolean
-  /** 预约 / 取消失败的提示；null 表示无错误。 */
   readonly reserveError?: string | null
   readonly onReserve?: () => void
   readonly onCancelReserve?: () => void
   readonly onRequireLogin?: () => void
 }
 
-/** 有数据时的展示：场次名、剩余份数（配额口径）、倒计时、预约入口区、抢购按钮区 / 成功结果面板。 */
 export function CampaignDetailView({
   detail,
   offsetMs,

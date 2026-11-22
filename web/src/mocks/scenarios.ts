@@ -1,16 +1,5 @@
 import type { components } from '@/types/api'
 
-/**
- * MSW 场景注册表。场景是 mock 能力的唯一真相源：每个场景声明它要覆盖的场次详情、
- * claim 失败或直接下单（POST /orders）失败。handler 按请求头 `X-Mock-Scenario`
- * 选择场景，默认 `happy`；不持有全局可变状态。
- *
- * 口径守术语表：额度（remainingCampaignLimit）按 campaign 计、仅本场内有效；
- * 冷却（cooldownUntil / PURCHASE_COOLDOWN）按 product 计、跨场生效；
- * 购买人专属字段对匿名访问返回 null。
- * 场景只是测试/演示概念，不进入 OpenAPI 契约与生成类型。
- */
-
 export type CampaignDetailOverride = components['schemas']['FlashCampaignDetail']
 
 export interface MockFailure {
@@ -35,102 +24,84 @@ export interface MockScenario {
 
 export const DEFAULT_SCENARIO_ID = 'happy'
 
-/** 场景选择请求头名；handler 与开发期切换器共用，协议见 handlers.ts 注释。 */
 export const MOCK_SCENARIO_HEADER = 'X-Mock-Scenario'
 
 type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
 
 const now = () => new Date().toISOString()
 
-/** 商品级购买冷却：claim 与 /orders 两条路径共用同一段失败响应，码与文案不改动。 */
 const purchaseCooldownFailure: MockFailure = {
   status: 409,
   code: 'PURCHASE_COOLDOWN',
   message: '这件商品处于购买冷却期，到期后自动恢复可购',
 }
 
-/** 未登录或会话过期：claim 与 /orders 两条路径共用同一段失败响应，码与文案不改动。 */
 const unauthorizedFailure: MockFailure = {
   status: 401,
   code: 'UNAUTHORIZED',
   message: '请先登录',
 }
 
-/** 管理端未授权：分类新增、更新、删除共用同一段失败响应，码与文案不改动。 */
 const forbiddenFailure: MockFailure = {
   status: 403,
   code: 'FORBIDDEN',
   message: '没有权限',
 }
 
-/** 分类不存在：更新、删除回 404。 */
 const categoryNotFoundFailure: MockFailure = {
   status: 404,
   code: 'CATEGORY_NOT_FOUND',
   message: '分类不存在',
 }
 
-/** 分类下仍有商品，删除被拒绝：先迁移商品再删除。 */
 const categoryInUseFailure: MockFailure = {
   status: 409,
   code: 'CATEGORY_IN_USE',
   message: '分类下还有商品，先迁移商品再删除',
 }
 
-/** 地址不存在：编辑、删除、设默认回 404。 */
 const addressNotFoundFailure: MockFailure = {
   status: 404,
   code: 'ADDRESS_NOT_FOUND',
   message: '地址不存在，或不属于当前账号',
 }
 
-/** 地址数量超过上限（10 条），新增被拒。 */
 const addressLimitExceededFailure: MockFailure = {
   status: 400,
   code: 'ADDRESS_LIMIT_EXCEEDED',
   message: '最多保存 10 条收货地址',
 }
 
-/** 地址还被未支付订单引用，删除被拒绝：先取消订单或换地址。 */
 const addressInUseFailure: MockFailure = {
   status: 409,
   code: 'ADDRESS_IN_USE',
   message: '这个地址还被未支付订单使用，先取消订单或换地址',
 }
 
-/** 履约单不存在：签收回 404。 */
 const fulfillmentNotFoundFailure: MockFailure = {
   status: 404,
   code: 'FULFILLMENT_NOT_FOUND',
   message: '履约单不存在，或不属于当前账号',
 }
 
-/** 虚拟、未发货或已完成的履约单不能签收。 */
 const fulfillmentNotSignableFailure: MockFailure = {
   status: 409,
   code: 'FULFILLMENT_NOT_SIGNABLE',
   message: '这个履约单现在不能签收',
 }
 
-/** 参数不合法：地址新增、编辑共用同一段失败响应。 */
 const badRequestFailure: MockFailure = {
   status: 400,
   code: 'BAD_REQUEST',
   message: '参数不合法',
 }
 
-/** 配额计数自洽：total = available + occupied + sold（pendingRepool 恒为 0）。 */
 function makeAllocation(total: number, available: number, sold = 0): FlashCampaignDetail['allocation'] {
   return { total, available, occupied: total - available - sold, pendingRepool: 0, sold }
 }
 
-/**
- * 商品 1 的冷却到期时刻。冷却是商品级、跨场生效：同一商品的不同场次详情共用这一个值，
- * 不由 campaignId 派生；两个冷却详情场景都引用它，测试据此钉住跨场同值。
- */
 const product1CooldownUntil = new Date(Date.now() + 3 * 24 * 3600_000).toISOString()
 
-/** 场次详情覆盖一律用 FLASH 形状：remainingCampaignLimit 只在 FLASH 上出现，售罄由 allocation.available 表达，不造 SOLD_OUT 状态。 */
 function flashDetail(overrides: {
   id: number
   name: string
@@ -151,7 +122,6 @@ function flashDetail(overrides: {
   }
 }
 
-// 态一：未开售。startAt 在未来，配额与额度保持中性可售。
 const detailUpcoming: FlashCampaignDetail = flashDetail({
   id: 101,
   name: '暗夜猎手 首发（未开售）',
@@ -165,7 +135,6 @@ const detailUpcoming: FlashCampaignDetail = flashDetail({
   reserved: true,
 })
 
-// 态二：已结束。startAt / endAt 均在过去。
 const detailEnded: FlashCampaignDetail = flashDetail({
   id: 102,
   name: '暗夜猎手 收官场（已结束）',
@@ -179,7 +148,6 @@ const detailEnded: FlashCampaignDetail = flashDetail({
   reserved: false,
 })
 
-// 态三：售罄。allocation.available 为 0，其余计数自洽；购买人本场额度仍有余量，与额度用尽区分。
 const detailSoldOut: FlashCampaignDetail = flashDetail({
   id: 103,
   name: '暗夜猎手 加场（售罄）',
@@ -193,7 +161,6 @@ const detailSoldOut: FlashCampaignDetail = flashDetail({
   reserved: false,
 })
 
-// 态四：本场额度用尽。配额仍有剩余，remainingCampaignLimit 为 0；不在冷却中，cooldownUntil 为 null。
 const detailLimitReached: FlashCampaignDetail = flashDetail({
   id: 104,
   name: '暗夜猎手 返场（额度用尽）',
@@ -207,7 +174,6 @@ const detailLimitReached: FlashCampaignDetail = flashDetail({
   reserved: false,
 })
 
-// 态五：冷却中（与 claim-cooldown 同场语义）。cooldownUntil 为未来时刻；商品级、跨场生效。
 const detailCooldownClaim: FlashCampaignDetail = flashDetail({
   id: 105,
   name: '暗夜猎手 加场（冷却中）',
@@ -221,7 +187,6 @@ const detailCooldownClaim: FlashCampaignDetail = flashDetail({
   reserved: false,
 })
 
-// 态五演示：只改详情、不改抢购结果。与 detailCooldownClaim 同商品、不同场次，cooldownUntil 取同一个值。
 const detailCooldownDemo: FlashCampaignDetail = flashDetail({
   id: 106,
   name: '暗夜猎手 返场（冷却演示）',
@@ -241,7 +206,6 @@ export const scenarios: readonly MockScenario[] = [
     description: '默认场景：不覆盖任何响应，所有行为与现状逐字节等价',
   },
 
-  // 场次详情覆盖（GET /campaigns/:campaignId）
   {
     id: 'detail-upcoming',
     description: '未开售：UPCOMING，startAt 在未来',
@@ -269,7 +233,6 @@ export const scenarios: readonly MockScenario[] = [
     campaignDetail: detailCooldownDemo,
   },
 
-  // claim 失败覆盖（POST /campaigns/:campaignId/claim）
   {
     id: 'claim-already-purchased',
     description: '已购买过这件商品（已购分支）',
@@ -322,7 +285,6 @@ export const scenarios: readonly MockScenario[] = [
     claimFailure: { status: 500, code: 'INTERNAL_ERROR', message: '服务出了点问题' },
   },
 
-  // 直接下单失败覆盖（POST /orders）
   {
     id: 'order-bad-request',
     description: '下单参数不合法',
@@ -353,7 +315,6 @@ export const scenarios: readonly MockScenario[] = [
     orderFailure: purchaseCooldownFailure,
   },
 
-  // 分类管理端失败覆盖（POST/PUT/DELETE /admin/categories…）
   {
     id: 'category-forbidden',
     description: '管理端未授权：分类新增、更新、删除均回 403',
@@ -370,7 +331,6 @@ export const scenarios: readonly MockScenario[] = [
     categoryFailure: categoryNotFoundFailure,
   },
 
-  // 地址管理失败覆盖（POST/PUT/DELETE /addresses… 与 PUT /addresses/:id/default）
   {
     id: 'address-not-found',
     description: '地址不存在：编辑、删除、设默认均回 404 ADDRESS_NOT_FOUND',
@@ -403,7 +363,6 @@ export const scenarios: readonly MockScenario[] = [
     addressDefaultFailure: unauthorizedFailure,
   },
 
-  // 签收失败覆盖（POST /fulfillments/:id/sign）
   {
     id: 'fulfillment-not-found',
     description: '履约单不存在：签收回 404 FULFILLMENT_NOT_FOUND',

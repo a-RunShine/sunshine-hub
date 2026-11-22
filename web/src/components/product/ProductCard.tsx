@@ -8,17 +8,9 @@ import { ProductKindMark } from './ProductKindMark'
 
 interface ProductCardProps {
   readonly product: ProductSummary
-  /**
-   * - `tile`（默认）：开放式上下细线展位（左上形态标、右上限量标、左下商品名、右下骨白主价）
-   * - `lead`：全宽 `16:7` 主打横幅展位，用于默认第 1 排首位推荐
-   */
   readonly variant?: 'tile' | 'lead'
 }
 
-/**
- * 商品展位卡：左上角使用「虚拟/实体」形态图标，右上角使用菱形限量图标，
- * 去掉货架分类文字复读，突出商品名与骨白价格；整卡点击进入详情。
- */
 export function ProductCard({ product, variant = 'tile' }: ProductCardProps) {
   if (variant === 'lead') {
     return (
