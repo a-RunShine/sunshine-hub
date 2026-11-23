@@ -131,6 +131,8 @@ git merge origin/main
 - **PR 从 Draft 标 Ready（或请求 owner 合并）前，必须先跑一遍双轴 `/code-review`**：只跑单测与多轮视觉检查仍可能漏过领域约束（例如 PR #77 曾险些带出违反 ADR-0014 的 `silhouette.ts` 与未同步源 Issue）。收口时必须对 `origin/main...HEAD` 跑双轴 review（`Standards` 轴对照 `CODING_STANDARDS/`、`Spec` 轴对照源 Issue 与设计基线），修完发现的问题并重跑校验绿灯后，才将 PR 标为 `Ready for review` 或交由 owner 合并。
 - **交互/视觉迭代改动了原 Issue 范围或文案时同步回写源 Issue**：多轮打磨改变布局、范围或文案后，同步修订对应源 Issue 正文留痕；若改动了 `#2`、`#7` 等规格/实施计划类 Issue 正文，仍按上文「改 issue 正文必须把 before/after 贴进 PR 正文」要求，将每处 `before/after` 贴进 PR 正文 Evidence 段。
 
+> **2026-11-23 更正（`main` = `ab6e032`，部分 `superseded`）**：上条「所有 PR 标 Ready 前无条件跑双轴 `/code-review`」口径已 `superseded`，现行分级门槛（集成收官 1 轮 / 核心改动首轮 1 次、不另开空窗口 Re-Review / 纯文档自核）见根 `AGENTS.md` `### Pull requests`。「交互/视觉迭代改动了原 Issue 范围或文案时同步回写源 Issue」继续有效。
+
 ## PR 描述格式
 
 `docs/agents/pull-requests.md`：三段模板——Summary 给图或树，Evidence 给 before/after，Merge Danger 标单向门还是双向门。
@@ -146,4 +148,12 @@ git merge origin/main
 
 ```text
 在 sunshine-hub 仓库按 issue #60（含 2026-11-22 更新评论）执行一次文档与术语语义巡检：先 git fetch origin main，再按标题查找当前 OPEN 的 `docs: 文档同步待人工判断` 滚动 issue（若无或上次 `<!-- docs-semantic-review: ... -->` 水线后无新候选与提交则输出 no-op 退出）。对照 origin/main 跑 `node scripts/check-doc-links.mjs`、`node --test scripts/*.test.mjs` 与 `./scripts/check-glossary.sh`，结合近期已合 PR 与 open issue 区分真实过时与有意保留的历史墓碑。有把握的 `docs/wiki/` 更正（遵循 docs/wiki/index.md Rule 3，<=5 文件 <=200 行）优先复用现有 OPEN 的 `docs/sync-` PR，否则从 `origin/main` 另开 `--no-link` 临时 worktree（如 `../sunshine-hub-semantic`）提交并开 `docs:` PR，跑通链接与脚本单测后清理 worktree；拿不准或需改 ADR/GLOSSARY/源码的项追加到滚动 issue 评论。只要本次非 no-op，结束时均在滚动 issue 末尾追加 `<!-- docs-semantic-review: <ISO-8601> main=<sha> -->` 水线。严禁自动合并、直推 main、删远端分支或改既有 issue/PR 正文。
+```
+
+> **2026-11-23 更新（`main` = `ab6e032`，上文 2026-11-22 可复制口令已 `superseded`）**：`#62` 已归档，当前 `OPEN` 滚动 issue 为 `#93`（仍按标题动态查找）；GitHub 会将超长滚动评论自动折叠（`isMinimized: true` / `marked as abuse`），导致 `gh issue view <num> --comments` 隐藏正文，读取评论须改走 GitHub REST API（见下方现行口令）。
+
+**现行可复制执行口令（2026-11-23）**：
+
+```text
+在 sunshine-hub 仓库按 issue #60（含 2026-11-22 更新评论）执行一次文档与术语语义巡检：先 git fetch origin main，再按标题查找当前 OPEN 的 `docs: 文档同步待人工判断` 滚动 issue（当前为 #93，#62 已归档）。读取滚动 issue 评论必须改用 REST API `gh api repos/a-RunShine/sunshine-hub/issues/<num>/comments --jq '.[] | {id, created_at, body}'`（禁止仅用 `gh issue view <num> --comments`，以免长评论被折叠为 isMinimized: true / marked as abuse 而漏读正文）；若无 OPEN 滚动 issue 或上次 `<!-- docs-semantic-review: ... -->` 水线后无新候选与提交则输出 no-op 退出。对照 origin/main 跑 `node scripts/check-doc-links.mjs`、`node --test scripts/*.test.mjs` 与 `./scripts/check-glossary.sh`，结合近期已合 PR 与 open issue 区分真实过时与有意保留的历史墓碑。有把握的 `docs/wiki/` 更正（遵循 docs/wiki/index.md Rule 3，<=5 文件 <=200 行）优先复用现有 OPEN 的 `docs/sync-` PR，否则从 `origin/main` 另开 `--no-link` 临时 worktree（如 `../sunshine-hub-semantic`）提交并开 `docs:` PR，跑通链接与脚本单测后清理 worktree；拿不准或需改 ADR/GLOSSARY/源码的项追加到滚动 issue 评论。只要本次非 no-op，结束时均在滚动 issue 末尾追加 `<!-- docs-semantic-review: <ISO-8601> main=<sha> -->` 水线。严禁自动合并、直推 main、删远端分支或改既有 issue/PR 正文。
 ```

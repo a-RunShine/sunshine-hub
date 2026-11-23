@@ -4,6 +4,8 @@
 > 下文所有行号与「契约现状」列均指修订前的 `api/openapi.yaml`，作为历史断言保留；核对现状以当前 `api/openapi.yaml` 与生成物 `web/src/types/api.ts` 为准。
 > 本页及其它 wiki 正文里出现的 `remainingQuota` 是 2026-11-17 改名前的历史名称，现契约字段为 `remainingCampaignLimit`。
 > **2026-11-17 owner 拍板方案 A（冷却作用域补全）**：冷却定为商品级购买限制，按 `productId` 计、跨场生效；`claim` 与 NORMAL/DISCOUNT 共用的 `POST /orders` 同样拦截同一商品，浏览与预约（`reserved`）不拦。
+>
+> **2026-11-23 复核（`main` = `ab6e032`）**：上文「下一个契约 ticket 的范围」1–8 项契约改动已全部落入 `api/openapi.yaml`（`CampaignDetail` 已于 `:1542-1550` 拆为 `oneOf` + `discriminator`，`FlashCampaignDetail` / `SimpleCampaignDetail` 与 `CampaignInput.campaignLimit` 等均已就位），第 9 项「五种禁用态权威清单」亦已写入 `issue #7` 正文（`:60-70`），下文仍写作「字段待加 / 未拍 / 动作未写入 `#7`」的历史叙述均已 `superseded`。此外 `docs-sync` 第 9 项报告的 6 个端点字符串中，四个 OpenAPI 路径（含本页 `:218` 仅作正面对照的列表接口）均已存在，另两处带 api 路径前缀的命中分别源自 `#2` 规格引用及本页 `:278` 的 MSW 路径注释参数被正则截断，不构成未落盘契约缺口（注：顶部新增 2 行使原 `:10` 起顺移 2 行，如 `:138` 所引 `:124`/`:133` 现位于 `:126`/`:135`）。
 
 **2026-11-16 复核（`main` = `c5b5508`）**，全部行号指 `api/openapi.yaml`，除非另注。issue 行号指 `gh issue view <n> --json body -q .body` 的正文行号。
 
@@ -307,6 +309,8 @@ spec 的缓存策略是逻辑过期 + 返回旧值：`campaign:detail:{campaignI
 - **NORMAL 常规售卖是否也受冷却约束**：D4 只说折扣场。**未定，别自行推广。**
 
 > **2026-11-17 已决（owner 方案 A）**：NORMAL 常规售卖同样受冷却约束。冷却为商品级购买限制，按 `productId` 计、跨场生效，`claim` 与 NORMAL/DISCOUNT 的 `POST /orders` 都拦截；浏览与预约不拦。原「未定，别自行推广」按历史断言保留。
+
+> **2026-11-23 更正（`main` = `ab6e032`，`:264` 与 `:307`「`CampaignDetail` 拆分未拍」已 `superseded`）**：`CampaignDetail` 拆分方式已落入 `api/openapi.yaml:1542-1550`（PR #38 / `6acedd7`，采用 `oneOf` + `discriminator: type` 区分 `FlashCampaignDetail` 与 `SimpleCampaignDetail`），上文「仍未拍」清单中仅剩 `miss` 滚动窗口的数据结构、窗口起点与清零规则仍待后续后端实现阶段定稿；其余第 1–9 项（含 `issue #7:60-70` 五态权威清单）均已落地，详见顶部 `2026-11-23` 复核说明。
 
 ### 旧问题列表（2026-11-16 早先，历史保留）
 

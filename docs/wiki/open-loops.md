@@ -152,6 +152,8 @@
 
 > **2026-11-22 复核（main `df17924`）**：open issue 16 个。原「**2026-11-17 open issue 快照（六个）**：#2（规格，`ready-for-agent`）、#3（文档与决策审查，`needs-triage` + `docs`）、#7（实施路径，`docs`）、#27（issue 正文扫描，`needs-triage`）、#29（术语护栏修复，`needs-triage`）、#32（MSW 失败态，`needs-triage`）。契约修订 ticket 仍未开。」按历史断言保留。
 
+> **2026-11-23 复核（main `ab6e032`）**：open issue 17 个（现行集合：`#3`、`#7`、`#27`、`#60`、`#69`–`#76`、`#78`–`#80`、`#86`、`#93`）。上文 `2026-11-17` 所记 `#29`（已随 PR #56 `d654255` 关闭，仅「免报错标记方案未定、暂不改 blocking」留待后续）与 `#32`（已随 PR #38 / PR #44 `010ca2c` 落地并关闭）之开放态及阻塞注记均已 `superseded`；`#59` 已随 PR #61 关闭，`#62` 已归档并由 `#93` 接替；`#60`（定期文档与术语语义巡检，跨工具入口见 [workflow](workflow.md)）与 `#27` 仍 `OPEN`。原「**2026-11-17 open issue 快照（六个）**：#2（规格，`ready-for-agent`）、#3（文档与决策审查，`needs-triage` + `docs`）、#7（实施路径，`docs`）、#27（issue 正文扫描，`needs-triage`）、#29（术语护栏修复，`needs-triage`）、#32（MSW 失败态，`needs-triage`）。契约修订 ticket 仍未开。」按历史断言保留。
+
 ## 已知但未做（环境护栏）
 
 来自 **2026-11-16 交接记录**，属于「有偏差先修，再做功能」那一类：
@@ -172,6 +174,8 @@
 >
 > **PR #28 另外修掉的**（原属 [environment](environment.md) 的暗坑，现已结）：Maven wrapper 已补（`mvnw` / `.mvn/wrapper/`）、`web/package.json:6` 有 `packageManager: pnpm@12.21.0`、`web/.nvmrc` = 22、**enforcer 门槛从 `[21,)` 提到 `[25,)`**（`pom.xml:128`）。**`~/.m2/toolchains.xml` 仍是机器本地前提，PR #28 没提交模板**，那条未结。
 
+> **2026-11-23 更新（`main` = `ab6e032`，上文部分 `superseded`）**：术语脚本未修断言已随 PR #56（`d654255`，关闭 `#29`）部分结项——脚本现按 UTF-8 拆词、`GLOSSARY.md:19` 已补入 ADR-0011 删除的地域旧词（仅因历史墓碑免误拦机制未定，仍保持 `exit 0` advisory）；MSW `claim` handler 无条件回 201 断言已随 PR #44（`010ca2c`，关闭 `#32`）解除，现按 `X-Mock-Scenario` 返回各失败态（`web/src/mocks/handlers.ts:651-663`）。其余（GitHub Actions `checkout`/`setup-node`/`pnpm/action-setup` 仍 v4、`~/.m2/toolchains.xml` 无仓库模板）状态不变。
+
 ## 契约缺口阻塞抢购页
 
 - **2026-11-16 复核**：**[contract-gaps](contract-gaps.md) 是阶段 1 抢购页的前置，不是它的实现细节。** 五处缺口里四处要改 `api/openapi.yaml`（编号池异常无 5xx 出口、点击前拿不到已购/限购态、`allocation` 非必填、匿名接口返回用户专属 `reserved`），第五处是「五种按钮禁用态」根本没有权威清单。
@@ -191,6 +195,8 @@
   > **2026-11-17 复核（部分 superseded）**：上面「阶段 1 与阶段 2 都没有 per-ticket 子 issue」**只对阶段 2 仍成立**。阶段 1 已有一个前置 ticket **#32**（MSW 要能造出契约里的每种失败态，见「等 triage」的 #32 条），但它被**尚未开的契约修订 ticket** 阻塞；除 #32 外，阶段 1 的页面实现仍无 per-ticket 子 issue。阶段 2 维持旧断言：仍无 per-ticket 子 issue。
 
 - **2026-11-16 复核**：**`module:*` 标签一个都还没建**（现有 6 个标签里没有）。`AGENTS.md` 说「第一个模块落地时按模块名创建，此后每个 issue 至少带一个」，拆 ticket 时要一并建，按模块边界拆。详见 [stages](stages.md)。
+
+> **2026-11-23 更新（`main` = `ab6e032`，上文部分 `superseded`）**：阶段 1 已拆出完整页面与收尾 ticket（`#48`–`#54`、`#68` 已关闭，开放态 `#69`–`#76`、`#78`–`#80`），阶段 2 也已拆出首个后端 ticket `#86`（`blocked-by #80`）；`gh label list` 现共 8 个标签（含 `bug`、`enhancement`），阶段 2 后端模块仍未落地故 `module:*` 暂未建，详见 [stages](stages.md)。
 
 ## 概念改了一半：issue #7 的「大区」
 
@@ -221,6 +227,8 @@
 | `docs/wiki/*`（本层） | 保留 | 其中「大区」均为复核记录与墓碑引用 |
 
 **2026-11-16 补充**：上面那句「术语检查是 advisory，机器不会拦」**说轻了**——同轮护栏 worker 发现提取逻辑本身在 C locale 下会损坏多字节字符，且「大区」压根不在排除词表里。**机器不是不拦，是既拦不住也扫不对**，证据见 [guardrails](guardrails.md)。机器兜底的方案已提为 **issue #27**（扩到 issue 正文），仍 `needs-triage`。**2026-11-16 补充**：修脚本本身另立 **issue #29**，#27 blocked by #29。
+
+> **2026-11-23 复核（`main` = `ab6e032`）**：`issue #7` 第 50 行注册表格仍残留该旧词（`gh issue view 7` 实测仍未同步）；上文 `:225` 引用的 `web/src/stores/auth.ts:57` 旧行号已 `superseded`，经 `1230dfb`（Issue #84）清理注释后，`needRealName()` 现位于 `web/src/stores/auth.ts:42-45`。
 
 ## 本次会话新发现
 
