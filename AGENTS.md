@@ -49,8 +49,8 @@ PR 描述按三段模板写：Summary 给图或树、Evidence 给 before/after�
 **PR 标 Ready 或请求合并前按变更级别完成对应 Code Review：**
 
 - **`/implement-spec` 集成多票分支**：关联子票合入同一条集成分支后，在收官标 Ready 前跑 **1 次**双轴 `/code-review`（2 个 reviewer，对应 `Standards` 与 `Spec`），修完问题并重跑校验与 CI 后即标为 `Ready for review` 或交由 owner 合并，不再另开第二轮空窗口 Re-Review（仅高风险逻辑确需复核时用 `send_message` 复用原 reviewer）。
-- **独立单票代码 / 契约 / 规则 PR**（改动生产代码、测试、`api/openapi.yaml`、`GLOSSARY.md`、`docs/adr/`、CI 脚本、`AGENTS.md`、`CODING_STANDARDS/`）：对 `origin/main...HEAD` 跑 **1 次**首轮双轴 `/code-review`，修完发现的问题并重跑校验后即可标 Ready 或交由 owner 合并，不另开重审。
-- **纯 Wiki / 文档补充 PR**（仅改 1–2 份 `docs/wiki/` 或 `docs/agents/` 且不触及上述核心文件）：跑通 `node scripts/check-doc-links.mjs`、`node --test scripts/*.test.mjs` 与 `./scripts/check-glossary.sh` 后自核 diff 即可，免起双轴子代理。
+- **独立单票代码 / 契约 / 规则 PR**（改动生产代码、测试、`api/openapi.yaml`、`GLOSSARY.md`、`docs/adr/`、`.github/workflows/`、CI 脚本、`AGENTS.md`、`*/AGENTS.md`（如 `web/AGENTS.md`）、`web/DESIGN.md`、`CODING_STANDARDS/`）：对 `origin/main...HEAD` 跑 **1 次**首轮双轴 `/code-review`，修完发现的问题并重跑校验后即可标 Ready 或交由 owner 合并，不另开重审（仅高风险逻辑确需复核时用 `send_message` 复用原 reviewer）。
+- **纯 Wiki / 文档补充 PR**（纯文档改动，仅改 `docs/wiki/` 或 `docs/agents/` 且不触及上述核心文件，无论几份）：跑通 `node scripts/check-doc-links.mjs`、`node --test scripts/*.test.mjs` 与 `./scripts/check-glossary.sh` 后自核 diff 即可，免起双轴子代理。
 
 **交互/视觉迭代改动了原 Issue 范围或文案时同步回写源 Issue：** 若多轮打磨调整了布局、范围或文案，同步修订对应源 Issue 正文；若修改了 `#2`、`#7` 等规格/计划类 Issue 正文，必须按 `docs/wiki/workflow.md` 将每处改动的 `before/after` 贴进 PR 正文 Evidence 段。
 

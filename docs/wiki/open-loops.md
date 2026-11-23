@@ -228,7 +228,7 @@
 
 **2026-11-16 补充**：上面那句「术语检查是 advisory，机器不会拦」**说轻了**——同轮护栏 worker 发现提取逻辑本身在 C locale 下会损坏多字节字符，且「大区」压根不在排除词表里。**机器不是不拦，是既拦不住也扫不对**，证据见 [guardrails](guardrails.md)。机器兜底的方案已提为 **issue #27**（扩到 issue 正文），仍 `needs-triage`。**2026-11-16 补充**：修脚本本身另立 **issue #29**，#27 blocked by #29。
 
-> **2026-11-23 复核（`main` = `ab6e032`）**：`issue #7` 第 50 行注册表格仍残留该旧词（`gh issue view 7` 实测仍未同步）；上文 `:219` 引用的 `web/src/stores/auth.ts:57` 旧行号已 `superseded`，经 `1230dfb`（Issue #84）清理注释后，`needRealName()` 现位于 `web/src/stores/auth.ts:42-45`。
+> **2026-11-23 复核（`main` = `ab6e032`）**：`issue #7` 第 50 行注册表格仍残留该旧词（`gh issue view 7` 实测仍未同步）；上文 `:225` 引用的 `web/src/stores/auth.ts:57` 旧行号已 `superseded`，经 `1230dfb`（Issue #84）清理注释后，`needRealName()` 现位于 `web/src/stores/auth.ts:42-45`。
 
 ## 本次会话新发现
 
