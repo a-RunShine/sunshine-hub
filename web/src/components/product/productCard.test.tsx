@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { screen } from '@testing-library/react'
+import { useLocation } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import type { ProductSummary } from '@/api/catalog'
+import { renderWithDataRouter } from '@/test/dataRouter'
 import { ProductCard } from './ProductCard'
 
 const limitedProduct: ProductSummary = {
@@ -29,14 +30,10 @@ function ProbeLocation() {
 }
 
 function renderCard(product: ProductSummary) {
-  return render(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route path="/" element={<ProductCard product={product} />} />
-        <Route path="/products/:productId" element={<ProbeLocation />} />
-      </Routes>
-    </MemoryRouter>,
-  )
+  return renderWithDataRouter([
+    { path: '/', element: <ProductCard product={product} /> },
+    { path: '/products/:productId', element: <ProbeLocation /> },
+  ])
 }
 
 describe('ProductCard 限量标记与跳转', () => {

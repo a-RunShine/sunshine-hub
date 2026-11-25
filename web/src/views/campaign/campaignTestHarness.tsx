@@ -1,7 +1,7 @@
-import { render } from '@testing-library/react'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll } from 'vitest'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
+import { renderWithDataRouter } from '@/test/dataRouter'
 import { client } from '@/api/client'
 import { createHandlers } from '@/mocks/handlers'
 import { MOCK_SCENARIO_HEADER } from '@/mocks/scenarios'
@@ -54,13 +54,9 @@ export function registerCampaignTestServer(
 }
 
 export function renderCampaignPage(campaignId: string) {
-  return render(
-    <MemoryRouter initialEntries={[`/campaigns/${campaignId}`]}>
-      <Routes>
-        <Route path="/campaigns/:campaignId" element={<CampaignPage />} />
-      </Routes>
-    </MemoryRouter>,
-  )
+  return renderWithDataRouter([{ path: '/campaigns/:campaignId', element: <CampaignPage /> }], {
+    initialEntries: [`/campaigns/${campaignId}`],
+  })
 }
 
 export function ProbeLocation() {
@@ -69,13 +65,23 @@ export function ProbeLocation() {
 }
 
 export function renderCampaignPageWithProbe(campaignId: string) {
-  return render(
-    <MemoryRouter initialEntries={[`/campaigns/${campaignId}`]}>
-      <ProbeLocation />
-      <Routes>
-        <Route path="/campaigns/:campaignId" element={<CampaignPage />} />
-      </Routes>
-    </MemoryRouter>,
+  return renderWithDataRouter(
+    [
+      {
+        path: '/',
+        element: (
+          <>
+            <ProbeLocation />
+            <Outlet />
+          </>
+        ),
+        children: [
+          { path: 'campaigns/:campaignId', element: <CampaignPage /> },
+          { path: '*', element: null },
+        ],
+      },
+    ],
+    { initialEntries: [`/campaigns/${campaignId}`] },
   )
 }
 
