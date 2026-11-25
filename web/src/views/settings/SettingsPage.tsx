@@ -68,12 +68,13 @@ export default function SettingsPage() {
         currentPassword: values.currentPassword,
         newPassword: values.newPassword,
       })
-      navigate(buildLoginUrl(location), {
-        replace: true,
-        state: { notice: '密码已修改，请用新密码重新登录' },
-      })
       setMe(null)
       setStatus('ready')
+      navigate(buildLoginUrl(location), {
+        replace: true,
+        flushSync: true,
+        state: { notice: '密码已修改，请用新密码重新登录' },
+      })
     } catch (error) {
       setSubmitError(errorMessage(error))
     } finally {
