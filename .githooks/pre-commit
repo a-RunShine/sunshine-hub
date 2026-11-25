@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#
+# 仓库级 pre-commit 快检：几十秒内能跑完的拦截，全量校验留给 ./scripts/check-all.sh。
+# 用 git config core.hooksPath .githooks 启用，见 scripts/install-hooks.sh。
+#
+# 跳过：git commit --no-verify
+
+set -uo pipefail
+
+cd "$(dirname "$0")/.." || exit 1
+
+failures=0
+
+step() {
+  local label=$1
+  shift
+  printf '==> %s\n' "$label"
+  if "$@"; then
+    return 0
+  fi
+  printf '失败：%s\n' "$label" >&2
+  failures=$((failures + 1))
+}
+
+step "文档链接与 wiki 孤儿页" node scripts/check-doc-links.mjs
+step "shadcn 原语校验和" node scripts/check-ui-primitives.mjs
+
+if git diff --cached --name-only | grep -q '^web/'; then
+  if [ -d web/node_modules ]; then
+    step "前端类型检查" env -u NODE_ENV pnpm --dir web exec tsc --noEmit
+    step "前端 lint" env -u NODE_ENV pnpm --dir web lint
+  else
+    printf '跳过前端检查：web/node_modules 不存在，先跑 pnpm --dir web install\n'
+  fi
+fi
+
+if [ "$failures" -ne 0 ]; then
+  printf '\npre-commit 快检未通过（%s 项）。修复后用 git commit --amend 重试；确实要绕过用 --no-verify。\n' "$failures" >&2
+  exit 1
+fi
+
+printf 'pre-commit 快检通过。\n'
