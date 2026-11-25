@@ -8,6 +8,12 @@ const ROUNDED_MD_PATTERN = /\brounded-md\b/
 const UI_FORBIDDEN_CLASS_PATTERN =
   /(?<![\w-])(?:chamfer-cta(?![\w-])|search-chamfer(?![\w-])|(?:bg|text|border)-ink-|border-(?:[trblxyse]-)?line(?:-2)?(?![\w-])|text-(?:muted|danger|faint)(?![\w-]))/
 
+const MEMORY_ROUTER_RESTRICTED_PATH = {
+  name: 'react-router-dom',
+  importNames: ['MemoryRouter'],
+  message: '测试统一用 @/test/dataRouter 的 renderWithDataRouter（createMemoryRouter + RouterProvider）',
+}
+
 const AXIOS_RESTRICTED_PATH = {
   name: 'axios',
   message: '请求统一走 src/api，不要在业务代码或 mock 里直接引 axios',
@@ -47,6 +53,23 @@ export default tseslint.config(
         'error',
         {
           paths: [AXIOS_RESTRICTED_PATH, ...API_TYPE_RESTRICTED_PATHS],
+          patterns: API_TYPE_RESTRICTED_PATTERNS,
+        },
+      ],
+    },
+  },
+  {
+    files: ['**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}', 'src/**/*TestHarness.{ts,tsx}'],
+    ignores: [
+      'src/components/layout/AppShell.test.tsx',
+      'src/views/auth/authPages.test.tsx',
+      'src/views/settings/settingsPage.test.tsx',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [AXIOS_RESTRICTED_PATH, ...API_TYPE_RESTRICTED_PATHS, MEMORY_ROUTER_RESTRICTED_PATH],
           patterns: API_TYPE_RESTRICTED_PATTERNS,
         },
       ],

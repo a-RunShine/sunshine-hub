@@ -33,6 +33,16 @@ gh pr merge --squash   # 得到明确同意后才执行；不带 --delete-branch
 
 分支名用不用中文都行，但不要用空格和斜杠以外的符号。
 
+## Code Review 门槛
+
+PR 标 Ready 或请求合并前，按变更级别选一档，跑完再标：
+
+- **`/implement-spec` 集成多票分支**：关联子票合入同一条集成分支后，收官标 Ready 前跑 **1 次**双轴 `/code-review`（2 个 reviewer，对应 `Standards` 与 `Spec`）。修完问题并重跑校验与 CI 后即标 `Ready for review` 或交给 owner 合并，不再另开第二轮空窗口 Re-Review；只有高风险逻辑确需复核时才用 `send_message` 复用原 reviewer。
+- **独立单票代码 / 契约 / 规则 PR**：改动生产代码、测试、`api/openapi.yaml`、`GLOSSARY.md`、`docs/adr/`、`.github/workflows/`、CI 脚本、`AGENTS.md`、`*/AGENTS.md`（如 `web/AGENTS.md`）、`web/DESIGN.md`、`CODING_STANDARDS/` 都算。对 `origin/main...HEAD` 跑 **1 次**首轮双轴 `/code-review`，修完发现的问题、重跑校验后即可标 Ready 或交由 owner 合并，不另开重审。
+- **纯 Wiki / 文档补充 PR**：只改 `docs/wiki/` 或 `docs/agents/`、且不触及上面列的核心文件时，跑通 `node scripts/check-doc-links.mjs`、`node --test scripts/*.test.mjs` 与 `./scripts/check-glossary.sh` 后自核 diff 即可，免起双轴子代理。
+
+**交互 / 视觉迭代改动了源 Issue 的范围或文案时同步回写。** 多轮打磨调整了布局、范围或文案，就修订对应源 Issue 正文；如果改的是 `#2`、`#7` 这类规格 / 计划类 Issue 正文，按 `docs/wiki/workflow.md` 把每处改动的 `before/after` 贴进本 PR 正文的 Evidence 段——issue 正文改动不进 PR diff，评审看不见，贴证据是唯一的兜底。
+
 ## Summary
 
 用最小的视图说清这次改了什么。树、调用链、状态机、diff，挑一个就够，别都上。

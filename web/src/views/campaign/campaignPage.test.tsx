@@ -498,32 +498,34 @@ describe('轮询可见性暂停与卸载清理', () => {
 
 describe('成功后详情刷新', () => {
   it('抢购成功后重新拉一次场次详情，剩余份数按新响应刷新', async () => {
+    let claimed = false
     let detailRequests = 0
     testServer.server.use(
       http.get('/api/campaigns/205', () => {
         detailRequests += 1
-        const refreshed = detailRequests > 1
         return HttpResponse.json(
           ongoingDetail({
-            allocation: refreshed
+            allocation: claimed
               ? { total: 2000, available: 1199, occupied: 801, pendingRepool: 0, sold: 0 }
               : { total: 2000, available: 1200, occupied: 800, pendingRepool: 0, sold: 0 },
           }),
         )
       }),
-      http.post('/api/campaigns/205/claim', () =>
-        HttpResponse.json(successClaim, { status: 201 }),
-      ),
+      http.post('/api/campaigns/205/claim', () => {
+        claimed = true
+        return HttpResponse.json(successClaim, { status: 201 })
+      }),
     )
 
     loginVerified()
     renderCampaignPage('205')
     expect(await screen.findByText('1200')).toBeInTheDocument()
+    const baseline = detailRequests
 
     fireEvent.click(screen.getByRole('button', { name: '立即抢购' }))
     expect(await screen.findByText('0427')).toBeInTheDocument()
 
-    await waitFor(() => expect(detailRequests).toBe(2))
+    await waitFor(() => expect(detailRequests).toBeGreaterThan(baseline))
     expect(await screen.findByText('1199')).toBeInTheDocument()
   })
 })

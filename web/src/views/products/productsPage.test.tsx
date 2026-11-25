@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { renderWithDataRouter } from '@/test/dataRouter'
 import { createHandlers } from '@/mocks/handlers'
 import ProductsPage from './ProductsPage'
 
@@ -40,13 +41,12 @@ function ProbeLocation() {
 }
 
 function renderProductsPage() {
-  return render(
-    <MemoryRouter initialEntries={['/products']}>
-      <Routes>
-        <Route path="/products" element={<ProductsPage />} />
-        <Route path="/products/:productId" element={<ProbeLocation />} />
-      </Routes>
-    </MemoryRouter>,
+  return renderWithDataRouter(
+    [
+      { path: '/products', element: <ProductsPage /> },
+      { path: '/products/:productId', element: <ProbeLocation /> },
+    ],
+    { initialEntries: ['/products'] },
   )
 }
 

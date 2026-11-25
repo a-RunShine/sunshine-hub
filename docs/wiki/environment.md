@@ -4,7 +4,64 @@ agents 在这个仓库里踩过的坑，以及绕开它们的正确姿势。每�
 
 相关页：[index](index.md) · [workflow](workflow.md) · [guardrails](guardrails.md) · [open-loops](open-loops.md)
 
+## 现行本机入口（2026-11-25 实测，macOS Apple Silicon）
+
+**先看这张表再往下读。** 下面 2026-11-16 与 2026-11-20 的段落是历史记录，逐条带日期与 superseded 块保留；现行值以本节为准。
+
+| 项 | 现行值（2026-11-25，`main` = `f7651da`） |
+| --- | --- |
+| 机器 | macOS Apple Silicon 本机（`/Users/sunshine/orca/workspaces/sunshine-hub/*` 下的 Orca worktree） |
+| 已装 JDK | Temurin 25 `/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home`、Zulu 21、Homebrew 17、Zulu 17 |
+| `jenv` 全局默认 | **17**（`~/.jenv/version` 内容 `17`）；仓库树内的 `.java-version` 是 `25`，**在 worktree 根目录下 `jenv version` 才会选 25** |
+| `JAVA_HOME` | 本机默认 shell 是 `/Users/sunshine/.jenv/versions/17`（受全局 `~/.jenv/version` 支配）；只有 `.java-version` 所在的仓库根才选 25。`./scripts/check-all.sh` 会自己探 25，不依赖这个变量 |
+| node / pnpm | node **v26.0.0** / pnpm **12.3.4**（`web/package.json` 的 `packageManager` 钉 `pnpm@12.21.0`，corepack 生效时以它为准） |
+| `LANG` | **`C.UTF-8`**（登录 zsh 实测）。**不是「未设置」**——2026-11-20 那张表里的「LANG 未设置，默认 C」已经过时 |
+| `NODE_ENV` | 本机 agent shell 里**预设为 `production`**，见下方专节 |
+| `gh` | 已登录 `a-RunShine`，issue / PR 读写都走它 |
+| Orca | `/Applications/Orca.app/Contents/Resources/bin/orca`；`orca agent installed --json` 显示本机支持 `antigravity`（默认）与 `dsh` |
+| 中间件 | `docker compose up -d` 起 MySQL(33306)、Redis(36379)、RocketMQ；broker 健康检查探 30911。端口刻意避开本机已有容器，**别改回默认值** |
+
+**一条命令跑完全部校验**：`./scripts/check-all.sh`。它会自己探 JDK 25（绕开上面的 17 默认），前端步骤固定 `env -u NODE_ENV`，可 `--fast` 跳过 Maven。细节见下方「本地一键校验与 pre-commit」。
+
+## Orca 派工路径（2026-11-25 实测）
+
+**协调者从这里起 worker。** `orca` 不在默认 `PATH` 里，用绝对路径 `/Applications/Orca.app/Contents/Resources/bin/orca`；先 `orca agent installed --json` 确认可用 agent，本机现有 `antigravity` 与 **`dsh`**（DeepSeek Harness）。
+
+```sh
+# 在当前 worktree 里派一个 dsh worker
+orca orchestration worker-start --from <协调者 terminal> \
+  --agent dsh --environment local \
+  --spec "<子任务>" --worktree current --json
+
+# 新建 worktree 时换成：--worktree new-top-level --repo id:<repoId>
+```
+
+**worker 侧**：读消息用 `orca orchestration check --terminal <terminal>`；回协调者的提问用 `orca orchestration reply --id <message_id> --body "..."`；收尾用 `orca orchestration send --type worker_done --subject "..." --outcome succeeded|failed`。完整命令面见 `$ORCA skills get orchestration`。
+
+## `NODE_ENV=production` 会污染 `vite dev` 与 `vitest`（2026-11-25）
+
+本机 agent shell 预设 `NODE_ENV=production`，而 Vite 与 Vitest 读它决定依赖预构建分支与 React 开发期校验。失败表现最难查：React 生产构建路径被启用，`StrictMode` 双调用与开发期告警消失，mock 与路由行为跟着漂移，报错却指向用例本身。
+
+**已在 [web/vite.config.ts](../../web/vite.config.ts) 拦下**：配置改成 `defineConfig(({ mode }) => ...)`，当 `mode` 是 `development` 或 `test` 且 `process.env.NODE_ENV === 'production'` 时直接抛错；判定逻辑在 [web/vite-env-guard.ts](../../web/vite-env-guard.ts)，回归测试在 `web/src/test/viteEnvGuard.test.ts`。`pnpm --dir web build` 与 `vite preview` 走 `mode === 'production'`，不受影响。
+
+**正确姿势**：前端命令前面加 `env -u NODE_ENV`，例如 `env -u NODE_ENV pnpm --dir web test`、`env -u NODE_ENV pnpm --dir web check`。`scripts/check-all.sh` 与 `.githooks/pre-commit` 都内置了这个前缀。
+
+## 本地一键校验与 pre-commit（2026-11-25）
+
+```bash
+./scripts/check-all.sh                       # 全量：前端 check + 契约 + 文档 + 术语 + 脚本单测 + mvn verify
+./scripts/check-all.sh --fast                # 跳过 mvn verify（等价 --skip-maven）
+./scripts/check-all.sh --dry-run             # 只打印命令
+./scripts/check-all.sh --resolve-java-home   # 只打印解析出的 JDK 25
+```
+
+**JDK 25 探测顺序**（[check-all.sh:70](../../scripts/check-all.sh) 的 `resolve_java_home`）：`CHECK_ALL_JAVA_HOME` → 当前 `JAVA_HOME`（核主版本）→ macOS Temurin 25 固定路径 → `/usr/libexec/java_home -v 25` → `~/.local/jdk25/jdk-25.0.5+8`。**探测只在需要 Maven 时强校验**：`--fast` / `--skip-maven` 完全不碰 JDK（没 JDK 25 也能跑前端与文档），`--dry-run` 探不到只打印占位符，只有真跑 `./mvnw -B verify` 或 `--resolve-java-home` 时才报错退出。
+
+**轻量 pre-commit**：[.githooks/pre-commit](../../.githooks/pre-commit) 跑 `check-doc-links.mjs` 与 `check-ui-primitives.mjs`，暂存区有 `web/` 改动且 `web/node_modules` 存在时再加 `tsc --noEmit` 与 `lint`。用 `./scripts/install-hooks.sh` 设 `git config core.hooksPath .githooks` 启用；零新增 npm 依赖，不引 Husky、不建 root `package.json`。撤销：`git config --unset core.hooksPath`；单次绕过：`git commit --no-verify`。
+
 ## 先认清是哪一台机器（2026-11-20）
+
+> **2026-11-25 更新**：**当前 runtime 又回到 macOS 本机**，下面这段 2026-11-20 的云主机实测降级为对照表。macOS 列的旧值（`LANG` 未设置、node/pnpm homebrew 版本）同样过时——现行值见本页顶部表格。
 
 **本页 2026-11-16 的全部记录都来自一台 macOS 机器。当前 runtime 不是那台。** 不先分清这一点，下面的路径与工具名会把新 agent 直接带进墙里。
 
@@ -19,7 +76,11 @@ agents 在这个仓库里踩过的坑，以及绕开它们的正确姿势。每�
 | `gh` | 2.95.0 | 2.104.0，已登录 `a-RunShine` |
 | node / pnpm | homebrew | node 22.23.4 / pnpm 11.7.0（CI 仍钉 pnpm 12，本地与 CI 不同版本） |
 
+> **2026-11-25 更新**：上表右列是**云主机**的事实，当前 macOS 本机不适用。本机 `LANG` 是 `C.UTF-8`（登录 zsh）而非「未设置」，`tr` 是 BSD，node/pnpm 是 v26.0.0 / 12.3.4。本机入口见页首「现行本机入口」。
+
 **JDK 有现成的设法，不要手抄路径**：`source ~/.local/jdk25/env.sh` 会一并设好 `JAVA_HOME`、`PATH` 与 egress 代理所需的 `MAVEN_OPTS` 信任库。少设 `MAVEN_OPTS` 会在拉依赖时踩 TLS。
+
+> **2026-11-25 更新**：这条只适用于云主机。macOS 本机没有 `~/.local/jdk25/env.sh`，用 `./scripts/check-all.sh` 自己探 JDK 25。
 
 **GitHub 写操作走 `gh` CLI。** GitHub MCP 的写工具在当前客户端不可用；issue / PR 的创建、评论、打标签、合并一律用 `/home/user/.local/bin/gh`。读也建议用它，省一次能力探测。
 
@@ -40,6 +101,8 @@ agents 在这个仓库里踩过的坑，以及绕开它们的正确姿势。每�
 
 ## 委派 subagent 的可用路径
 
+> **2026-11-25 更新**：下文两条路径都已不是现行。本机现在用 Orca 派工——`/Applications/Orca.app/Contents/Resources/bin/orca orchestration worker-start --agent dsh --environment local --worktree current --repo id:<repoId>`，见页首「Orca 派工路径」。下面 2026-11-16/11-20 的记录按历史保留。
+
 > **2026-11-20 更正（superseded）**：下面整段是 macOS 那台机器的 runtime 限制，**不适用于当前云主机**。当前 `create_agent`（`OrganizerAgent`）可用，本轮的 #48–#54、#29、#45/#46 三条实现线都是这样派出去的；`mcp__builtin__create_chat_session` 与 `read_chat_session` 在当前客户端不存在，照着调用会失败。原记录按历史保留。
 
 **2026-11-16**：本 runtime 里 `Agent` 工具的 subagent 类型全部不可用。`general-purpose` 与 `Explore` 报 "disabled via disallowedTools configuration"，`claude` 报 "Unknown agent type"，可用类型列表为空。`~/.qoder-cn/settings.json` 里没有 `disallowedTools` 配置，所以这是 host 侧限制，不是项目配置问题。
@@ -51,6 +114,8 @@ agents 在这个仓库里踩过的坑，以及绕开它们的正确姿势。每�
 这条路径满足 [workflow](workflow.md) 里「用 subagent 干活」的约定。若哪天 `Agent` 类型恢复了，优先用 `Agent`，因为它更轻。
 
 ## 后端构建
+
+> **2026-11-25 更新**：结论仍成立且更硬——本机 `jenv` 全局默认就是 17（`~/.jenv/version` 内容 `17`），只有 `.java-version` 所在的仓库根会选 25。现行做法是直接 `./scripts/check-all.sh`，它把 `JAVA_HOME` 探好并导好 `PATH`；手工 export 仍可用，路径见下。
 
 **2026-11-16 交接记录**：`mvn verify` 需要 `JAVA_HOME` 指向 JDK 25，本机默认 17。`maven-enforcer-plugin` 会拦下来并给明确报错——**这是有意设计的护栏，不要绕过它**。
 
@@ -115,6 +180,8 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 
 **2026-11-16 交接记录**：pnpm 是 12。`web/pnpm-workspace.yaml` 的 `allowBuilds` 是这个版本的配置方式，**不是** `package.json` 的 `pnpm` 字段。写错地方不会报错，只会不生效。
 
+> **2026-11-25 更新**：本机实测 pnpm 12.3.4，`allowBuilds` 这条仍然有效。**新 worktree 里没有 `web/node_modules`**，装自己的一份：`pnpm --dir web install --offline || pnpm --dir web install`。`scripts/new-worktree.sh` 默认软链主仓 `node_modules` 省一次安装，**串行跑没问题**；并行跑两个前端 ticket 时必须传 `--no-link`（或各自 `pnpm install`），否则共享目录会互相覆盖，见 [guardrails](guardrails.md)。
+
 ### 版本钉子只钉在 CI 里
 
 **2026-11-16 复核（`c5b5508`）**：`web/package.json` **没有 `packageManager` 字段，也没有 `engines`**；仓库里没有 `.nvmrc` / `.node-version`。node 22 与 pnpm 12 **只钉在 `.github/workflows/ci.yml:45-53`**。
@@ -165,6 +232,8 @@ printf '促销、秒杀活动\n' | LC_ALL=en_US.UTF-8 tr '、' '\n'  # 正确：
 **所以同一份脚本在不同机器上给出不同候选集**——脚本没有固定 locale（`:15` 只有 `set -uo pipefail`）。要复现护栏 worker 看到的现象，**不要先 export UTF-8 locale**；要绕开它，`LC_ALL=en_US.UTF-8` 就够。
 
 **未验证**：CI 是 ubuntu + GNU `tr`，GNU `tr` 不支持多字节是已知特性，据此推断 CI 上无论 locale 都损坏，但**本会话没有在 CI 上实测**。别据此声称 CI 一定坏。
+
+> **2026-11-25 更新（`da135d4`）**：本机还有一处 `locale` 相关的静默丢词，**不是 `tr` 那条**。`scripts/check-glossary.sh` 的 `comm -23` 与两路 `sort -u` 此前都没有显式固定 `LC_ALL=C`：macOS 的 BSD `comm` 与 UTF-8 下 `sort` 的排序规则不一致，差集里整段中文词被静默丢掉（`实际检查 49 个` 缩成 `2 个`）。`da135d4` 把 `comm` 与两路 `sort` 一起固定成 `LC_ALL=C`，C 与 `en_US.UTF-8` 下输出逐字节一致。**这与 PR #56 修 `tr` 是两件事**，别合并归功。
 
 完整的护栏后果（含 `GLOSSARY.md` 未收「大区」这条独立缺陷）见 [guardrails](guardrails.md) 的更正条；待办见 [open-loops](open-loops.md)。**本层只记录，不改脚本**——修复属 `chore/guardrails` 那一轮。
 

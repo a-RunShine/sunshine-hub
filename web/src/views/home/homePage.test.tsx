@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { renderWithDataRouter } from '@/test/dataRouter'
 import { createHandlers } from '@/mocks/handlers'
 import HomePage from './HomePage'
 
@@ -40,16 +41,12 @@ function ProbeLocation() {
 }
 
 function renderHome() {
-  return render(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/products" element={<ProbeLocation />} />
-        <Route path="/products/:productId" element={<ProbeLocation />} />
-        <Route path="/campaigns/:campaignId" element={<ProbeLocation />} />
-      </Routes>
-    </MemoryRouter>,
-  )
+  return renderWithDataRouter([
+    { path: '/', element: <HomePage /> },
+    { path: '/products', element: <ProbeLocation /> },
+    { path: '/products/:productId', element: <ProbeLocation /> },
+    { path: '/campaigns/:campaignId', element: <ProbeLocation /> },
+  ])
 }
 
 const TWO_UPCOMING = {
