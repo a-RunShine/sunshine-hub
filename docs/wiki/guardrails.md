@@ -2,6 +2,8 @@
 
 机器替人拦什么、不拦什么。**不拦的那部分才是这一页的重点**——以为有兜底而实际没有，比明知没有更危险。
 
+> **2026-11-25 基准更新**：本页新增的三节（`NODE_ENV=production` 拦截、ESLint `MemoryRouter` 限制、本地一键校验与 pre-commit）行号基于 `main` = `f7651da` 之上的 `chore-retro-guardrails` 分支。其余章节仍按下述旧基准读，**引用前先核行号**。
+
 所有行号基于 **2026-11-17** 的 `main` = `b987a6f`（更早的 `c5b5508`、`3701bd4` 基准均已 superseded，见下方更正条）。
 
 > **2026-11-16 基准更新（`3701bd4`，superseded 行号基准）**：PR #28（`3701bd4`，12:35:18 UTC）与 PR #30（`742ef1e`，12:35:06 UTC）已合并，当时**本页行号基准改为 `main` = `3701bd4`**。两次 CI 均 success（run `43867899360` / `43867932939`）。
@@ -68,6 +70,32 @@
   - 对 `web/src/components/ui/` 下除根目录白名单（`README.md`、`.gitkeep`、`.shadcn-checksums.json`）外的全部常规文件计算并比对 SHA-256（`.shadcn-checksums.json`），发现修改、删除或未登记文件即 `exit 1`，并在检测到任何符号链接时立即失败拦截。
   - 官方新增或升级原语后跑 `pnpm --dir web ui:sync` 更新清单；脚本回归测试在 `scripts/check-ui-primitives.test.mjs`。
 
+- **shadcn 原语校验和守卫（`scripts/check-ui-primitives.mjs`，`pnpm --dir web ui:check`）**：
+  - 对 `web/src/components/ui/` 下除根目录白名单（`README.md`、`.gitkeep`、`.shadcn-checksums.json`）外的全部常规文件计算并比对 SHA-256（`.shadcn-checksums.json`），发现修改、删除或未登记文件即 `exit 1`，并在检测到任何符号链接时立即失败拦截。
+  - 官方新增或升级原语后跑 `pnpm --dir web ui:sync` 更新清单；脚本回归测试在 `scripts/check-ui-primitives.test.mjs`。
+
+## `NODE_ENV=production` 拦截：blocking（2026-11-25）
+
+- **`web/vite.config.ts`**（`:6-7`）改成 `defineConfig(({ mode }) => ...)`，在返回配置前调用 `assertNodeEnvCompatible(mode, process.env.NODE_ENV)`；判定逻辑抽在 `web/vite-env-guard.ts:4`。
+- **命中条件**：`mode` 为 `development` 或 `test`，且 `process.env.NODE_ENV === 'production'`。抛错文案（`web/vite-env-guard.ts:1` 的 `PRODUCTION_NODE_ENV_MESSAGE`）明确要求改用 `env -u NODE_ENV`。
+- **不拦**：`mode === 'production'` 的 `pnpm --dir web build` 与 `vite preview`，以及未设 `NODE_ENV` 的一切场景。
+- **为什么这样拦而不是靠文档**：本机 shell 预设 `NODE_ENV=production`，Vitest 与 Vite 会走生产分支，`StrictMode` 双调用与 React 开发期校验消失，失败表现指向用例而不是环境。回归测试在 `web/src/test/viteEnvGuard.test.ts`，覆盖「dev/test 抛错、build/preview 与未设 NODE_ENV 放行」。
+
+## ESLint `MemoryRouter` 限制：blocking（2026-11-25）
+
+- **`web/eslint.config.js:62-78`** 对 `**/*.test.{ts,tsx}`、`src/test/**/*.{ts,tsx}`、`src/**/*TestHarness.{ts,tsx}` 生效，通过 `no-restricted-imports` 的 `paths` 项（`:11` 的 `MEMORY_ROUTER_RESTRICTED_PATH`）禁止从 `react-router-dom` 导入 `MemoryRouter`，指引改用 `@/test/dataRouter`。
+- **配套测试入口**：`web/src/test/dataRouter.tsx` 导出 `renderWithDataRouter`（`createMemoryRouter` + `<RouterProvider>` + `<StrictMode>`），并内置 `DataRouterRequest` 垫片把 jsdom 的 `AbortSignal` 换成 Node 原生信号——react-router 构造 `Request` 时要求原生 `AbortSignal` 实例，不垫会在导航时抛 `Expected signal to be an instance of AbortSignal`。
+- **暂放行**：`ignores` 列出 `src/components/layout/AppShell.test.tsx`、`src/views/auth/authPages.test.tsx`、`src/views/settings/settingsPage.test.tsx`。这三个文件都与未合入的 PR #95（`feat/69-auth-settings`）相关，放行是为了它合进 `main` 时 CI 不被这条新规则弄红；该 PR 合并后应把这三项从 `ignores` 摘掉并迁移到 `renderWithDataRouter`。
+
+## 本地一键校验与 pre-commit：不拦 CI，拦人（2026-11-25）
+
+- **`scripts/check-all.sh`**（`:133-143` 依次）：`env -u NODE_ENV pnpm --dir web check` → `npx --yes @redocly/cli@latest lint api/openapi.yaml` → `node scripts/check-doc-links.mjs` → `./scripts/test-check-glossary.sh` → `node --test scripts/*.test.mjs` → `./scripts/check-glossary.sh` → `./mvnw -B verify`。任一步失败累计进 `failures`，末尾统一 `exit 1`。`--fast` / `--skip-maven` 跳过 Maven，`--dry-run` 只打印，`--resolve-java-home` 只报 JDK 路径。
+- **JDK 25 探测**（`scripts/check-all.sh:70`）顺序：`CHECK_ALL_JAVA_HOME` → 当前 `JAVA_HOME`（核主版本）→ `/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home` → `/usr/libexec/java_home -v 25` → `~/.local/jdk25/jdk-25.0.5+8`。探不到就报错退出，不猜。
+- **`.githooks/pre-commit`**（`:25-33`）：跑 `node scripts/check-doc-links.mjs` 与 `node scripts/check-ui-primitives.mjs`；仅当 `git diff --cached --name-only` 含 `web/` 且 `web/node_modules` 存在时，再加 `env -u NODE_ENV pnpm --dir web exec tsc --noEmit` 与 `pnpm --dir web lint`。`web/node_modules` 缺席时打一行提示后跳过，不阻塞。
+- **启用方式**：`./scripts/install-hooks.sh`（`:18` 设 `git config core.hooksPath .githooks`），零新增 npm 依赖，不引 Husky、不建 root `package.json`。撤销用 `git config --unset core.hooksPath`。绕过单次提交用 `git commit --no-verify`。
+- **与 CI 的关系**：这两处都不进 `.github/workflows/ci.yml`，是本地护栏。**CI 绿不等于 pre-commit 跑过**，反之亦然——两边命令集合不同（pre-commit 不跑 `vitest`、`build` 与 Maven）。
+- **回归测试**：`scripts/check-all.test.mjs` 钉住脚本可执行位、`bash -n` 语法、`--help` 开关、参数拒绝、全量步骤覆盖、JDK 候选路径、`core.hooksPath` 设置与 pre-commit 的分支条件。
+
 ## 文档链接与孤儿页检查：这条是 blocking（2026-11-17，`b987a6f`）
 
 **2026-11-17 复核（基线 `b987a6f`）**：`scripts/check-doc-links.mjs`（仅用 node 标准库、零新依赖）由 **PR #33** 合入（merge commit `b987a6f`，2026-11-17T02:21:29Z），接进 contract job（`ci.yml:94-95`）；承载的 **Issue #31** 于 2026-11-17T02:21:31Z 由 #33 自动关闭。来源：PR https://github.com/a-RunShine/sunshine-hub/pull/33 、Issue https://github.com/a-RunShine/sunshine-hub/issues/31 。
@@ -93,6 +121,12 @@
 - **不扫 issue 正文链接**：那属 #27，与 #29、#33 三者各自独立。
 
 **本地复跑**：`node scripts/check-doc-links.mjs`（可带仓库根目录参数，用法 `:16`、根解析 `:23`）。
+
+## 术语检查的候选集不再随 locale 漂移（2026-11-25）
+
+**之前**：`scripts/check-glossary.sh` 的 `comm -23` 拿两路 `sort` 的输出做差集，但只给 `sort` 传了默认 locale，`comm` 走自己那一套比较规则。两边顺序对不上时 `comm` **静默丢掉整段条目**，中文词最先丢——本机 UTF-8 locale 下「实际检查 49 个」会缩成 2 个，候选几乎全空，也就是「跑绿了」其实是「什么都没扫」。`scripts/test-check-glossary.sh` 里那条「两种 locale 候选词集合不一致」的断言一直红着，只是没进 CI。
+
+**现在**：`comm` 与两路 `sort` 都显式加 `LC_ALL=C`。`LC_ALL=C` 与 `en_US.UTF-8` 下输出逐字节一致，`./scripts/test-check-glossary.sh` 全部断言通过。**结论不变：这条脚本仍恒 `exit 0`、只输出候选**，修的只是「候选集是否可信」。
 
 ## 唯一的 advisory：术语检查
 
