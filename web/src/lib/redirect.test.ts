@@ -23,10 +23,15 @@ describe('sanitizeNextPath', () => {
     ['/orders\\bad'],
     ['/login'],
     ['/login?next=%2Forders'],
+    ['/Login?next=%2Forders'],
     ['/login/callback'],
     ['/register'],
+    ['/REGISTER'],
     ['/register?next=%2Fsettings'],
     ['/register/step'],
+    ['/%6cogin'],
+    ['/%2f/evil.com'],
+    ['/%2f%5cevil.com'],
   ])('拒绝非法或嵌套目标 %s 并回退为 /', (raw) => {
     expect(sanitizeNextPath(raw)).toBe('/')
   })
@@ -69,6 +74,10 @@ describe('buildLoginUrl', () => {
       '/login?next=%2Fcampaigns%2F4',
     )
     expect(buildLoginUrl({ pathname: '/login', search: '?next=%2Flogin' })).toBe('/login')
+    expect(buildLoginUrl({ pathname: '/Login', search: '' })).toBe('/login')
+    expect(buildLoginUrl({ pathname: '/REGISTER', search: '?next=%2Forders' })).toBe(
+      '/login?next=%2Forders',
+    )
     expect(buildLoginUrl({ pathname: '/register', search: '?next=https%3A%2F%2Fevil.com' })).toBe(
       '/login',
     )

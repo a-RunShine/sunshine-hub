@@ -21,18 +21,10 @@ export function validateRegisterUsername(username: string): string | null {
   return null
 }
 
-export function validateLoginPassword(password: string): string | null {
-  if (password.length === 0) return '请输入密码'
+export function validateRequiredPassword(password: string, label = '密码'): string | null {
+  if (password.length === 0) return `请输入${label}`
   if (password.length > PASSWORD_MAX_LENGTH) {
-    return `密码最长 ${PASSWORD_MAX_LENGTH} 个字符`
-  }
-  return null
-}
-
-export function validateCurrentPassword(password: string): string | null {
-  if (password.length === 0) return '请输入当前密码'
-  if (password.length > PASSWORD_MAX_LENGTH) {
-    return `当前密码最长 ${PASSWORD_MAX_LENGTH} 个字符`
+    return `${label}最长 ${PASSWORD_MAX_LENGTH} 个字符`
   }
   return null
 }

@@ -26,7 +26,6 @@ beforeEach(() => {
   useAuth.setState({
     me: { id: 1, username: 'demo', realNameVerified: false },
     status: 'ready',
-    authNotice: null,
   })
 })
 
@@ -90,7 +89,6 @@ describe('SettingsPage 只读账号信息', () => {
         idNumberTail: '123X',
       },
       status: 'ready',
-      authNotice: null,
     })
     renderSettingsFlow()
 
@@ -175,6 +173,6 @@ describe('SettingsPage 修改密码校验与提交', () => {
     expect(await screen.findByRole('heading', { name: '账号设置' })).toBeInTheDocument()
     expect(screen.getByTestId('probe').textContent).toBe('/settings')
     expect(useAuth.getState().me?.username).toBe('demo')
-    expect(useAuth.getState().authNotice).toBeNull()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })

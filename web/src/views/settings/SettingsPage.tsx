@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import type { FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { errorMessage } from '@/api/errors'
 import { changePassword } from '@/api/identity'
@@ -8,37 +8,31 @@ import { SectionHeader } from '@/components/common/SectionHeader'
 import {
   PASSWORD_MAX_LENGTH,
   validateConfirmPassword,
-  validateCurrentPassword,
   validateNewPassword,
+  validateRequiredPassword,
 } from '@/lib/authValidation'
 import { buildLoginUrl } from '@/lib/redirect'
+import { useFormFields } from '@/lib/useFormFields'
 import { useAuth } from '@/stores/auth'
-
-interface PasswordFieldErrors {
-  currentPassword: string | null
-  newPassword: string | null
-  confirmNewPassword: string | null
-}
 
 export default function SettingsPage() {
   const me = useAuth((state) => state.me)
   const setMe = useAuth((state) => state.setMe)
   const setStatus = useAuth((state) => state.setStatus)
-  const setAuthNotice = useAuth((state) => state.setAuthNotice)
 
   const location = useLocation()
   const navigate = useNavigate()
 
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmNewPassword, setConfirmNewPassword] = useState('')
-  const [fieldErrors, setFieldErrors] = useState<PasswordFieldErrors>({
-    currentPassword: null,
-    newPassword: null,
-    confirmNewPassword: null,
-  })
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+  const {
+    values,
+    fieldErrors,
+    setFieldErrors,
+    submitError,
+    setSubmitError,
+    submitting,
+    setSubmitting,
+    updateField,
+  } = useFormFields({ currentPassword: '', newPassword: '', confirmNewPassword: '' })
 
   if (me === null) return null
 
@@ -46,12 +40,15 @@ export default function SettingsPage() {
     event.preventDefault()
     if (submitting) return
 
-    const errors: PasswordFieldErrors = {
-      currentPassword: validateCurrentPassword(currentPassword),
-      newPassword: validateNewPassword(newPassword, { currentPassword, label: '新密码' }),
+    const errors = {
+      currentPassword: validateRequiredPassword(values.currentPassword, '当前密码'),
+      newPassword: validateNewPassword(values.newPassword, {
+        currentPassword: values.currentPassword,
+        label: '新密码',
+      }),
       confirmNewPassword: validateConfirmPassword(
-        newPassword,
-        confirmNewPassword,
+        values.newPassword,
+        values.confirmNewPassword,
         '请再次输入新密码',
       ),
     }
@@ -67,11 +64,16 @@ export default function SettingsPage() {
 
     setSubmitting(true)
     try {
-      await changePassword({ currentPassword, newPassword })
-      setAuthNotice('密码已修改，请用新密码重新登录')
+      await changePassword({
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword,
+      })
+      navigate(buildLoginUrl(location), {
+        replace: true,
+        state: { notice: '密码已修改，请用新密码重新登录' },
+      })
       setMe(null)
       setStatus('ready')
-      navigate(buildLoginUrl(location), { replace: true })
     } catch (error) {
       setSubmitError(errorMessage(error))
     } finally {
@@ -163,16 +165,10 @@ export default function SettingsPage() {
                 label="当前密码"
                 autoComplete="current-password"
                 maxLength={PASSWORD_MAX_LENGTH}
-                value={currentPassword}
+                value={values.currentPassword}
                 disabled={submitting}
                 error={fieldErrors.currentPassword}
-                onChange={(value) => {
-                  setCurrentPassword(value)
-                  if (fieldErrors.currentPassword !== null) {
-                    setFieldErrors((prev) => ({ ...prev, currentPassword: null }))
-                  }
-                  if (submitError !== null) setSubmitError(null)
-                }}
+                onChange={(value) => updateField('currentPassword', value)}
               />
 
               <PasswordField
@@ -181,16 +177,10 @@ export default function SettingsPage() {
                 autoComplete="new-password"
                 maxLength={PASSWORD_MAX_LENGTH}
                 hint="8–64 个字符，不能与当前密码相同"
-                value={newPassword}
+                value={values.newPassword}
                 disabled={submitting}
                 error={fieldErrors.newPassword}
-                onChange={(value) => {
-                  setNewPassword(value)
-                  if (fieldErrors.newPassword !== null) {
-                    setFieldErrors((prev) => ({ ...prev, newPassword: null }))
-                  }
-                  if (submitError !== null) setSubmitError(null)
-                }}
+                onChange={(value) => updateField('newPassword', value)}
               />
 
               <PasswordField
@@ -198,16 +188,10 @@ export default function SettingsPage() {
                 label="确认新密码"
                 autoComplete="new-password"
                 maxLength={PASSWORD_MAX_LENGTH}
-                value={confirmNewPassword}
+                value={values.confirmNewPassword}
                 disabled={submitting}
                 error={fieldErrors.confirmNewPassword}
-                onChange={(value) => {
-                  setConfirmNewPassword(value)
-                  if (fieldErrors.confirmNewPassword !== null) {
-                    setFieldErrors((prev) => ({ ...prev, confirmNewPassword: null }))
-                  }
-                  if (submitError !== null) setSubmitError(null)
-                }}
+                onChange={(value) => updateField('confirmNewPassword', value)}
               />
 
               {submitError !== null && (

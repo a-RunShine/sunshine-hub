@@ -7,7 +7,12 @@ const DEFAULT_NEXT_PATH = '/'
 const AUTH_PATHS = new Set(['/login', '/register'])
 
 function isAuthPathname(pathname: string): boolean {
-  return AUTH_PATHS.has(pathname) || pathname.startsWith('/login/') || pathname.startsWith('/register/')
+  const normalized = pathname.toLowerCase()
+  return (
+    AUTH_PATHS.has(normalized) ||
+    normalized.startsWith('/login/') ||
+    normalized.startsWith('/register/')
+  )
 }
 
 function hasUnsafeControlOrBackslash(raw: string): boolean {
@@ -35,7 +40,21 @@ export function sanitizeNextPath(raw: string | null): string {
   }
 
   if (parsed.origin !== 'https://sunshine.local') return DEFAULT_NEXT_PATH
-  if (parsed.pathname.startsWith('//') || isAuthPathname(parsed.pathname)) {
+
+  let decodedPath: string
+  try {
+    decodedPath = decodeURIComponent(parsed.pathname)
+  } catch {
+    return DEFAULT_NEXT_PATH
+  }
+
+  if (
+    parsed.pathname.startsWith('//') ||
+    decodedPath.startsWith('//') ||
+    hasUnsafeControlOrBackslash(decodedPath) ||
+    isAuthPathname(parsed.pathname) ||
+    isAuthPathname(decodedPath)
+  ) {
     return DEFAULT_NEXT_PATH
   }
 

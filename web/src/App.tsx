@@ -5,6 +5,7 @@ import { router } from './router'
 import { useAuth } from '@/stores/auth'
 
 export default function App() {
+  const status = useAuth((state) => state.status)
   const restoreSession = useAuth((state) => state.restoreSession)
   const [DevScenarioPanel, setDevScenarioPanel] = useState<ComponentType | null>(null)
 
@@ -22,6 +23,10 @@ export default function App() {
       cancelled = true
     }
   }, [])
+
+  if (status === 'uninitialized') {
+    return <div className="min-h-screen bg-ink-950" />
+  }
 
   return (
     <>

@@ -31,8 +31,6 @@ export function AppShell({ children, layout = 'default' }: AppShellProps) {
   const me = useAuth((state) => state.me)
   const setMe = useAuth((state) => state.setMe)
   const setStatus = useAuth((state) => state.setStatus)
-  const authNotice = useAuth((state) => state.authNotice)
-  const setAuthNotice = useAuth((state) => state.setAuthNotice)
   const location = useLocation()
 
   const [loggingOut, setLoggingOut] = useState(false)
@@ -48,12 +46,6 @@ export function AppShell({ children, layout = 'default' }: AppShellProps) {
     setHeaderHidden(false)
     setLogoutError(null)
   }, [location.pathname, location.search])
-
-  useEffect(() => {
-    if (location.pathname !== '/login' && location.pathname !== '/settings' && authNotice !== null) {
-      setAuthNotice(null)
-    }
-  }, [location.pathname, authNotice, setAuthNotice])
 
   useEffect(() => {
     lastScrollYRef.current = typeof window !== 'undefined' ? window.scrollY : 0

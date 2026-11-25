@@ -1,6 +1,13 @@
 import { http, HttpResponse } from 'msw'
 import type { HttpHandler } from 'msw'
-import type { components } from '@/types/api'
+import type { components, paths } from '@/types/api'
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
+  USERNAME_PATTERN,
+} from '@/lib/authValidation'
 import { DEFAULT_SCENARIO_ID, MOCK_SCENARIO_HEADER, scenarios } from './scenarios'
 import type { MockScenario } from './scenarios'
 
@@ -9,6 +16,10 @@ type ProductDetail = components['schemas']['ProductDetail']
 type Category = components['schemas']['Category']
 type CategoryInput = components['schemas']['CategoryInput']
 type Me = components['schemas']['Me']
+type RegisterInput = paths['/auth/register']['post']['requestBody']['content']['application/json']
+type LoginInput = paths['/auth/login']['post']['requestBody']['content']['application/json']
+type RealNameInput = paths['/me/real-name']['put']['requestBody']['content']['application/json']
+type ChangePasswordInput = paths['/me/password']['put']['requestBody']['content']['application/json']
 type FlashCampaignDetail = components['schemas']['FlashCampaignDetail']
 type SimpleCampaignDetail = components['schemas']['SimpleCampaignDetail']
 type Order = components['schemas']['Order']
@@ -49,7 +60,6 @@ interface PersistedIdentityState {
 }
 
 const IDENTITY_STORAGE_KEY = 'sunshine:msw:identity'
-const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,32}$/
 
 const now = () => new Date().toISOString()
 
@@ -801,16 +811,15 @@ export function createHandlers(
           resolved.registerFailure.message,
         )
       }
-      const body = (await request.json().catch(() => null)) as Partial<{
-        username: string
-        password: string
-      }> | null
+      const body = (await request.json().catch(() => null)) as Partial<RegisterInput> | null
       const username = typeof body?.username === 'string' ? body.username : ''
       const password = typeof body?.password === 'string' ? body.password : ''
       if (
+        username.length < USERNAME_MIN_LENGTH ||
+        username.length > USERNAME_MAX_LENGTH ||
         !USERNAME_PATTERN.test(username) ||
-        password.length < 8 ||
-        password.length > 64
+        password.length < PASSWORD_MIN_LENGTH ||
+        password.length > PASSWORD_MAX_LENGTH
       ) {
         return jsonError(400, 'BAD_REQUEST', '参数不合法')
       }
@@ -843,10 +852,7 @@ export function createHandlers(
           resolved.loginFailure.message,
         )
       }
-      const body = (await request.json().catch(() => null)) as Partial<{
-        username: string
-        password: string
-      }> | null
+      const body = (await request.json().catch(() => null)) as Partial<LoginInput> | null
       const username = typeof body?.username === 'string' ? body.username : ''
       const password = typeof body?.password === 'string' ? body.password : ''
       if (username.trim() === '' || password === '') {
@@ -884,10 +890,7 @@ export function createHandlers(
       if (!active) {
         return jsonError(401, 'UNAUTHORIZED', '请先登录')
       }
-      const body = (await request.json().catch(() => null)) as Partial<{
-        realName: string
-        idNumber: string
-      }> | null
+      const body = (await request.json().catch(() => null)) as Partial<RealNameInput> | null
       const realName = typeof body?.realName === 'string' ? body.realName.trim() : ''
       const idNumber = typeof body?.idNumber === 'string' ? body.idNumber.trim() : ''
       if (realName === '' || idNumber === '') {
@@ -917,17 +920,14 @@ export function createHandlers(
       if (!active) {
         return jsonError(401, 'UNAUTHORIZED', '请先登录')
       }
-      const body = (await request.json().catch(() => null)) as Partial<{
-        currentPassword: string
-        newPassword: string
-      }> | null
+      const body = (await request.json().catch(() => null)) as Partial<ChangePasswordInput> | null
       const currentPassword = typeof body?.currentPassword === 'string' ? body.currentPassword : ''
       const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : ''
       if (
         currentPassword.length < 1 ||
-        currentPassword.length > 64 ||
-        newPassword.length < 8 ||
-        newPassword.length > 64 ||
+        currentPassword.length > PASSWORD_MAX_LENGTH ||
+        newPassword.length < PASSWORD_MIN_LENGTH ||
+        newPassword.length > PASSWORD_MAX_LENGTH ||
         newPassword === currentPassword
       ) {
         return jsonError(400, 'BAD_REQUEST', '参数不合法')

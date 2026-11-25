@@ -1,12 +1,14 @@
+import type { ComponentProps } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { createHandlers } from '@/mocks/handlers'
 import RequireAuth from '@/router/RequireAuth'
 import { useAuth } from '@/stores/auth'
+import SettingsPage from '@/views/settings/SettingsPage'
 import LoginPage from './LoginPage'
 import RegisterPage from './RegisterPage'
 
@@ -24,7 +26,7 @@ beforeAll(() => {
 beforeEach(() => {
   server.resetHandlers(...createHandlers(undefined, { initialUsername: null }))
   requests.length = 0
-  useAuth.setState({ me: null, status: 'ready', authNotice: null })
+  useAuth.setState({ me: null, status: 'ready' })
 })
 
 afterEach(() => {
@@ -45,7 +47,9 @@ function ProbeLocation() {
   )
 }
 
-function renderAuthRoutes(initialEntry: string) {
+type InitialEntry = NonNullable<ComponentProps<typeof MemoryRouter>['initialEntries']>[number]
+
+function renderAuthRoutes(initialEntry: InitialEntry) {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <ProbeLocation />
@@ -167,9 +171,12 @@ describe('LoginPage 与回跳守卫', () => {
     expect(passwordInput.value).toBe('wrongpass')
   })
 
-  it('登录成功按合法 next 回跳并清除 authNotice；顶栏不生成嵌套登录链接', async () => {
-    useAuth.getState().setAuthNotice('密码已修改，请用新密码重新登录')
-    renderAuthRoutes('/login?next=%2Forders')
+  it('登录成功按合法 next 回跳并读取路由 state.notice；顶栏不生成嵌套登录链接', async () => {
+    renderAuthRoutes({
+      pathname: '/login',
+      search: '?next=%2Forders',
+      state: { notice: '密码已修改，请用新密码重新登录' },
+    })
 
     expect(screen.getByRole('status')).toHaveTextContent('密码已修改，请用新密码重新登录')
     expect(screen.getByRole('link', { name: '登录' })).toHaveAttribute('href', '/login?next=%2Forders')
@@ -185,7 +192,63 @@ describe('LoginPage 与回跳守卫', () => {
     expect(await screen.findByText('我的订单内容')).toBeInTheDocument()
     expect(screen.getByTestId('probe').textContent).toBe('/orders')
     expect(useAuth.getState().me?.username).toBe('demo')
-    expect(useAuth.getState().authNotice).toBeNull()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('修改密码跳到登录页后转访无 AppShell 的受保护页，回跳登录页时不残留旧提示', async () => {
+    server.use(...createHandlers(undefined, { initialUsername: 'demo' }))
+    useAuth.setState({
+      me: { id: 1, username: 'demo', realNameVerified: false },
+      status: 'ready',
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <ProbeLocation />
+        <Routes>
+          <Route
+            path="/login"
+            element={
+              <div>
+                <Link to="/orders">前往我的订单</Link>
+                <LoginPage />
+              </div>
+            }
+          />
+          <Route
+            path="/orders"
+            element={
+              <RequireAuth>
+                <div>我的订单内容</div>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <RequireAuth>
+                <SettingsPage />
+              </RequireAuth>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    fireEvent.change(screen.getByLabelText('当前密码'), { target: { value: '12345678' } })
+    fireEvent.change(screen.getByLabelText('新密码'), { target: { value: 'newpass123' } })
+    fireEvent.change(screen.getByLabelText('确认新密码'), { target: { value: 'newpass123' } })
+    fireEvent.click(screen.getByRole('button', { name: '确认修改' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('密码已修改，请用新密码重新登录')
+    expect(screen.getByTestId('probe').textContent).toBe('/login?next=%2Fsettings')
+
+    fireEvent.click(screen.getByRole('link', { name: '前往我的订单' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('probe').textContent).toBe('/login?next=%2Forders'),
+    )
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('已登录访问 /login 直接跳往清洗后的 next 目标', async () => {
@@ -196,8 +259,24 @@ describe('LoginPage 与回跳守卫', () => {
     expect(screen.getByTestId('probe').textContent).toBe('/products')
   })
 
+  it('注册页在 status 为 loading 时展示加载态并在已登录后直接跳转，不闪现注册表单', async () => {
+    useAuth.setState({ me: null, status: 'loading' })
+    renderAuthRoutes('/register')
+
+    expect(screen.getByText('正在加载…')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '注册账号' })).not.toBeInTheDocument()
+
+    useAuth.setState({
+      me: { id: 1, username: 'demo', realNameVerified: false },
+      status: 'ready',
+    })
+
+    expect(await screen.findByText('首页内容')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '注册账号' })).not.toBeInTheDocument()
+  })
+
   it('status 为 uninitialized 时独立渲染登录页不卡在加载态', () => {
-    useAuth.setState({ me: null, status: 'uninitialized', authNotice: null })
+    useAuth.setState({ me: null, status: 'uninitialized' })
     renderAuthRoutes('/login')
 
     expect(screen.getByRole('heading', { name: '登录账号' })).toBeInTheDocument()
@@ -225,7 +304,6 @@ describe('AppShell 退出分流与非乐观更新', () => {
     useAuth.setState({
       me: { id: 1, username: 'demo', realNameVerified: false },
       status: 'ready',
-      authNotice: null,
     })
     renderAuthRoutes('/settings')
 
@@ -242,7 +320,6 @@ describe('AppShell 退出分流与非乐观更新', () => {
     useAuth.setState({
       me: { id: 1, username: 'demo', realNameVerified: false },
       status: 'ready',
-      authNotice: null,
     })
     renderAuthRoutes('/products')
 
@@ -267,7 +344,6 @@ describe('AppShell 退出分流与非乐观更新', () => {
     useAuth.setState({
       me: { id: 1, username: 'demo', realNameVerified: false },
       status: 'ready',
-      authNotice: null,
     })
     renderAuthRoutes('/products')
 

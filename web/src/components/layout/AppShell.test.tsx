@@ -21,7 +21,7 @@ beforeAll(() => {
 beforeEach(() => {
   server.resetHandlers(...createHandlers())
   logoutCalls.length = 0
-  useAuth.setState({ me: null, status: 'uninitialized', authNotice: null })
+  useAuth.setState({ me: null, status: 'uninitialized' })
   Object.defineProperty(window, 'scrollY', { value: 0, configurable: true, writable: true })
 })
 

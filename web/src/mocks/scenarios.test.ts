@@ -1,7 +1,7 @@
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createHandlers } from './handlers'
-import { DEFAULT_SCENARIO_ID, scenarios } from './scenarios'
+import { DEFAULT_SCENARIO_ID, scenarios, type MockFailure } from './scenarios'
 
 const ORIGIN = 'http://localhost:3000'
 
@@ -163,110 +163,29 @@ function putPassword(scenarioId?: string): Promise<Response> {
 
 describe('场景注册表：逐场景走 HTTP 边界', () => {
   it.each(scenarios)('$id：按声明产出失败响应或详情形状', async (scenario) => {
-    if (scenario.claimFailure) {
-      const res = await postClaim(scenario.id)
-      expect(res.status).toBe(scenario.claimFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.claimFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
+    const failureChecks: Array<
+      readonly [MockFailure | undefined, (scenarioId?: string) => Promise<Response>]
+    > = [
+      [scenario.claimFailure, postClaim],
+      [scenario.orderFailure, postOrder],
+      [scenario.categoryFailure, deleteCategory],
+      [scenario.addressCreateFailure, postAddress],
+      [scenario.addressUpdateFailure, putAddress],
+      [scenario.addressDeleteFailure, deleteAddress],
+      [scenario.addressDefaultFailure, putAddressDefault],
+      [scenario.signFailure, signFulfillment],
+      [scenario.registerFailure, postRegister],
+      [scenario.loginFailure, postLogin],
+      [scenario.logoutFailure, postLogout],
+      [scenario.passwordFailure, putPassword],
+    ]
 
-    if (scenario.orderFailure) {
-      const res = await postOrder(scenario.id)
-      expect(res.status).toBe(scenario.orderFailure.status)
+    for (const [failure, requester] of failureChecks) {
+      if (!failure) continue
+      const res = await requester(scenario.id)
+      expect(res.status).toBe(failure.status)
       const body = await res.json()
-      expect(body.code).toBe(scenario.orderFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.categoryFailure) {
-      const res = await deleteCategory(scenario.id)
-      expect(res.status).toBe(scenario.categoryFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.categoryFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.addressCreateFailure) {
-      const res = await postAddress(scenario.id)
-      expect(res.status).toBe(scenario.addressCreateFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.addressCreateFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.addressUpdateFailure) {
-      const res = await putAddress(scenario.id)
-      expect(res.status).toBe(scenario.addressUpdateFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.addressUpdateFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.addressDeleteFailure) {
-      const res = await deleteAddress(scenario.id)
-      expect(res.status).toBe(scenario.addressDeleteFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.addressDeleteFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.addressDefaultFailure) {
-      const res = await putAddressDefault(scenario.id)
-      expect(res.status).toBe(scenario.addressDefaultFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.addressDefaultFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.signFailure) {
-      const res = await signFulfillment(scenario.id)
-      expect(res.status).toBe(scenario.signFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.signFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.registerFailure) {
-      const res = await postRegister(scenario.id)
-      expect(res.status).toBe(scenario.registerFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.registerFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.loginFailure) {
-      const res = await postLogin(scenario.id)
-      expect(res.status).toBe(scenario.loginFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.loginFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.logoutFailure) {
-      const res = await postLogout(scenario.id)
-      expect(res.status).toBe(scenario.logoutFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.logoutFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.passwordFailure) {
-      const res = await putPassword(scenario.id)
-      expect(res.status).toBe(scenario.passwordFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.passwordFailure.code)
+      expect(body.code).toBe(failure.code)
       expect(typeof body.message).toBe('string')
       expect(body.message.length).toBeGreaterThan(0)
     }
