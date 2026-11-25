@@ -103,6 +103,26 @@ const categoryScenarioCodes = new Set(
     .map((scenario) => scenario.categoryFailure?.code)
     .filter((code): code is string => Boolean(code)),
 )
+const registerScenarioCodes = new Set(
+  scenarios
+    .map((scenario) => scenario.registerFailure?.code)
+    .filter((code): code is string => Boolean(code)),
+)
+const loginScenarioCodes = new Set(
+  scenarios
+    .map((scenario) => scenario.loginFailure?.code)
+    .filter((code): code is string => Boolean(code)),
+)
+const logoutScenarioCodes = new Set(
+  scenarios
+    .map((scenario) => scenario.logoutFailure?.code)
+    .filter((code): code is string => Boolean(code)),
+)
+const passwordScenarioCodes = new Set(
+  scenarios
+    .map((scenario) => scenario.passwordFailure?.code)
+    .filter((code): code is string => Boolean(code)),
+)
 
 describe('契约错误码 ↔ mock 场景覆盖', () => {
   it('claim 契约声明的每个错误码都至少有一个场景产出', () => {
@@ -180,6 +200,30 @@ describe('契约错误码 ↔ mock 场景覆盖', () => {
       'DELETE /admin/categories/{categoryId}',
     )
     const missing = declared.filter((code) => !categoryScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('POST /auth/register 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(openapi.paths['/auth/register'].post!, 'POST /auth/register')
+    const missing = declared.filter((code) => !registerScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('POST /auth/login 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(openapi.paths['/auth/login'].post!, 'POST /auth/login')
+    const missing = declared.filter((code) => !loginScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('POST /auth/logout 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(openapi.paths['/auth/logout'].post!, 'POST /auth/logout')
+    const missing = declared.filter((code) => !logoutScenarioCodes.has(code))
+    expect(missing).toEqual([])
+  })
+
+  it('PUT /me/password 契约声明的每个错误码都至少有一个场景产出', () => {
+    const declared = declaredCodes(openapi.paths['/me/password'].put!, 'PUT /me/password')
+    const missing = declared.filter((code) => !passwordScenarioCodes.has(code))
     expect(missing).toEqual([])
   })
 })

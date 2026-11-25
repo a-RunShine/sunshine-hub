@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -20,7 +21,7 @@ beforeAll(() => {
 beforeEach(() => {
   server.resetHandlers(...createHandlers())
   logoutCalls.length = 0
-  useAuth.setState({ me: null, status: 'uninitialized' })
+  useAuth.setState({ me: null, status: 'uninitialized', authNotice: null })
   Object.defineProperty(window, 'scrollY', { value: 0, configurable: true, writable: true })
 })
 
@@ -42,6 +43,7 @@ function renderShell(initialEntry = '/', layout?: 'default' | 'full-bleed') {
           <Route path="/orders" element={<div>订单页</div>} />
           <Route path="/items" element={<div>库存页</div>} />
           <Route path="/fulfillments" element={<div>履约单页</div>} />
+          <Route path="/settings" element={<div>账号设置页</div>} />
           <Route path="/login" element={<div>登录页</div>} />
         </Routes>
       </AppShell>
@@ -83,6 +85,7 @@ describe('个人账户头像菜单开关与入口', () => {
     expect(screen.getByRole('menuitem', { name: /我的订单/ })).toHaveAttribute('href', '/orders')
     expect(screen.getByRole('menuitem', { name: /我的库存/ })).toHaveAttribute('href', '/items')
     expect(screen.getByRole('menuitem', { name: /我的履约单/ })).toHaveAttribute('href', '/fulfillments')
+    expect(screen.getByRole('menuitem', { name: /账号设置/ })).toHaveAttribute('href', '/settings')
 
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
@@ -135,6 +138,47 @@ describe('个人账户头像菜单开关与入口', () => {
     await waitFor(() => expect(useAuth.getState().me).toBeNull())
     expect(useAuth.getState().status).toBe('ready')
     expect(await screen.findByRole('link', { name: '登录' })).toBeInTheDocument()
+  })
+
+  it('退出接口返回 500 时保留登录态并展示可访问错误提示，可手动关闭', async () => {
+    server.use(
+      http.post('/api/auth/logout', () =>
+        HttpResponse.json({ code: 'INTERNAL_ERROR', message: '服务出了点问题' }, { status: 500 }),
+      ),
+    )
+    useAuth.getState().setMe({ id: 1, username: 'demo', realNameVerified: false })
+    useAuth.getState().setStatus('ready')
+    renderShell('/')
+
+    fireEvent.click(screen.getByRole('button', { name: '个人账户菜单' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /退出/ }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('服务出了点问题')
+    expect(useAuth.getState().me).toEqual({ id: 1, username: 'demo', realNameVerified: false })
+    expect(screen.queryByRole('link', { name: '登录' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('退出接口返回 401 时清空登录态且不触发整页跳登录', async () => {
+    server.use(
+      http.post('/api/auth/logout', () =>
+        HttpResponse.json({ code: 'UNAUTHORIZED', message: '请先登录' }, { status: 401 }),
+      ),
+    )
+    useAuth.getState().setMe({ id: 1, username: 'demo', realNameVerified: false })
+    useAuth.getState().setStatus('ready')
+    renderShell('/products')
+
+    fireEvent.click(screen.getByRole('button', { name: '个人账户菜单' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /退出/ }))
+
+    await waitFor(() => expect(useAuth.getState().me).toBeNull())
+    expect(useAuth.getState().status).toBe('ready')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('商品列表内容')).toBeInTheDocument()
   })
 })
 

@@ -1,8 +1,11 @@
 import { createBrowserRouter } from 'react-router-dom'
 import Placeholder from '@/views/Placeholder'
+import LoginPage from '@/views/auth/LoginPage'
+import RegisterPage from '@/views/auth/RegisterPage'
 import CampaignPage from '@/views/campaign/CampaignPage'
 import HomePage from '@/views/home/HomePage'
 import ProductsPage from '@/views/products/ProductsPage'
+import SettingsPage from '@/views/settings/SettingsPage'
 import { AppShell } from '@/components/layout/AppShell'
 import RequireAuth from './RequireAuth'
 
@@ -55,8 +58,18 @@ export const router = createBrowserRouter([
   { path: '/announcements/:announcementId', element: <Placeholder title="公告详情" /> },
   { path: '/events', element: <Placeholder title="活动" /> },
   { path: '/events/:eventId', element: <Placeholder title="活动详情" /> },
-  { path: '/login', element: <Placeholder title="登录" /> },
-  { path: '/register', element: <Placeholder title="注册" /> },
+  { path: '/login', element: <AppShell><LoginPage /></AppShell> },
+  { path: '/register', element: <AppShell><RegisterPage /></AppShell> },
+  {
+    path: '/settings',
+    element: (
+      <RequireAuth>
+        <AppShell>
+          <SettingsPage />
+        </AppShell>
+      </RequireAuth>
+    ),
+  },
   {
     path: '/admin',
     element: (

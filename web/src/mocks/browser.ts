@@ -1,4 +1,6 @@
 import { setupWorker } from 'msw/browser'
-import { handlers } from './handlers'
+import { createHandlers } from './handlers'
 
-export const worker = setupWorker(...handlers)
+const storage = typeof window !== 'undefined' ? window.localStorage : undefined
+
+export const worker = setupWorker(...createHandlers(undefined, { storage }))

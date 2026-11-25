@@ -9,8 +9,10 @@ export type AuthStatus = 'uninitialized' | 'loading' | 'ready' | 'error'
 interface AuthState {
   me: Me | null
   status: AuthStatus
+  authNotice: string | null
   setMe: (me: Me | null) => void
   setStatus: (status: AuthStatus) => void
+  setAuthNotice: (notice: string | null) => void
   restoreSession: () => Promise<void>
   isLoggedIn: () => boolean
   needRealName: () => boolean
@@ -19,8 +21,10 @@ interface AuthState {
 export const useAuth = create<AuthState>((set, get) => ({
   me: null,
   status: 'uninitialized',
+  authNotice: null,
   setMe: (me) => set({ me }),
   setStatus: (status) => set({ status }),
+  setAuthNotice: (authNotice) => set({ authNotice }),
 
   restoreSession: async () => {
     const status = get().status

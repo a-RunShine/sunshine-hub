@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
+import { ApiError } from '@/api/client'
+import { errorMessage } from '@/api/errors'
 import { useAuth } from '@/stores/auth'
 import { logout } from '@/api/identity'
 import { buildLoginUrl } from '@/lib/redirect'
@@ -17,6 +19,7 @@ const ACCOUNT_MENU_ITEMS = [
   { to: '/orders', label: '我的订单', meta: '结账记录' },
   { to: '/items', label: '我的库存', meta: '已持有道具' },
   { to: '/fulfillments', label: '我的履约单', meta: '发货与签收' },
+  { to: '/settings', label: '账号设置', meta: '密码与实名状态' },
 ] as const
 
 interface AppShellProps {
@@ -28,9 +31,12 @@ export function AppShell({ children, layout = 'default' }: AppShellProps) {
   const me = useAuth((state) => state.me)
   const setMe = useAuth((state) => state.setMe)
   const setStatus = useAuth((state) => state.setStatus)
+  const authNotice = useAuth((state) => state.authNotice)
+  const setAuthNotice = useAuth((state) => state.setAuthNotice)
   const location = useLocation()
 
   const [loggingOut, setLoggingOut] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [headerHidden, setHeaderHidden] = useState(false)
 
@@ -40,7 +46,14 @@ export function AppShell({ children, layout = 'default' }: AppShellProps) {
   useEffect(() => {
     setMenuOpen(false)
     setHeaderHidden(false)
+    setLogoutError(null)
   }, [location.pathname, location.search])
+
+  useEffect(() => {
+    if (location.pathname !== '/login' && location.pathname !== '/settings' && authNotice !== null) {
+      setAuthNotice(null)
+    }
+  }, [location.pathname, authNotice, setAuthNotice])
 
   useEffect(() => {
     lastScrollYRef.current = typeof window !== 'undefined' ? window.scrollY : 0
@@ -87,10 +100,18 @@ export function AppShell({ children, layout = 'default' }: AppShellProps) {
     if (loggingOut) return
     setLoggingOut(true)
     setMenuOpen(false)
+    setLogoutError(null)
     try {
       await logout()
       setMe(null)
       setStatus('ready')
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setMe(null)
+        setStatus('ready')
+        return
+      }
+      setLogoutError(errorMessage(error, '退出失败，请稍后重试'))
     } finally {
       setLoggingOut(false)
     }
@@ -245,6 +266,24 @@ export function AppShell({ children, layout = 'default' }: AppShellProps) {
             )}
           </div>
         </div>
+
+        {logoutError !== null && (
+          <div
+            role="alert"
+            className="border-t border-danger/40 bg-ink-900 px-[clamp(20px,4vw,48px)] py-2 text-[13px] text-danger"
+          >
+            <div className="mx-auto flex max-w-[1360px] items-center justify-between gap-4">
+              <span>{logoutError}</span>
+              <button
+                type="button"
+                onClick={() => setLogoutError(null)}
+                className="text-[12px] text-muted transition-colors hover:text-foreground"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {layout === 'full-bleed' ? (

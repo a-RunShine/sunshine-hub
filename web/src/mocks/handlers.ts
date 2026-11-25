@@ -30,11 +30,86 @@ interface SeedOrder {
 
 export interface HandlerSeed {
   addresses?: Address[]
+  storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+  initialUsername?: string | null
 }
+
+interface SeedAccount {
+  id: number
+  username: string
+  password: string
+  realNameVerified: boolean
+  realName?: string | null
+  idNumberTail?: string | null
+}
+
+interface PersistedIdentityState {
+  activeUsername: string | null
+  accounts: SeedAccount[]
+}
+
+const IDENTITY_STORAGE_KEY = 'sunshine:msw:identity'
+const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,32}$/
 
 const now = () => new Date().toISOString()
 
-const me: Me = { id: 1, username: 'demo', realNameVerified: false }
+function isSeedAccount(value: unknown): value is SeedAccount {
+  if (typeof value !== 'object' || value === null) return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.id === 'number' &&
+    typeof record.username === 'string' &&
+    typeof record.password === 'string' &&
+    typeof record.realNameVerified === 'boolean'
+  )
+}
+
+function loadIdentityState(seed?: HandlerSeed): PersistedIdentityState {
+  const fallback: PersistedIdentityState = {
+    activeUsername: seed?.initialUsername !== undefined ? seed.initialUsername : 'demo',
+    accounts: [{ id: 1, username: 'demo', password: '12345678', realNameVerified: false }],
+  }
+  if (!seed?.storage) return fallback
+
+  try {
+    const raw = seed.storage.getItem(IDENTITY_STORAGE_KEY)
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw) as unknown
+    if (typeof parsed !== 'object' || parsed === null) return fallback
+    const record = parsed as Record<string, unknown>
+    if (
+      (record.activeUsername !== null && typeof record.activeUsername !== 'string') ||
+      !Array.isArray(record.accounts) ||
+      record.accounts.length === 0 ||
+      !record.accounts.every(isSeedAccount)
+    ) {
+      return fallback
+    }
+    return {
+      activeUsername: record.activeUsername,
+      accounts: record.accounts.map((account) => ({ ...account })),
+    }
+  } catch {
+    return fallback
+  }
+}
+
+function toMe(account: SeedAccount): Me {
+  if (account.realNameVerified) {
+    return {
+      id: account.id,
+      username: account.username,
+      realNameVerified: true,
+      realName: account.realName ?? null,
+      idNumberTail: account.idNumberTail ?? null,
+    }
+  }
+  return {
+    id: account.id,
+    username: account.username,
+    realNameVerified: false,
+  }
+}
 
 const flashCampaign: FlashCampaignDetail = {
   id: 1,
@@ -326,7 +401,21 @@ export function createHandlers(
   seed?: HandlerSeed,
 ): HttpHandler[] {
   const reservedByCampaign = new Map<number, boolean>()
-  let realNameProfile: Me | null = null
+  const identityState = loadIdentityState(seed)
+  const persistIdentity = () => {
+    if (!seed?.storage) return
+    seed.storage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(identityState))
+  }
+  if (seed?.storage && !seed.storage.getItem(IDENTITY_STORAGE_KEY)) {
+    persistIdentity()
+  }
+  const getActiveAccount = (): SeedAccount | null => {
+    if (identityState.activeUsername === null) return null
+    return (
+      identityState.accounts.find((account) => account.username === identityState.activeUsername) ??
+      null
+    )
+  }
   const categories = new Map<number, Category>(initialCategories.map((c) => [c.id, c]))
   let nextCategoryId = initialCategories.length + 1
   const seedAddresses: SeedAddress[] = (seed?.addresses ?? initialAddresses).map((address, index) => ({
@@ -702,27 +791,163 @@ export function createHandlers(
       )
     }),
 
-    http.post('/api/auth/login', () => HttpResponse.json(me)),
+    http.post('/api/auth/register', async ({ request }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.registerFailure) {
+        return jsonError(
+          resolved.registerFailure.status,
+          resolved.registerFailure.code,
+          resolved.registerFailure.message,
+        )
+      }
+      const body = (await request.json().catch(() => null)) as Partial<{
+        username: string
+        password: string
+      }> | null
+      const username = typeof body?.username === 'string' ? body.username : ''
+      const password = typeof body?.password === 'string' ? body.password : ''
+      if (
+        !USERNAME_PATTERN.test(username) ||
+        password.length < 8 ||
+        password.length > 64
+      ) {
+        return jsonError(400, 'BAD_REQUEST', '参数不合法')
+      }
+      if (identityState.accounts.some((account) => account.username === username)) {
+        return jsonError(409, 'USERNAME_TAKEN', '这个用户名已经被占用')
+      }
+      const nextId =
+        identityState.accounts.length === 0
+          ? 1
+          : Math.max(...identityState.accounts.map((account) => account.id)) + 1
+      const created: SeedAccount = {
+        id: nextId,
+        username,
+        password,
+        realNameVerified: false,
+      }
+      identityState.accounts.push(created)
+      identityState.activeUsername = created.username
+      persistIdentity()
+      return HttpResponse.json(toMe(created), { status: 201 })
+    }),
 
-    http.post('/api/auth/logout', () => new HttpResponse(null, { status: 204 })),
+    http.post('/api/auth/login', async ({ request }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.loginFailure) {
+        return jsonError(
+          resolved.loginFailure.status,
+          resolved.loginFailure.code,
+          resolved.loginFailure.message,
+        )
+      }
+      const body = (await request.json().catch(() => null)) as Partial<{
+        username: string
+        password: string
+      }> | null
+      const username = typeof body?.username === 'string' ? body.username : ''
+      const password = typeof body?.password === 'string' ? body.password : ''
+      if (username.trim() === '' || password === '') {
+        return jsonError(401, 'BAD_CREDENTIALS', '用户名或密码不对')
+      }
+      const account = identityState.accounts.find((item) => item.username === username)
+      if (!account || account.password !== password) {
+        return jsonError(401, 'BAD_CREDENTIALS', '用户名或密码不对')
+      }
+      identityState.activeUsername = account.username
+      persistIdentity()
+      return HttpResponse.json(toMe(account), { status: 200 })
+    }),
+
+    http.post('/api/auth/logout', ({ request }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.logoutFailure) {
+        return jsonError(
+          resolved.logoutFailure.status,
+          resolved.logoutFailure.code,
+          resolved.logoutFailure.message,
+        )
+      }
+      if (!getActiveAccount()) {
+        return jsonError(401, 'UNAUTHORIZED', '请先登录')
+      }
+      identityState.activeUsername = null
+      persistIdentity()
+      return new HttpResponse(null, { status: 204 })
+    }),
 
     http.put('/api/me/real-name', async ({ request }) => {
-      const body = (await request.json()) as Partial<{ realName: string; idNumber: string }>
+      const active = getActiveAccount()
+      if (!active) {
+        return jsonError(401, 'UNAUTHORIZED', '请先登录')
+      }
+      const body = (await request.json().catch(() => null)) as Partial<{
+        realName: string
+        idNumber: string
+      }> | null
       const realName = typeof body?.realName === 'string' ? body.realName.trim() : ''
       const idNumber = typeof body?.idNumber === 'string' ? body.idNumber.trim() : ''
       if (realName === '' || idNumber === '') {
         return jsonError(400, 'BAD_REQUEST', '姓名与证件号不能为空')
       }
-      realNameProfile = {
-        ...me,
-        realNameVerified: true,
-        realName,
-        idNumberTail: idNumber.slice(-4),
+      if (active.realNameVerified) {
+        return jsonError(409, 'REAL_NAME_ALREADY_SET', '实名信息已提交，不能修改')
       }
-      return HttpResponse.json(realNameProfile, { status: 200 })
+      active.realNameVerified = true
+      active.realName = realName
+      active.idNumberTail = idNumber.slice(-4)
+      persistIdentity()
+      return HttpResponse.json(toMe(active), { status: 200 })
     }),
 
-    http.get('/api/me', () => HttpResponse.json(realNameProfile ?? me)),
+    http.put('/api/me/password', async ({ request }) => {
+      const resolved = resolveScenario(request, registry)
+      if (resolved instanceof Response) return resolved
+      if (resolved.passwordFailure) {
+        return jsonError(
+          resolved.passwordFailure.status,
+          resolved.passwordFailure.code,
+          resolved.passwordFailure.message,
+        )
+      }
+      const active = getActiveAccount()
+      if (!active) {
+        return jsonError(401, 'UNAUTHORIZED', '请先登录')
+      }
+      const body = (await request.json().catch(() => null)) as Partial<{
+        currentPassword: string
+        newPassword: string
+      }> | null
+      const currentPassword = typeof body?.currentPassword === 'string' ? body.currentPassword : ''
+      const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : ''
+      if (
+        currentPassword.length < 1 ||
+        currentPassword.length > 64 ||
+        newPassword.length < 8 ||
+        newPassword.length > 64 ||
+        newPassword === currentPassword
+      ) {
+        return jsonError(400, 'BAD_REQUEST', '参数不合法')
+      }
+      if (currentPassword !== active.password) {
+        return jsonError(400, 'INVALID_CURRENT_PASSWORD', '当前密码不正确')
+      }
+      active.password = newPassword
+      identityState.activeUsername = null
+      persistIdentity()
+      return new HttpResponse(null, { status: 204 })
+    }),
+
+    http.get('/api/me', () => {
+      const active = getActiveAccount()
+      if (!active) {
+        return jsonError(401, 'UNAUTHORIZED', '请先登录')
+      }
+      return HttpResponse.json(toMe(active), { status: 200 })
+    }),
   ]
 }
 
