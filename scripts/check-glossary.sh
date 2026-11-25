@@ -93,10 +93,13 @@ protected_compound_for() {
   awk -F'\t' -v term="$1" 'NF >= 2 && $1 == term { print $2 }' <<< "$protected_table"
 }
 
-# 减去正名和白名单，剩下的才是真正该报警的词
-terms=$(comm -23 \
-  <(printf '%s\n' "$avoid" | sort -u) \
-  <(printf '%s\n' "$canonical" "$allow_words" | sort -u))
+# 减去正名和白名单，剩下的才是真正该报警的词。
+# sort 与 comm 必须同时固定 LC_ALL=C：comm 按当前 locale 的排序规则比较，
+# 而 sort 在 UTF-8 locale 下用本地化排序。两边顺序对不上时 comm 会静默
+# 丢掉整段条目（中文词最先丢），候选集随运行环境变化。
+terms=$(LC_ALL=C comm -23 \
+  <(printf '%s\n' "$avoid" | LC_ALL=C sort -u) \
+  <(printf '%s\n' "$canonical" "$allow_words" | LC_ALL=C sort -u))
 
 count=$(printf '%s\n' "$terms" | grep -c . || true)
 avoid_count=$(printf '%s\n' "$avoid" | grep -c . || true)
