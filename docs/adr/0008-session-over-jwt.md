@@ -24,3 +24,5 @@ Cookie 会被浏览器自动携带，所以 Session 天然暴露在 CSRF 下。J
 - 支付与退款回调白名单跳过以上检查。它们没有用户会话，安全性由签名保证——回调本来就必须验签，否则任何人都能伪造「支付成功」
 
 这套方案成立的前提是**前后端同源部署**。哪天分到不同域名，`SameSite=Lax` 会让 Cookie 根本不发送，那时必须换成 Double Submit Cookie：服务端下发非 HttpOnly 的 `XSRF-TOKEN`，前端读出来放进请求头，服务端比对两者。同源时不用，跨域时不可省。
+
+**2026-11-25 补充**：修改密码（`PUT /me/password`）与封号同理，需立即作废该账号在 Redis 中的全部既有会话（含当前设备与其他设备的活跃会话）。因此 Stage 2 后端实现不得只删除当前请求的 session ID，必须按账号 principal 索引（如 Spring Session 的 `FindByIndexNameSessionRepository`）删除该账号名下的所有会话。

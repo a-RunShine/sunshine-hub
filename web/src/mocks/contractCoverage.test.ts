@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { scenarios } from './scenarios'
+import { scenarios, type MockFailure, type MockScenario } from './scenarios'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const openapiPath = path.resolve(here, '../../../api/openapi.yaml')
@@ -66,120 +66,100 @@ function declaredCodes(node: OperationNode, operation: string): string[] {
   return [...codes]
 }
 
-const claimResponses = openapi.paths['/campaigns/{campaignId}/claim'].post!
-const orderResponses = openapi.paths['/orders'].post!
+function collectScenarioCodes(selectFailure: (scenario: MockScenario) => MockFailure | undefined): Set<string> {
+  return new Set(
+    scenarios
+      .map((scenario) => selectFailure(scenario)?.code)
+      .filter((code): code is string => Boolean(code)),
+  )
+}
 
-const claimScenarioCodes = new Set(
-  scenarios.map((scenario) => scenario.claimFailure?.code).filter((code): code is string => Boolean(code)),
-)
-const orderScenarioCodes = new Set(
-  scenarios.map((scenario) => scenario.orderFailure?.code).filter((code): code is string => Boolean(code)),
-)
-const addressCreateScenarioCodes = new Set(
-  scenarios
-    .map((scenario) => scenario.addressCreateFailure?.code)
-    .filter((code): code is string => Boolean(code)),
-)
-const addressUpdateScenarioCodes = new Set(
-  scenarios
-    .map((scenario) => scenario.addressUpdateFailure?.code)
-    .filter((code): code is string => Boolean(code)),
-)
-const addressDeleteScenarioCodes = new Set(
-  scenarios
-    .map((scenario) => scenario.addressDeleteFailure?.code)
-    .filter((code): code is string => Boolean(code)),
-)
-const addressDefaultScenarioCodes = new Set(
-  scenarios
-    .map((scenario) => scenario.addressDefaultFailure?.code)
-    .filter((code): code is string => Boolean(code)),
-)
-const signScenarioCodes = new Set(
-  scenarios.map((scenario) => scenario.signFailure?.code).filter((code): code is string => Boolean(code)),
-)
-const categoryScenarioCodes = new Set(
-  scenarios
-    .map((scenario) => scenario.categoryFailure?.code)
-    .filter((code): code is string => Boolean(code)),
-)
+interface CoverageTarget {
+  readonly label: string
+  readonly operation: OperationNode
+  readonly selectFailure: (scenario: MockScenario) => MockFailure | undefined
+}
+
+const COVERAGE_TARGETS: readonly CoverageTarget[] = [
+  {
+    label: 'POST /campaigns/{campaignId}/claim',
+    operation: openapi.paths['/campaigns/{campaignId}/claim'].post!,
+    selectFailure: (scenario) => scenario.claimFailure,
+  },
+  {
+    label: 'POST /orders',
+    operation: openapi.paths['/orders'].post!,
+    selectFailure: (scenario) => scenario.orderFailure,
+  },
+  {
+    label: 'POST /addresses',
+    operation: openapi.paths['/addresses'].post!,
+    selectFailure: (scenario) => scenario.addressCreateFailure,
+  },
+  {
+    label: 'PUT /addresses/{addressId}',
+    operation: openapi.paths['/addresses/{addressId}'].put!,
+    selectFailure: (scenario) => scenario.addressUpdateFailure,
+  },
+  {
+    label: 'DELETE /addresses/{addressId}',
+    operation: openapi.paths['/addresses/{addressId}'].delete!,
+    selectFailure: (scenario) => scenario.addressDeleteFailure,
+  },
+  {
+    label: 'PUT /addresses/{addressId}/default',
+    operation: openapi.paths['/addresses/{addressId}/default'].put!,
+    selectFailure: (scenario) => scenario.addressDefaultFailure,
+  },
+  {
+    label: 'POST /fulfillments/{fulfillmentId}/sign',
+    operation: openapi.paths['/fulfillments/{fulfillmentId}/sign'].post!,
+    selectFailure: (scenario) => scenario.signFailure,
+  },
+  {
+    label: 'POST /admin/categories',
+    operation: openapi.paths['/admin/categories'].post!,
+    selectFailure: (scenario) => scenario.categoryFailure,
+  },
+  {
+    label: 'PUT /admin/categories/{categoryId}',
+    operation: openapi.paths['/admin/categories/{categoryId}'].put!,
+    selectFailure: (scenario) => scenario.categoryFailure,
+  },
+  {
+    label: 'DELETE /admin/categories/{categoryId}',
+    operation: openapi.paths['/admin/categories/{categoryId}'].delete!,
+    selectFailure: (scenario) => scenario.categoryFailure,
+  },
+  {
+    label: 'POST /auth/register',
+    operation: openapi.paths['/auth/register'].post!,
+    selectFailure: (scenario) => scenario.registerFailure,
+  },
+  {
+    label: 'POST /auth/login',
+    operation: openapi.paths['/auth/login'].post!,
+    selectFailure: (scenario) => scenario.loginFailure,
+  },
+  {
+    label: 'POST /auth/logout',
+    operation: openapi.paths['/auth/logout'].post!,
+    selectFailure: (scenario) => scenario.logoutFailure,
+  },
+  {
+    label: 'PUT /me/password',
+    operation: openapi.paths['/me/password'].put!,
+    selectFailure: (scenario) => scenario.passwordFailure,
+  },
+]
 
 describe('契约错误码 ↔ mock 场景覆盖', () => {
-  it('claim 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(claimResponses, 'POST /campaigns/{campaignId}/claim')
-    const missing = declared.filter((code) => !claimScenarioCodes.has(code))
-    expect(missing).toEqual([])
-  })
-
-  it('POST /orders 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(orderResponses, 'POST /orders')
-    const missing = declared.filter((code) => !orderScenarioCodes.has(code))
-    expect(missing).toEqual([])
-  })
-
-  it('POST /addresses 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(openapi.paths['/addresses'].post!, 'POST /addresses')
-    const missing = declared.filter((code) => !addressCreateScenarioCodes.has(code))
-    expect(missing).toEqual([])
-  })
-
-  it('PUT /addresses/{addressId} 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(
-      openapi.paths['/addresses/{addressId}'].put!,
-      'PUT /addresses/{addressId}',
-    )
-    const missing = declared.filter((code) => !addressUpdateScenarioCodes.has(code))
-    expect(missing).toEqual([])
-  })
-
-  it('DELETE /addresses/{addressId} 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(
-      openapi.paths['/addresses/{addressId}'].delete!,
-      'DELETE /addresses/{addressId}',
-    )
-    const missing = declared.filter((code) => !addressDeleteScenarioCodes.has(code))
-    expect(missing).toEqual([])
-  })
-
-  it('PUT /addresses/{addressId}/default 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(
-      openapi.paths['/addresses/{addressId}/default'].put!,
-      'PUT /addresses/{addressId}/default',
-    )
-    const missing = declared.filter((code) => !addressDefaultScenarioCodes.has(code))
-    expect(missing).toEqual([])
-  })
-
-  it('POST /fulfillments/{fulfillmentId}/sign 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(
-      openapi.paths['/fulfillments/{fulfillmentId}/sign'].post!,
-      'POST /fulfillments/{fulfillmentId}/sign',
-    )
-    const missing = declared.filter((code) => !signScenarioCodes.has(code))
-    expect(missing).toEqual([])
-  })
-
-  it('POST /admin/categories 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(openapi.paths['/admin/categories'].post!, 'POST /admin/categories')
-    const missing = declared.filter((code) => !categoryScenarioCodes.has(code))
-    expect(missing).toEqual([])
-  })
-
-  it('PUT /admin/categories/{categoryId} 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(
-      openapi.paths['/admin/categories/{categoryId}'].put!,
-      'PUT /admin/categories/{categoryId}',
-    )
-    const missing = declared.filter((code) => !categoryScenarioCodes.has(code))
-    expect(missing).toEqual([])
-  })
-
-  it('DELETE /admin/categories/{categoryId} 契约声明的每个错误码都至少有一个场景产出', () => {
-    const declared = declaredCodes(
-      openapi.paths['/admin/categories/{categoryId}'].delete!,
-      'DELETE /admin/categories/{categoryId}',
-    )
-    const missing = declared.filter((code) => !categoryScenarioCodes.has(code))
-    expect(missing).toEqual([])
-  })
+  it.each(COVERAGE_TARGETS)(
+    '$label 契约声明的每个错误码都至少有一个场景产出',
+    ({ label, operation, selectFailure }) => {
+      const declared = declaredCodes(operation, label)
+      const covered = collectScenarioCodes(selectFailure)
+      expect(declared.filter((code) => !covered.has(code))).toEqual([])
+    },
+  )
 })

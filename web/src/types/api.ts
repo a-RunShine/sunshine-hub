@@ -238,6 +238,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 修改密码
+         * @description 校验当前密码后更新为新密码，并作废该账号在 Redis 中的全部既有会话。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        currentPassword: string;
+                        newPassword: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 密码已修改，该账号全部既有会话已作废 */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 当前密码不正确，或新密码格式不合法、与当前密码相同。code：INVALID_CURRENT_PASSWORD、BAD_REQUEST */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/products": {
         parameters: {
             query?: never;
@@ -2268,7 +2322,7 @@ export interface components {
          * @description 业务错误码，与 src/main/java/com/sunshinefps/shared/ErrorCode.java 一一对应。新增错误码必须两边同步
          * @enum {string}
          */
-        ErrorCode: "UNAUTHORIZED" | "FORBIDDEN" | "REAL_NAME_REQUIRED" | "REAL_NAME_ALREADY_SET" | "USERNAME_TAKEN" | "BAD_CREDENTIALS" | "PRODUCT_NOT_FOUND" | "CATEGORY_NOT_FOUND" | "CATEGORY_IN_USE" | "CAMPAIGN_NOT_FOUND" | "CAMPAIGN_NOT_STARTED" | "CAMPAIGN_ENDED" | "QUOTA_EXCEEDED" | "ALREADY_PURCHASED" | "PURCHASE_COOLDOWN" | "SOLD_OUT" | "UNIT_POOL_INCONSISTENT" | "RATE_LIMITED" | "ORDER_NOT_FOUND" | "ORDER_NOT_PAYABLE" | "ORDER_NOT_CANCELLABLE" | "STOCK_INSUFFICIENT" | "ADDRESS_REQUIRED" | "ADDRESS_NOT_FOUND" | "ADDRESS_LIMIT_EXCEEDED" | "ADDRESS_IN_USE" | "FULFILLMENT_NOT_FOUND" | "FULFILLMENT_NOT_SIGNABLE" | "REFUND_NOT_FOUND" | "REFUND_NOT_ALLOWED" | "REFUND_ALREADY_OPEN" | "ANNOUNCEMENT_NOT_FOUND" | "EVENT_NOT_FOUND" | "BAD_REQUEST" | "INTERNAL_ERROR";
+        ErrorCode: "UNAUTHORIZED" | "FORBIDDEN" | "REAL_NAME_REQUIRED" | "REAL_NAME_ALREADY_SET" | "USERNAME_TAKEN" | "BAD_CREDENTIALS" | "INVALID_CURRENT_PASSWORD" | "PRODUCT_NOT_FOUND" | "CATEGORY_NOT_FOUND" | "CATEGORY_IN_USE" | "CAMPAIGN_NOT_FOUND" | "CAMPAIGN_NOT_STARTED" | "CAMPAIGN_ENDED" | "QUOTA_EXCEEDED" | "ALREADY_PURCHASED" | "PURCHASE_COOLDOWN" | "SOLD_OUT" | "UNIT_POOL_INCONSISTENT" | "RATE_LIMITED" | "ORDER_NOT_FOUND" | "ORDER_NOT_PAYABLE" | "ORDER_NOT_CANCELLABLE" | "STOCK_INSUFFICIENT" | "ADDRESS_REQUIRED" | "ADDRESS_NOT_FOUND" | "ADDRESS_LIMIT_EXCEEDED" | "ADDRESS_IN_USE" | "FULFILLMENT_NOT_FOUND" | "FULFILLMENT_NOT_SIGNABLE" | "REFUND_NOT_FOUND" | "REFUND_NOT_ALLOWED" | "REFUND_ALREADY_OPEN" | "ANNOUNCEMENT_NOT_FOUND" | "EVENT_NOT_FOUND" | "BAD_REQUEST" | "INTERNAL_ERROR";
         Error: {
             code: components["schemas"]["ErrorCode"];
             /** @description 可直接展示给用户的中文文案 */

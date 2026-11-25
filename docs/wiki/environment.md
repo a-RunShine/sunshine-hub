@@ -139,6 +139,17 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 >
 > **教训**：判断某个检查是否存在，要读 CI 全文，不能凭一句文档转述；`git show <ref>:<path>` 取不到内容时，先分清「文件不存在」与「路径是目录」，别把取不到读成没有。本轮 retro 就据此误判过一次 `CODING_STANDARDS`——它其实是个目录，`README.md` + `java.md` + `typescript.md` 三份俱全。
 
+### 本地 shell 带 `NODE_ENV=production` 时 Vitest 全红（2026-11-25）
+
+本机 shell 环境里有 `NODE_ENV=production`（`env | grep '^NODE_ENV'` 可直接确认）。Vitest 继承它之后，`@testing-library/react` 报 `Error: act(...) is not supported in production builds of React.`，**凡是渲染组件的用例一律失败**，看上去像代码坏了。
+
+实测（`feat/69-auth-settings`，`8d7337b`）：裸跑 `pnpm --dir web check` 是 `Test Files 14 failed | 6 passed`、`Tests 103 failed`；加上 `env -u NODE_ENV` 后同一命令 20 个文件 / 248 个用例全绿。所以本地跑前端校验与起 dev server 都先摘掉它：
+
+```bash
+env -u NODE_ENV pnpm --dir web check
+env -u NODE_ENV pnpm --dir web dev
+```
+
 ## Shell 与 locale：本机默认是 C，多字节工具会踩坑
 
 > **2026-11-20 更正（superseded，`d654255` / PR #56）**：本节三处结论在当前云主机上都不成立，脚本缺陷也已修掉。

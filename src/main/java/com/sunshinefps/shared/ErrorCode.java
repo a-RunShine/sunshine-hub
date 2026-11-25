@@ -9,6 +9,7 @@ public enum ErrorCode {
     REAL_NAME_ALREADY_SET("实名信息已提交，不能修改", HttpStatus.CONFLICT),
     USERNAME_TAKEN("这个用户名已经被占用", HttpStatus.CONFLICT),
     BAD_CREDENTIALS("用户名或密码不对", HttpStatus.UNAUTHORIZED),
+    INVALID_CURRENT_PASSWORD("当前密码不正确", HttpStatus.BAD_REQUEST),
 
     PRODUCT_NOT_FOUND("商品不存在", HttpStatus.NOT_FOUND),
     CATEGORY_NOT_FOUND("分类不存在", HttpStatus.NOT_FOUND),

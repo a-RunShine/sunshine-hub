@@ -22,6 +22,10 @@ function scenarioTargets(scenario: MockScenario): string[] {
     targets.push('地址')
   }
   if (scenario.signFailure) targets.push('签收')
+  if (scenario.registerFailure) targets.push('注册')
+  if (scenario.loginFailure) targets.push('登录')
+  if (scenario.logoutFailure) targets.push('退出')
+  if (scenario.passwordFailure) targets.push('修改密码')
   return targets
 }
 

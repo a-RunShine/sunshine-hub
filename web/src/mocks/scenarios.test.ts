@@ -1,7 +1,7 @@
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createHandlers } from './handlers'
-import { DEFAULT_SCENARIO_ID, scenarios } from './scenarios'
+import { DEFAULT_SCENARIO_ID, scenarios, type MockFailure } from './scenarios'
 
 const ORIGIN = 'http://localhost:3000'
 
@@ -130,76 +130,62 @@ function signFulfillment(scenarioId?: string): Promise<Response> {
   })
 }
 
+function postRegister(scenarioId?: string): Promise<Response> {
+  return fetch(`${ORIGIN}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...scenarioHeaders(scenarioId) },
+    body: JSON.stringify({ username: 'demo', password: 'password1' }),
+  })
+}
+
+function postLogin(scenarioId?: string): Promise<Response> {
+  return fetch(`${ORIGIN}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...scenarioHeaders(scenarioId) },
+    body: JSON.stringify({ username: 'demo', password: 'wrong-password' }),
+  })
+}
+
+function postLogout(scenarioId?: string): Promise<Response> {
+  return fetch(`${ORIGIN}/api/auth/logout`, {
+    method: 'POST',
+    headers: scenarioHeaders(scenarioId),
+  })
+}
+
+function putPassword(scenarioId?: string): Promise<Response> {
+  return fetch(`${ORIGIN}/api/me/password`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...scenarioHeaders(scenarioId) },
+    body: JSON.stringify({ currentPassword: 'wrong', newPassword: 'newpassword1' }),
+  })
+}
+
 describe('场景注册表：逐场景走 HTTP 边界', () => {
   it.each(scenarios)('$id：按声明产出失败响应或详情形状', async (scenario) => {
-    if (scenario.claimFailure) {
-      const res = await postClaim(scenario.id)
-      expect(res.status).toBe(scenario.claimFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.claimFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
+    const failureChecks: Array<
+      readonly [MockFailure | undefined, (scenarioId?: string) => Promise<Response>]
+    > = [
+      [scenario.claimFailure, postClaim],
+      [scenario.orderFailure, postOrder],
+      [scenario.categoryFailure, deleteCategory],
+      [scenario.addressCreateFailure, postAddress],
+      [scenario.addressUpdateFailure, putAddress],
+      [scenario.addressDeleteFailure, deleteAddress],
+      [scenario.addressDefaultFailure, putAddressDefault],
+      [scenario.signFailure, signFulfillment],
+      [scenario.registerFailure, postRegister],
+      [scenario.loginFailure, postLogin],
+      [scenario.logoutFailure, postLogout],
+      [scenario.passwordFailure, putPassword],
+    ]
 
-    if (scenario.orderFailure) {
-      const res = await postOrder(scenario.id)
-      expect(res.status).toBe(scenario.orderFailure.status)
+    for (const [failure, requester] of failureChecks) {
+      if (!failure) continue
+      const res = await requester(scenario.id)
+      expect(res.status).toBe(failure.status)
       const body = await res.json()
-      expect(body.code).toBe(scenario.orderFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.categoryFailure) {
-      const res = await deleteCategory(scenario.id)
-      expect(res.status).toBe(scenario.categoryFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.categoryFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.addressCreateFailure) {
-      const res = await postAddress(scenario.id)
-      expect(res.status).toBe(scenario.addressCreateFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.addressCreateFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.addressUpdateFailure) {
-      const res = await putAddress(scenario.id)
-      expect(res.status).toBe(scenario.addressUpdateFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.addressUpdateFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.addressDeleteFailure) {
-      const res = await deleteAddress(scenario.id)
-      expect(res.status).toBe(scenario.addressDeleteFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.addressDeleteFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.addressDefaultFailure) {
-      const res = await putAddressDefault(scenario.id)
-      expect(res.status).toBe(scenario.addressDefaultFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.addressDefaultFailure.code)
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-    }
-
-    if (scenario.signFailure) {
-      const res = await signFulfillment(scenario.id)
-      expect(res.status).toBe(scenario.signFailure.status)
-      const body = await res.json()
-      expect(body.code).toBe(scenario.signFailure.code)
+      expect(body.code).toBe(failure.code)
       expect(typeof body.message).toBe('string')
       expect(body.message.length).toBeGreaterThan(0)
     }
@@ -383,5 +369,105 @@ describe('实名提交 mock 边界', () => {
     expect(body.code).toBe('BAD_REQUEST')
     expect(typeof body.message).toBe('string')
     expect(body.message.length).toBeGreaterThan(0)
+  })
+})
+
+function createMemoryStorage(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
+  const store = new Map<string, string>()
+  return {
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => {
+      store.set(key, value)
+    },
+    removeItem: (key) => {
+      store.delete(key)
+    },
+  }
+}
+
+describe('身份与会话 mock 持久化边界', () => {
+  it('支持注册、重复用户名 409、登出 204/401、修改密码后全会话作废与跨刷新持久化', async () => {
+    const storage = createMemoryStorage()
+    server.use(...createHandlers(undefined, { storage, initialUsername: null }))
+
+    const anonMe = await fetch(`${ORIGIN}/api/me`)
+    expect(anonMe.status).toBe(401)
+    expect((await anonMe.json()).code).toBe('UNAUTHORIZED')
+
+    const anonLogout = await fetch(`${ORIGIN}/api/auth/logout`, { method: 'POST' })
+    expect(anonLogout.status).toBe(401)
+
+    const dupDemo = await fetch(`${ORIGIN}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'demo', password: 'password1' }),
+    })
+    expect(dupDemo.status).toBe(409)
+    expect((await dupDemo.json()).code).toBe('USERNAME_TAKEN')
+
+    const reg = await fetch(`${ORIGIN}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'alice_01', password: 'password1' }),
+    })
+    expect(reg.status).toBe(201)
+    const alice = await reg.json()
+    expect(alice.username).toBe('alice_01')
+    expect(alice.realNameVerified).toBe(false)
+
+    server.use(...createHandlers(undefined, { storage }))
+    const afterRefreshMe = await fetch(`${ORIGIN}/api/me`)
+    expect(afterRefreshMe.status).toBe(200)
+    expect((await afterRefreshMe.json()).username).toBe('alice_01')
+
+    const samePassword = await fetch(`${ORIGIN}/api/me/password`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'password1', newPassword: 'password1' }),
+    })
+    expect(samePassword.status).toBe(400)
+    expect((await samePassword.json()).code).toBe('BAD_REQUEST')
+
+    const wrongCurrent = await fetch(`${ORIGIN}/api/me/password`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'wrongpass', newPassword: 'password2' }),
+    })
+    expect(wrongCurrent.status).toBe(400)
+    expect((await wrongCurrent.json()).code).toBe('INVALID_CURRENT_PASSWORD')
+
+    const changed = await fetch(`${ORIGIN}/api/me/password`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'password1', newPassword: 'password2' }),
+    })
+    expect(changed.status).toBe(204)
+
+    server.use(...createHandlers(undefined, { storage }))
+    const expiredMe = await fetch(`${ORIGIN}/api/me`)
+    expect(expiredMe.status).toBe(401)
+
+    const oldLogin = await fetch(`${ORIGIN}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'alice_01', password: 'password1' }),
+    })
+    expect(oldLogin.status).toBe(401)
+    expect((await oldLogin.json()).code).toBe('BAD_CREDENTIALS')
+
+    const newLogin = await fetch(`${ORIGIN}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'alice_01', password: 'password2' }),
+    })
+    expect(newLogin.status).toBe(200)
+    expect((await newLogin.json()).username).toBe('alice_01')
+
+    const loggedOut = await fetch(`${ORIGIN}/api/auth/logout`, { method: 'POST' })
+    expect(loggedOut.status).toBe(204)
+
+    server.use(...createHandlers(undefined, { storage }))
+    const postLogoutMe = await fetch(`${ORIGIN}/api/me`)
+    expect(postLogoutMe.status).toBe(401)
   })
 })

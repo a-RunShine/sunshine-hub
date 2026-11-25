@@ -20,6 +20,10 @@ export interface MockScenario {
   readonly addressDeleteFailure?: MockFailure
   readonly addressDefaultFailure?: MockFailure
   readonly signFailure?: MockFailure
+  readonly registerFailure?: MockFailure
+  readonly loginFailure?: MockFailure
+  readonly logoutFailure?: MockFailure
+  readonly passwordFailure?: MockFailure
 }
 
 export const DEFAULT_SCENARIO_ID = 'happy'
@@ -377,5 +381,48 @@ export const scenarios: readonly MockScenario[] = [
     id: 'fulfillment-unauthorized',
     description: '未登录或会话已过期：签收回 401',
     signFailure: unauthorizedFailure,
+  },
+
+  {
+    id: 'register-username-taken',
+    description: '注册用户名已被占用：409 USERNAME_TAKEN',
+    registerFailure: {
+      status: 409,
+      code: 'USERNAME_TAKEN',
+      message: '这个用户名已经被占用',
+    },
+  },
+  {
+    id: 'login-bad-credentials',
+    description: '登录凭据错误：401 BAD_CREDENTIALS',
+    loginFailure: {
+      status: 401,
+      code: 'BAD_CREDENTIALS',
+      message: '用户名或密码不对',
+    },
+  },
+  {
+    id: 'logout-unauthorized',
+    description: '登出未登录或会话已过期：401 UNAUTHORIZED',
+    logoutFailure: unauthorizedFailure,
+  },
+  {
+    id: 'password-invalid-current',
+    description: '修改密码当前密码不正确：400 INVALID_CURRENT_PASSWORD',
+    passwordFailure: {
+      status: 400,
+      code: 'INVALID_CURRENT_PASSWORD',
+      message: '当前密码不正确',
+    },
+  },
+  {
+    id: 'password-bad-request',
+    description: '修改密码参数不合法：400 BAD_REQUEST',
+    passwordFailure: badRequestFailure,
+  },
+  {
+    id: 'password-unauthorized',
+    description: '修改密码未登录或会话已过期：401 UNAUTHORIZED',
+    passwordFailure: unauthorizedFailure,
   },
 ]
