@@ -65,6 +65,49 @@ test('check-all.sh 覆盖全量校验的每一步且前端用 env -u NODE_ENV', 
   assert.match(body, /--skip-maven/);
 });
 
+const NO_JDK_ENV = {
+  ...process.env,
+  CHECK_ALL_JAVA_HOME: '/nonexistent',
+  CHECK_ALL_DISABLE_JAVA_PROBE: '1',
+  JAVA_HOME: '/nonexistent',
+  HOME: '/nonexistent',
+  PATH: '/usr/bin:/bin',
+};
+
+test('无 JDK 25 的环境下 --fast --dry-run 仍退出 0', () => {
+  const res = spawnSync('bash', [CHECK_ALL, '--fast', '--dry-run'], {
+    encoding: 'utf8',
+    env: NO_JDK_ENV,
+  });
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /跳过 \.\/mvnw -B verify/);
+});
+
+test('无 JDK 25 的环境下 --dry-run 打印占位 JAVA_HOME 并退出 0', () => {
+  const res = spawnSync('bash', [CHECK_ALL, '--dry-run'], {
+    encoding: 'utf8',
+    env: NO_JDK_ENV,
+  });
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /占位/);
+  assert.match(res.stdout, /\[dry-run\] 后端全量构建/);
+});
+
+test('无 JDK 25 且要真跑 Maven 时提前报错退出 1', () => {
+  const res = spawnSync('bash', [CHECK_ALL], { encoding: 'utf8', env: NO_JDK_ENV });
+  assert.equal(res.status, 1);
+  assert.match(res.stderr, /找不到 JDK 25/);
+});
+
+test('--resolve-java-home 探不到 JDK 25 时退出 1', () => {
+  const res = spawnSync('bash', [CHECK_ALL, '--resolve-java-home'], {
+    encoding: 'utf8',
+    env: NO_JDK_ENV,
+  });
+  assert.equal(res.status, 1);
+  assert.match(res.stderr, /找不到 JDK 25/);
+});
+
 test('check-all.sh 的 JDK 25 探测覆盖 macOS 与云主机候选路径', () => {
   const body = readScript(CHECK_ALL);
   assert.match(body, /\/usr\/libexec\/java_home -v 25/);
@@ -140,8 +183,9 @@ test('pre-commit 跑快检、只在 web/ 有暂存改动且装了依赖时做前
   const body = readScript(PRE_COMMIT);
   assert.match(body, /node scripts\/check-doc-links\.mjs/);
   assert.match(body, /node scripts\/check-ui-primitives\.mjs/);
-  assert.match(body, /git diff --cached --name-only/);
-  assert.match(body, /\^web\//);
+  assert.match(body, /git diff --cached --quiet -- web\//);
+  assert.doesNotMatch(body, /git diff --cached --name-only/);
+  assert.doesNotMatch(body, /--amend/);
   assert.match(body, /web\/node_modules/);
   assert.match(body, /env -u NODE_ENV pnpm --dir web exec tsc --noEmit/);
   assert.match(body, /env -u NODE_ENV pnpm --dir web lint/);

@@ -29,7 +29,8 @@ usage() {
   --help, -h             打印本帮助，退出 0
 
 环境变量:
-  CHECK_ALL_JAVA_HOME    显式指定 JDK 25 路径，优先于自动探测
+  CHECK_ALL_JAVA_HOME        显式指定 JDK 25 路径，优先于自动探测
+  CHECK_ALL_DISABLE_JAVA_PROBE=1  跳过固定路径与 java_home 探测，只认显式指定
 
 退出码: 0 全部通过；1 某一步失败或找不到 JDK 25。
 EOF
@@ -77,6 +78,10 @@ resolve_java_home() {
     fi
   done
 
+  if [ "${CHECK_ALL_DISABLE_JAVA_PROBE:-0}" = 1 ]; then
+    return 1
+  fi
+
   local mac_temurin=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
   local mac_java_home=''
   if [ -x /usr/libexec/java_home ]; then
@@ -93,17 +98,25 @@ resolve_java_home() {
   return 1
 }
 
-if ! jdk_home=$(resolve_java_home); then
-  cat >&2 <<'EOF'
+# --fast / --skip-maven 完全不碰 JDK：不跑 Maven 就没有 enforcer 拦路，
+# 无 JDK 25 的机器也应该能跑前端与文档校验。
+# --dry-run 不跳过 Maven 时只探测、不强制，探不到就打印占位符继续走。
+if [ "$skip_maven" = 0 ] || [ "$resolve_only" = 1 ]; then
+  if jdk_home=$(resolve_java_home); then
+    export JAVA_HOME="$jdk_home"
+    export PATH="$JAVA_HOME/bin:$PATH"
+  elif [ "$resolve_only" = 1 ] || [ "$dry_run" = 0 ]; then
+    cat >&2 <<'EOF'
 错误：找不到 JDK 25。
 本机 .jenv 默认指向 17，enforcer 会直接拦下构建。请安装 Temurin 25 后重试，或显式指定：
   CHECK_ALL_JAVA_HOME=/path/to/jdk-25 ./scripts/check-all.sh
+要跑不依赖 Maven 的校验，用 --fast（等价 --skip-maven）。
 EOF
-  exit 1
+    exit 1
+  else
+    JAVA_HOME='<未找到 JDK 25，--dry-run 仅占位>'
+  fi
 fi
-
-export JAVA_HOME="$jdk_home"
-export PATH="$JAVA_HOME/bin:$PATH"
 
 if [ "$resolve_only" = 1 ]; then
   printf '%s\n' "$JAVA_HOME"
@@ -128,7 +141,13 @@ run_step() {
   return 1
 }
 
-printf 'JAVA_HOME=%s (%s)\n' "$JAVA_HOME" "$("$JAVA_HOME/bin/java" -version 2>&1 | head -1)"
+if [ "$skip_maven" = 1 ]; then
+  printf 'JAVA_HOME=%s（--skip-maven 不探测 JDK 25）\n' "${JAVA_HOME:-<未设置>}"
+elif [ -x "${JAVA_HOME:-}/bin/java" ]; then
+  printf 'JAVA_HOME=%s (%s)\n' "$JAVA_HOME" "$("$JAVA_HOME/bin/java" -version 2>&1 | head -1)"
+else
+  printf 'JAVA_HOME=%s\n' "${JAVA_HOME:-<未设置>}"
+fi
 
 run_step "前端全量校验" env -u NODE_ENV pnpm --dir web check
 run_step "OpenAPI 契约校验" npx --yes @redocly/cli@latest lint api/openapi.yaml

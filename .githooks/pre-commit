@@ -25,7 +25,7 @@ step() {
 step "文档链接与 wiki 孤儿页" node scripts/check-doc-links.mjs
 step "shadcn 原语校验和" node scripts/check-ui-primitives.mjs
 
-if git diff --cached --name-only | grep -q '^web/'; then
+if ! git diff --cached --quiet -- web/; then
   if [ -d web/node_modules ]; then
     step "前端类型检查" env -u NODE_ENV pnpm --dir web exec tsc --noEmit
     step "前端 lint" env -u NODE_ENV pnpm --dir web lint
@@ -35,7 +35,7 @@ if git diff --cached --name-only | grep -q '^web/'; then
 fi
 
 if [ "$failures" -ne 0 ]; then
-  printf '\npre-commit 快检未通过（%s 项）。修复后用 git commit --amend 重试；确实要绕过用 --no-verify。\n' "$failures" >&2
+  printf '\npre-commit 快检未通过（%s 项）。修复并重新暂存后用 git commit 提交；确实要绕过用 --no-verify。\n' "$failures" >&2
   exit 1
 fi
 

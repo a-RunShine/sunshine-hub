@@ -1,4 +1,4 @@
-import { StrictMode, type ReactElement } from 'react'
+import { StrictMode } from 'react'
 import { render, type RenderResult } from '@testing-library/react'
 import { RouterProvider, createMemoryRouter, type RouteObject } from 'react-router-dom'
 
@@ -8,10 +8,7 @@ interface NodeUtil {
 
 interface GlobalsWithProcess {
   process?: { getBuiltinModule?: (id: string) => unknown }
-  [key: string]: unknown
 }
-
-const REQUEST_INSTALLED = '__dataRouterRequestInstalled'
 
 function nativeAbortController(): AbortController | undefined {
   const util = (globalThis as GlobalsWithProcess).process?.getBuiltinModule?.('node:util') as
@@ -20,8 +17,8 @@ function nativeAbortController(): AbortController | undefined {
   return util?.transferableAbortController?.()
 }
 
-function toNativeSignal(signal: AbortSignal | null | undefined): AbortSignal | null | undefined {
-  if (signal === null || signal === undefined) return signal
+function toNativeSignal(signal: AbortSignal | null): AbortSignal | null {
+  if (signal === null) return null
   const controller = nativeAbortController()
   if (!controller) return signal
   if (signal.aborted) {
@@ -32,17 +29,25 @@ function toNativeSignal(signal: AbortSignal | null | undefined): AbortSignal | n
   return controller.signal
 }
 
-export class DataRouterRequest extends Request {
+const BaseRequest = Request
+
+class DataRouterRequest extends BaseRequest {
   constructor(input: RequestInfo | URL, init?: RequestInit) {
-    super(input, { ...init, signal: toNativeSignal(init?.signal) })
+    if (init === undefined) {
+      super(input)
+      return
+    }
+    if (init.signal === undefined) {
+      super(input, init)
+      return
+    }
+    super(input, { ...init, signal: toNativeSignal(init.signal) })
   }
 }
 
 function installDataRouterRequest(): void {
-  const globals = globalThis as GlobalsWithProcess
-  if (globals[REQUEST_INSTALLED]) return
-  globals[REQUEST_INSTALLED] = true
-  globals.Request = DataRouterRequest
+  if (globalThis.Request === DataRouterRequest) return
+  globalThis.Request = DataRouterRequest
 }
 
 installDataRouterRequest()
@@ -66,12 +71,4 @@ export function renderWithDataRouter(
     </StrictMode>,
   )
   return { ...result, router }
-}
-
-export function renderElementWithDataRouter(
-  element: ReactElement,
-  path = '/',
-  options: DataRouterRenderOptions = {},
-): DataRouterRenderResult {
-  return renderWithDataRouter([{ path, element }], options)
 }

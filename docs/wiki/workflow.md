@@ -118,16 +118,23 @@ git merge origin/main
 
 ## PR 标 Ready 前的收口检查
 
-**2026-11-22 追加（源自 #68 / PR #77 复盘，Issue #81）**：这一条已被 root `AGENTS.md` `### Pull requests` 与 [pull-requests](../agents/pull-requests.md) 的 `## Code Review 门槛` 取代，本页只留教训本身——PR #77 曾只跑单测与多轮视觉检查，险些带出违反 ADR-0014 的 `silhouette.ts` 与未同步的源 Issue。**单测与截图看不出的领域约束，只有对照规范与源 Issue 的双轴评审能抓。**
+**2026-11-22 追加（源自 #68 / PR #77 复盘，Issue #81）**：
+
+- **PR 从 Draft 标 Ready（或请求 owner 合并）前，必须先跑一遍双轴 `/code-review`**：只跑单测与多轮视觉检查仍可能漏过领域约束（例如 PR #77 曾险些带出违反 ADR-0014 的 `silhouette.ts` 与未同步源 Issue）。收口时必须对 `origin/main...HEAD` 跑双轴 review（`Standards` 轴对照 `CODING_STANDARDS/`、`Spec` 轴对照源 Issue 与设计基线），修完发现的问题并重跑校验绿灯后，才将 PR 标为 `Ready for review` 或交由 owner 合并。
+- **交互/视觉迭代改动了原 Issue 范围或文案时同步回写源 Issue**：多轮打磨改变布局、范围或文案后，同步修订对应源 Issue 正文留痕；若改动了 `#2`、`#7` 等规格/实施计划类 Issue 正文，仍按上文「改 issue 正文必须把 before/after 贴进 PR 正文」要求，将每处 `before/after` 贴进 PR 正文 Evidence 段。
+
+> **2026-11-23 更正（`main` = `ab6e032`，部分 `superseded`）**：上条「所有 PR 标 Ready 前无条件跑双轴 `/code-review`」口径已 `superseded`，现行分级门槛（集成收官 1 轮 / 核心改动首轮 1 次、不另开空窗口 Re-Review / 纯文档自核）见根 `AGENTS.md` `### Pull requests`。「交互/视觉迭代改动了原 Issue 范围或文案时同步回写源 Issue」继续有效。
+
+> **2026-11-25 更新**：**现行口径已全部收口到**根 `AGENTS.md` `### Pull requests` 与 [docs/agents/pull-requests.md](../agents/pull-requests.md) 的 `## Code Review 门槛`，本页不再维护门槛细节，只留上面这条教训与历史记录。**单测与截图看不出的领域约束，只有对照规范与源 Issue 的双轴评审能抓。**
 
 ## PR 描述格式
 
 三段模板（Summary 给图或树，Evidence 给 before/after，Merge Danger 标单向门还是双向门）与 Code Review 门槛都在 [docs/agents/pull-requests.md](../agents/pull-requests.md)。
 
-## 2026-11-24 /retro 两条实测教训
+## 2026-11-25 /retro 两条实测教训
 
 - **评审修复若涉及跳转、守卫或 store 生命周期，动手修前先补失败回归用例。** 这类改动横跨渲染时机与卸载清理，靠肉眼比对 diff 判断「修好了」的命中率很低；先让新用例红，再改到它绿，才不会用另一种时序缺陷换掉原来的。
-- **多次读取长 Issue（如 `#2`、`#7`）前先一次 `gh issue view <n> --json body --jq .body > /tmp/<n>.md` 落盘**，之后读本地文件。重复远端请求既慢又容易在正文被改动时读到两个版本，而落盘那份至少自带上一次读取的时间戳。
+- **多次读取长 Issue（如 `#2`、`#7`）前先一次落盘**：`gh issue view <n> --json updatedAt,body > /tmp/<n>.json`，之后读本地文件。`--json updatedAt` 会带上 GitHub 的更新时间戳（正文本身不含时间），据此判断读到的是哪一版；重复远端请求既慢，又容易在正文被改动时前后读到两个版本。
 
 ## 定期文档与术语语义巡检（跨工具入口）
 
