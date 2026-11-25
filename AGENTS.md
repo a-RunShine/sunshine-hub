@@ -44,21 +44,13 @@ Issues 和 spec 都存在 GitHub Issues 里，用 `gh` CLI 操作。详见 `docs
 
 ### Pull requests
 
-PR 描述按三段模板写：Summary 给图或树、Evidence 给 before/after、Merge Danger 标单向门还是双向门。详见 `docs/agents/pull-requests.md`。
+PR 描述按三段模板写：Summary 给图或树、Evidence 给 before/after、Merge Danger 标单向门还是双向门。详见 [docs/agents/pull-requests.md](docs/agents/pull-requests.md)。
 
-**PR 标 Ready 或请求合并前按变更级别完成对应 Code Review：**
+**按变更级别选 Code Review 门槛**：集成多票分支收官跑 1 次双轴 `/code-review`；独立单票核心改动对 `origin/main...HEAD` 跑 1 次首轮双轴；纯 wiki / 文档改动自核 diff。分档清单、交互视觉迭代回写源 Issue、`scripts/pr-preflight.sh` 前置检查全在 [docs/agents/pull-requests.md](docs/agents/pull-requests.md)。
 
-- **`/implement-spec` 集成多票分支**：关联子票合入同一条集成分支后，在收官标 Ready 前跑 **1 次**双轴 `/code-review`（2 个 reviewer，对应 `Standards` 与 `Spec`），修完问题并重跑校验与 CI 后即标为 `Ready for review` 或交由 owner 合并，不再另开第二轮空窗口 Re-Review（仅高风险逻辑确需复核时用 `send_message` 复用原 reviewer）。
-- **独立单票代码 / 契约 / 规则 PR**（改动生产代码、测试、`api/openapi.yaml`、`GLOSSARY.md`、`docs/adr/`、`.github/workflows/`、CI 脚本、`AGENTS.md`、`*/AGENTS.md`（如 `web/AGENTS.md`）、`web/DESIGN.md`、`CODING_STANDARDS/`）：对 `origin/main...HEAD` 跑 **1 次**首轮双轴 `/code-review`，修完发现的问题并重跑校验后即可标 Ready 或交由 owner 合并，不另开重审（仅高风险逻辑确需复核时用 `send_message` 复用原 reviewer）。
-- **纯 Wiki / 文档补充 PR**（纯文档改动，仅改 `docs/wiki/` 或 `docs/agents/` 且不触及上述核心文件，无论几份）：跑通 `node scripts/check-doc-links.mjs`、`node --test scripts/*.test.mjs` 与 `./scripts/check-glossary.sh` 后自核 diff 即可，免起双轴子代理。
+**PR 开完即止，禁止擅自合并、关闭或删分支。** 标签、review 结论、CI 全绿都不等于合并授权：merge 与删远端分支必须等 owner 对**具体 PR** 逐项明确同意。
 
-**交互/视觉迭代改动了原 Issue 范围或文案时同步回写源 Issue：** 若多轮打磨调整了布局、范围或文案，同步修订对应源 Issue 正文；若修改了 `#2`、`#7` 等规格/计划类 Issue 正文，必须按 `docs/wiki/workflow.md` 将每处改动的 `before/after` 贴进 PR 正文 Evidence 段。
-
-**push / 改正文前先查 PR 状态：** 跑 `scripts/pr-preflight.sh <pr-number>` 确认仍 OPEN，流程说明见 `docs/agents/pull-requests.md`。
-
-**PR 开完即止，不要自己合并。** 合并必须等仓库所有者明确同意，一个字都别替他省。
-
-**打标签不等于合并授权。** 代理可以给 issue 或 PR 使用仓库已有标签（如 `needs-triage`、`ready-for-agent`、`docs`）；新增标签仍按本文件的标签规则，不随意造。但 merge、关闭 PR、删除远端分支都必须等 owner 对**具体 PR** 明确同意。标签、review 结论、CI 全绿、“看起来没问题”都不是同意。
+**范围扩及契约、后端或跨多页面时先拆票。** 需求讨论（如 `/grill-with-docs`）收口后先停下来向 owner 建议走 `/to-tickets` 拆垂直切片并等确认，再按 `/implement-spec` 推进；跳过切片一口气写完是最贵的返工。
 
 ### Triage labels
 

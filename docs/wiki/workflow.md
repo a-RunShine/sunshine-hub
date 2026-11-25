@@ -21,25 +21,17 @@
 
 **2026-11-16 复核**：让这条约定变便宜的工具是 `scripts/new-worktree.sh`（worktree + `node_modules` 软链，省掉一次 `pnpm install`）。**并行跑两个前端 ticket 必须传 `--no-link`**，否则共享的 `node_modules` 会互相覆盖。用法与理由见 [guardrails](guardrails.md)。
 
+## 需求讨论收口后先确认切片路径
+
+**2026-11-24 记**：`/grill-with-docs` 之类把设计树问空之后，agent 很容易直接开写代码，尤其当范围已经扩到契约、后端或跨多页面时。**这一步要停**：先向 owner 说明范围已经跨出单页，建议走 `/to-tickets` 按垂直切片拆票，等确认后再按 `/implement-spec` 推进。跳过切片一口气写完，返工成本落在最贵的地方——契约与多页面联动。
+
 ## PR 开完即止
 
-**commit `0cb3a41`（docs: 合并必须经所有者同意）** 起成为仓库纪律，`AGENTS.md` 有明文。
-
-**PR 开完即止，不要自己合并。** 合并必须等仓库所有者明确同意，一个字都别替他省。
-
-**2026-11-18 补充：** 代理可以给 issue 或 PR 打仓库已有标签；标签、评审结论、CI 全绿都不等于合并授权。合并必须得到 owner 对具体 PR 的明确同意。
-
-`main` 有分支保护，**只能走 PR，不能直接 push**（直接推会报 GH013）。
+现行纪律见根 `AGENTS.md` `### Pull requests`：**PR 开完即止，禁止擅自合并 / 关闭 / 删远端分支**，标签、评审结论与 CI 全绿都不构成授权。`main` 有分支保护，只能走 PR，直推报 GH013。历史起点是 commit `0cb3a41`。
 
 ## 改动涉及领域概念时全仓搜旧词
 
-**commit `d5c24c2`（docs: 增加改动纪律，删改概念要全仓搜旧词）**。`AGENTS.md` 有明文。
-
-删掉或改名一个领域概念时，全仓搜旧词。范围不止代码：模型图、表结构、Redis 键、用户故事、issue 都要过。
-
-`grep -rn` 只能找到一半，判断哪个词算旧词靠人。命中之后逐条过，不是看一眼有没有命中就收工。
-
-概念改一半最要命：两种叫法并存，旧的那半没人维护，下一个 agent 会照着它实现。
+现行纪律见根 `AGENTS.md` `## 改动纪律`：删改领域概念时全仓搜旧词，范围含模型图、表结构、Redis 键、用户故事与 issue。历史起点是 commit `d5c24c2`。
 
 ## 改 issue 正文必须把 before/after 贴进 PR 正文
 
@@ -104,7 +96,9 @@ git merge origin/main
 
 ## 提交前跑的检查
 
-**2026-11-16 交接记录**：
+**2026-11-25 现行入口**：一条命令跑完全部——`./scripts/check-all.sh`（会自动探 JDK 25，前端步骤固定 `env -u NODE_ENV`）。日常可 `--fast` 跳过 Maven。仓库级快检用 `.githooks/pre-commit`（`./scripts/install-hooks.sh` 启用），细节见 [environment](environment.md) 与 [guardrails](guardrails.md)。
+
+**2026-11-16 交接记录**（分步命令，已由上面的脚本收口）：
 
 - 后端 `mvn verify`（先设 `JAVA_HOME`，见 [environment](environment.md)）
 - ~~前端 `pnpm test && pnpm build && pnpm lint`~~（superseded，见下方 2026-11-22 更新）
@@ -120,22 +114,20 @@ git merge origin/main
 
 ## 评审前先读规范
 
-`AGENTS.md`：评审任何 diff 之前先读对应技术栈的规范——后端 `CODING_STANDARDS/java.md`，前端 `CODING_STANDARDS/typescript.md`，两边都动过就读两份。
-
-那两份里全是机器判不了的判断题，能交给 CI 的一条都不在里面。不读它们，评审只能凭印象。
+评审任何 diff 之前先读对应技术栈的规范：后端 `CODING_STANDARDS/java.md`，前端 `CODING_STANDARDS/typescript.md`，两边都动过就读两份。现行规定与理由见根 `AGENTS.md` `## 代码评审`。
 
 ## PR 标 Ready 前的收口检查
 
-**2026-11-22 追加（源自 #68 / PR #77 复盘，Issue #81）**：
-
-- **PR 从 Draft 标 Ready（或请求 owner 合并）前，必须先跑一遍双轴 `/code-review`**：只跑单测与多轮视觉检查仍可能漏过领域约束（例如 PR #77 曾险些带出违反 ADR-0014 的 `silhouette.ts` 与未同步源 Issue）。收口时必须对 `origin/main...HEAD` 跑双轴 review（`Standards` 轴对照 `CODING_STANDARDS/`、`Spec` 轴对照源 Issue 与设计基线），修完发现的问题并重跑校验绿灯后，才将 PR 标为 `Ready for review` 或交由 owner 合并。
-- **交互/视觉迭代改动了原 Issue 范围或文案时同步回写源 Issue**：多轮打磨改变布局、范围或文案后，同步修订对应源 Issue 正文留痕；若改动了 `#2`、`#7` 等规格/实施计划类 Issue 正文，仍按上文「改 issue 正文必须把 before/after 贴进 PR 正文」要求，将每处 `before/after` 贴进 PR 正文 Evidence 段。
-
-> **2026-11-23 更正（`main` = `ab6e032`，部分 `superseded`）**：上条「所有 PR 标 Ready 前无条件跑双轴 `/code-review`」口径已 `superseded`，现行分级门槛（集成收官 1 轮 / 核心改动首轮 1 次、不另开空窗口 Re-Review / 纯文档自核）见根 `AGENTS.md` `### Pull requests`。「交互/视觉迭代改动了原 Issue 范围或文案时同步回写源 Issue」继续有效。
+**2026-11-22 追加（源自 #68 / PR #77 复盘，Issue #81）**：这一条已被 root `AGENTS.md` `### Pull requests` 与 [pull-requests](../agents/pull-requests.md) 的 `## Code Review 门槛` 取代，本页只留教训本身——PR #77 曾只跑单测与多轮视觉检查，险些带出违反 ADR-0014 的 `silhouette.ts` 与未同步的源 Issue。**单测与截图看不出的领域约束，只有对照规范与源 Issue 的双轴评审能抓。**
 
 ## PR 描述格式
 
-`docs/agents/pull-requests.md`：三段模板——Summary 给图或树，Evidence 给 before/after，Merge Danger 标单向门还是双向门。
+三段模板（Summary 给图或树，Evidence 给 before/after，Merge Danger 标单向门还是双向门）与 Code Review 门槛都在 [docs/agents/pull-requests.md](../agents/pull-requests.md)。
+
+## 2026-11-24 /retro 两条实测教训
+
+- **评审修复若涉及跳转、守卫或 store 生命周期，动手修前先补失败回归用例。** 这类改动横跨渲染时机与卸载清理，靠肉眼比对 diff 判断「修好了」的命中率很低；先让新用例红，再改到它绿，才不会用另一种时序缺陷换掉原来的。
+- **多次读取长 Issue（如 `#2`、`#7`）前先一次 `gh issue view <n> --json body --jq .body > /tmp/<n>.md` 落盘**，之后读本地文件。重复远端请求既慢又容易在正文被改动时读到两个版本，而落盘那份至少自带上一次读取的时间戳。
 
 ## 定期文档与术语语义巡检（跨工具入口）
 
