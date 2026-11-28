@@ -311,6 +311,8 @@ spec 的缓存策略是逻辑过期 + 返回旧值：`campaign:detail:{campaignI
 > **2026-11-17 已决（owner 方案 A）**：NORMAL 常规售卖同样受冷却约束。冷却为商品级购买限制，按 `productId` 计、跨场生效，`claim` 与 NORMAL/DISCOUNT 的 `POST /orders` 都拦截；浏览与预约不拦。原「未定，别自行推广」按历史断言保留。
 
 > **2026-11-23 更正（`main` = `ab6e032`，`:264` 与 `:307`「`CampaignDetail` 拆分未拍」已 `superseded`）**：`CampaignDetail` 拆分方式已落入 `api/openapi.yaml:1542-1550`（PR #38 / `6acedd7`，采用 `oneOf` + `discriminator: type` 区分 `FlashCampaignDetail` 与 `SimpleCampaignDetail`），上文「仍未拍」清单中仅剩 `miss` 滚动窗口的数据结构、窗口起点与清零规则仍待后续后端实现阶段定稿；其余第 1–9 项（含 `issue #7:60-70` 五态权威清单）均已落地，详见顶部 `2026-11-23` 复核说明。
+>
+> **2026-11-28 补充（`main` = `f7651da`，`issue #2` 行号位移提示）**：`gh issue view 2` 实测（`updatedAt: 2026-11-25T02:59:28Z`，随开放态 PR #95 同步正文，PR #95 尚未合入 `main`）由 465/466 行增至 472 行，在 `:384` 前补入 `/api/auth/*` 与 `/api/me*` 共 6 行；上文换算表 `:47` 所指测试段落（原 `#2:402` → `:429`）随之顺移至 **`:435`**，此前 `:130`–`:292` 未发生位移。
 
 ### 旧问题列表（2026-11-16 早先，历史保留）
 
