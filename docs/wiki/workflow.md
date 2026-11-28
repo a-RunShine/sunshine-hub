@@ -49,6 +49,8 @@
 
 **为什么**：**issue 正文的改动不进 PR diff，评审看不到。** 实例就是 PR #25（merge commit `c5b5508`）：它的 commit `38d2eee` 声称把 #7 的三处改成指向 ADR 的完整链接，前置段落确实改了，**但阶段 1 页面清单第 50 行漏了**——`| 身份 | 注册（含实名、大区）、登录 |` 至今还在。PR #25 的 diff 只含 `api/openapi.yaml` 与 `docs/adr/0008-session-over-jwt.md`，**评审无从发现漏改**。
 
+> **2026-11-28 注（`main` = `f7651da`）**：上段作为 PR #25 历史教训保留；其中「`至今还在`」仅在 `2026-11-16`–`2026-11-23` 成立（`superseded`），`gh issue view 7` 实测于 `2026-11-25T02:59:32Z`（随开放态 PR #95 同步）已将第 50 行更新为 `| 身份 | 注册（用户名+密码）、登录、账号设置（只读实名状态与修改密码） |`。
+
 **这是结构性漏洞的人工兜底**：机器那一半是 **issue #27**（把术语检查扩到 issue 正文），仍 `needs-triage`，且 blocked by **#29**（先修仓库内检查）。**在 #27 落地之前，before/after 是唯一能让评审看见 issue 改动的办法。**
 
 与 `docs/agents/pull-requests.md` 的三段模板相容：before/after 就放在 **Evidence** 段。
